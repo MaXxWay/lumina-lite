@@ -2,26 +2,48 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Lumina Lite</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div id="auth-container" class="liquid-glass">
-        <h1>Lumina</h1>
-        <input type="email" id="email" class="glass-input" placeholder="Email">
-        <input type="password" id="password" class="glass-input" placeholder="Пароль">
-        <button id="login-btn" class="glass-button">Войти / Регистрация</button>
+    
+    <div id="step-email" class="liquid-glass auth-box active">
+        <div class="logo-container">
+            <span class="logo-main">Lumina</span>
+            <span class="logo-lite">Lite</span>
+        </div>
+        <p class="auth-subtitle">Введите вашу почту для входа или регистрации</p>
+        <input type="email" id="email" class="glass-input" placeholder="example@mail.com" autocomplete="email">
+        <button id="btn-next" class="glass-button">Далее</button>
     </div>
 
-    <div id="chat-container" class="liquid-glass">
+    <div id="step-password" class="liquid-glass auth-box">
+        <div class="back-button" id="btn-back">←</div>
+        <div class="logo-container compact">
+            <span class="logo-main">Lumina</span>
+            <span class="logo-lite">Lite</span>
+        </div>
+        <p class="auth-subtitle" id="display-email"></p>
+        <input type="password" id="password" class="glass-input" placeholder="Пароль" autocomplete="current-password">
+        <button id="btn-login" class="glass-button">Войти</button>
+    </div>
+
+    <div id="chat-container" class="liquid-glass chat-box">
+        <div class="chat-header">
+            <div class="logo-container compact">
+                <span class="logo-main">Lumina</span>
+                <span class="logo-lite">Lite</span>
+            </div>
+        </div>
         <div id="messages" class="messages-area"></div>
         <form id="message-form">
             <input type="text" id="message-input" class="glass-input" placeholder="Сообщение..." autocomplete="off">
-            <button type="submit" class="glass-button" style="width: 60px;">🚀</button>
+            <button type="submit" class="glass-button icon-btn">🚀</button>
         </form>
     </div>
+
     <script src="app.js"></script>
 </body>
 </html>
