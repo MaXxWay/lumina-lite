@@ -101,9 +101,30 @@ function render(msg) {
 
 const sendMsg = async () => {
     const input = document.getElementById('message-input');
-    if (!input.value.trim()) return;
-    const text = input.value; input.value = '';
-    await _supabase.from('messages').insert([{ text, user_id: currentUser.id }]);
+    const text = input.value.trim();
+    
+    if (!text) return;
+    if (!currentUser) {
+        alert("Вы не авторизованы!");
+        return;
+    }
+
+    // Очищаем поле сразу для скорости интерфейса
+    input.value = '';
+
+    const { data, error } = await _supabase
+        .from('messages')
+        .insert([{ 
+            text: text, 
+            user_id: currentUser.id 
+        }]);
+
+    if (error) {
+        console.error("Ошибка отправки:", error);
+        alert("Ошибка: " + error.message);
+    } else {
+        console.log("Сообщение отправлено!");
+    }
 };
 
 document.getElementById('btn-send-msg').onclick = sendMsg;
