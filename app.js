@@ -4,7 +4,6 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Ссылки на элементы
 const stepReg     = document.getElementById('step-register');
 const stepLogin   = document.getElementById('step-login');
 const chatScreen  = document.getElementById('chat-screen');
@@ -13,22 +12,19 @@ const toastEl     = document.getElementById('toast');
 
 let currentUser   = null;
 let currentProfile = null;
-let toastTimer    = null;
 
-// --- Вспомогательные функции ---
+// Универсальная тех. почта из юзернейма
+const getVirtualEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
 
 function showToast(msg, type = '') {
-    clearTimeout(toastTimer);
     toastEl.textContent = msg;
     toastEl.className = `toast ${type} show`;
-    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3000);
+    setTimeout(() => toastEl.classList.remove('show'), 3000);
 }
 
 function showScreen(screen) {
     [stepReg, stepLogin, chatScreen].forEach(s => {
-        if (!s) return;
-        s.style.display = 'none';
-        s.classList.remove('active', 'visible');
+        if(s) { s.style.display = 'none'; s.classList.remove('active', 'visible'); }
     });
     if (screen === chatScreen) {
         screen.style.display = 'flex';
@@ -39,29 +35,21 @@ function showScreen(screen) {
     }
 }
 
-// Генерация тех. почты
-const getVirtualEmail = (username) => `${username.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
-
-// --- Логика входа и регистрации ---
-
+// Переключение экранов
 document.getElementById('to-login').onclick = () => showScreen(stepLogin);
 document.getElementById('to-register').onclick = () => showScreen(stepReg);
 
 // РЕГИСТРАЦИЯ
 document.getElementById('btn-do-reg').onclick = async () => {
-    const userField = document.getElementById('reg-username');
-    const nameField = document.getElementById('reg-full-name');
-    const passField = document.getElementById('reg-password');
+    const user = document.getElementById('reg-username').value.trim();
+    const name = document.getElementById('reg-full-name').value.trim();
+    const pass = document.getElementById('reg-password').value.trim();
 
-    const username = userField.value.trim().replace(/^@/, '');
-    const fullName = nameField.value.trim();
-    const password = passField.value.trim();
-
-    if (!username || !password || !fullName) return showToast('Заполните все поля!', 'error');
+    if (!user || !pass) return showToast('Заполните логин и пароль', 'error');
 
     const { data, error } = await _supabase.auth.signUp({
-        email: getVirtualEmail(username),
-        password: password
+        email: getVirtualEmail(user),
+        password: pass
     });
 
     if (error) return showToast(error.message, 'error');
@@ -69,36 +57,35 @@ document.getElementById('btn-do-reg').onclick = async () => {
     if (data.user) {
         await _supabase.from('profiles').upsert({
             id: data.user.id,
-            username: username,
-            full_name: fullName
+            username: user.replace(/^@/, ''),
+            full_name: name || user
         });
-        showToast('Профиль создан! Теперь войдите.', 'success');
-        showScreen(stepLogin);
+        showToast('Профиль создан! Входим...');
+        
+        // Сразу пытаемся войти после регистрации
+        const { data: logData } = await _supabase.auth.signInWithPassword({
+            email: getVirtualEmail(user),
+            password: pass
+        });
+        if (logData.user) {
+            currentUser = logData.user;
+            location.reload(); // Перезагрузка для чистого входа
+        }
     }
 };
 
 // ВХОД
 document.getElementById('btn-do-login').onclick = async () => {
-    const userField = document.getElementById('login-username'); // Убедись, что в HTML id="login-username"
-    const passField = document.getElementById('login-password');
-
-    const username = userField.value.trim().replace(/^@/, '');
-    const password = passField.value.trim();
-
-    if (!username || !password) return showToast('Введите логин и пароль', 'error');
+    const user = document.getElementById('login-username').value.trim();
+    const pass = document.getElementById('login-password').value.trim();
 
     const { data, error } = await _supabase.auth.signInWithPassword({
-        email: getVirtualEmail(username),
-        password: password
+        email: getVirtualEmail(user),
+        password: pass
     });
 
     if (error) return showToast('Ошибка: неверный логин или пароль', 'error');
-
-    currentUser = data.user;
-    const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-    currentProfile = p;
-    
-    enterChat();
+    location.reload();
 };
 
 function enterChat() {
@@ -114,33 +101,20 @@ document.getElementById('btn-logout').onclick = async () => {
     location.reload();
 };
 
-// --- Работа с чатом ---
-
 async function initChat() {
     messagesDiv.innerHTML = '';
-    const { data: msgs } = await _supabase
-        .from('messages')
-        .select('*, profiles(*)')
-        .order('created_at', { ascending: true });
-
+    const { data: msgs } = await _supabase.from('messages').select('*, profiles(*)').order('created_at', { ascending: true });
     if (msgs) msgs.forEach(renderMessage);
 
-    _supabase.channel('room1')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
-            const { data: newMsg } = await _supabase
-                .from('messages')
-                .select('*, profiles(*)')
-                .eq('id', payload.new.id)
-                .single();
-            if (newMsg) renderMessage(newMsg);
-        })
-        .subscribe();
+    _supabase.channel('room1').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+        const { data: newMsg } = await _supabase.from('messages').select('*, profiles(*)').eq('id', payload.new.id).single();
+        if (newMsg) renderMessage(newMsg);
+    }).subscribe();
 }
 
 function renderMessage(msg) {
     const isOwn = currentUser && msg.user_id === currentUser.id;
     const name = msg.profiles?.full_name || 'Аноним';
-    
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'}`;
     div.innerHTML = `
@@ -148,8 +122,7 @@ function renderMessage(msg) {
         <div class="msg-bubble">
             ${!isOwn ? `<div style="font-size:10px; color:#00d4ff; font-weight:700;">${name}</div>` : ''}
             <div class="text">${msg.text}</div>
-        </div>
-    `;
+        </div>`;
     messagesDiv.appendChild(div);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -165,7 +138,7 @@ async function sendMessage() {
 document.getElementById('btn-send-msg').onclick = sendMessage;
 document.getElementById('message-input').onkeydown = (e) => { if(e.key === 'Enter') sendMessage(); };
 
-// Авто-вход
+// Авто-вход при обновлении
 (async () => {
     const { data: { session } } = await _supabase.auth.getSession();
     if (session) {
