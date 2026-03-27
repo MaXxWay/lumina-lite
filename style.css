@@ -1,4 +1,4 @@
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
 
 body {
     height: 100vh;
@@ -6,62 +6,131 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #050505 url('bg.png') no-repeat center center fixed;
+    /* Основной фон - очень темный синий */
+    background-color: #03081a; 
+    /* Добавляем фоновое изображение (bg.png) поверх цвета */
+    background-image: url('bg.png');
     background-size: cover;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-position: center;
+    background-attachment: fixed;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
     color: white;
     overflow: hidden;
 }
 
-.liquid-glass {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 32px;
-    padding: 30px;
-    width: 90%;
-    max-width: 450px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-}
-
-h1 {
+/* --- ЛОГОТИП (Исправленный) --- */
+.logo-container {
     text-align: center;
-    margin-bottom: 25px;
-    font-weight: 300;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    margin-bottom: 20px;
 }
 
+.logo-main {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1px;
+}
+
+.logo-lite {
+    font-size: 16px;
+    font-weight: 200; /* Тонкий */
+    color: rgba(255, 255, 255, 0.7);
+    margin-left: 2px;
+    text-transform: lowercase; /* Всегда маленькими */
+    position: relative;
+    top: -15px; /* Поднимаем чуть выше */
+}
+
+.logo-container.compact {
+    margin-bottom: 10px;
+    transform: scale(0.8);
+}
+
+.auth-subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 25px;
+    line-height: 1.4;
+}
+
+/* --- ГЛАВНЫЙ GLASS КОНТЕЙНЕР (Усиленный) --- */
+.liquid-glass {
+    /* Более выраженный синий оттенок стекла */
+    background: rgba(10, 25, 60, 0.2); 
+    /* Сильный блюр */
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), inset 0 0 2px rgba(255,255,255,0.1);
+    transition: all 0.5s ease-in-out;
+}
+
+/* Анимация переключения окон */
+.auth-box {
+    display: none;
+    padding: 35px 30px;
+    width: 90%;
+    max-width: 400px;
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.auth-box.active {
+    display: block;
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* --- ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (Glass + Синий) --- */
 .glass-input {
     width: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 14px 18px;
+    background: rgba(0, 10, 30, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 16px;
     border-radius: 14px;
     color: white;
-    margin-bottom: 12px;
-    outline: none;
+    margin-bottom: 15px;
     font-size: 16px;
+    transition: 0.3s;
+}
+
+.glass-input:focus {
+    border-color: rgba(0, 198, 255, 0.5);
+    background: rgba(0, 15, 45, 0.7);
 }
 
 .glass-button {
-    background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+    width: 100%;
+    /* Более глубокий синий градиент */
+    background: linear-gradient(145deg, #0072ff 0%, #003399 100%);
     border: none;
-    padding: 14px;
+    padding: 16px;
     border-radius: 14px;
     color: white;
     font-weight: 600;
+    font-size: 16px;
     cursor: pointer;
     transition: 0.2s;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
-.glass-button:active { transform: scale(0.97); }
+.glass-button:active { transform: scale(0.98); }
 
-#chat-container {
+/* --- ЧАТ (Deep Blue Glass) --- */
+.chat-box {
     display: none;
     flex-direction: column;
-    height: 85vh;
+    height: 90vh;
+    width: 95%;
+    max-width: 800px;
+    padding: 20px;
+}
+
+.chat-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 .messages-area {
@@ -70,22 +139,23 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding-bottom: 20px;
+    padding: 10px;
+    /* Скрываем скроллбар */
+    scrollbar-width: none; 
 }
+
+.messages-area::-webkit-scrollbar { display: none; }
 
 .message {
-    background: rgba(255, 255, 255, 0.08);
+    /* Серый glass для других сообщений */
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(10px);
     padding: 12px 16px;
-    border-radius: 18px;
-    max-width: 85%;
+    border-radius: 16px;
+    max-width: 75%;
     align-self: flex-start;
     border-bottom-left-radius: 4px;
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 #message-form {
@@ -94,11 +164,28 @@ h1 {
     margin-top: 10px;
 }
 
+#message-form .glass-input { margin-bottom: 0; }
+.icon-btn { width: 60px; font-size: 20px; }
+
 .msg-author {
     display: block;
     font-size: 10px;
     font-weight: 800;
+    /* Голубой акцент */
     color: #00c6ff;
     text-transform: uppercase;
     margin-bottom: 4px;
 }
+
+/* Кнопка назад в авторизации */
+.back-button {
+    position: absolute;
+    left: 20px;
+    top: 20px;
+    font-size: 20px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.5);
+    transition: 0.3s;
+}
+
+.back-button:hover { color: white; }
