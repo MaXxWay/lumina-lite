@@ -10,93 +10,59 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
 
-    <!-- REGISTER -->
     <div id="step-register" class="auth-container active">
-        <div class="background-logo">
-            <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
-            <p class="logo-sub">приватный мессенджер нового поколения</p>
-        </div>
         <div class="glass-card">
-            <h2 class="auth-title">Создать профиль</h2>
-            <input type="text"     id="reg-username"  class="glass-input" placeholder="@username">
-            <input type="text"     id="reg-full-name" class="glass-input" placeholder="Ваше Имя">
-            <input type="password" id="reg-password"  class="glass-input" placeholder="Придумайте пароль">
-            <button id="btn-do-reg" class="glass-button primary">Зарегистрироваться</button>
-            <p class="auth-footer">Уже есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
+            <h2>Создать профиль</h2>
+            <input type="text" id="reg-username" class="glass-input" placeholder="@username">
+            <input type="text" id="reg-full-name" class="glass-input" placeholder="Ваше Имя">
+            <input type="password" id="reg-password" class="glass-input" placeholder="Пароль">
+            <button id="btn-do-reg" class="glass-button primary">Создать аккаунт</button>
+            <p class="auth-footer">Есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
         </div>
     </div>
 
-    <!-- LOGIN -->
-    <div id="step-login" class="auth-container">
-        <div class="background-logo">
-            <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
-            <p class="logo-sub">приватный мессенджер нового поколения</p>
+    <div id="step-login" class="auth-container" style="display: none;">
+        <div class="glass-card">
+            <h2>Вход</h2>
+            <input type="text" id="login-username" class="glass-input" placeholder="@username">
+            <input type="password" id="login-password" class="glass-input" placeholder="Пароль">
+            <button id="btn-do-login" class="glass-button primary">Войти</button>
+            <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Регистрация</span></p>
         </div>
-<div id="step-login" class="auth-container">
-    <div class="glass-card">
-        <h2>С возвращением!</h2>
-        <input type="text" id="login-username" class="glass-input" placeholder="@username">
-        <input type="password" id="login-password" class="glass-input" placeholder="Пароль">
-        <button id="btn-do-login" class="glass-button primary">Войти</button>
-        <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Создать</span></p>
-    </div>
-</div>
     </div>
 
-    <!-- TOAST -->
-    <div id="toast" class="toast"></div>
-
-    <!-- EMOJI PICKER (shared: реакции и ввод) -->
-    <div id="emoji-picker" class="emoji-picker" style="display:none">
-        <span class="emoji-opt" data-emoji="❤️">❤️</span>
-        <span class="emoji-opt" data-emoji="😂">😂</span>
-        <span class="emoji-opt" data-emoji="👍">👍</span>
-        <span class="emoji-opt" data-emoji="🔥">🔥</span>
-        <span class="emoji-opt" data-emoji="😮">😮</span>
-        <span class="emoji-opt" data-emoji="😢">😢</span>
-    </div>
-
-    <!-- CHAT -->
-    <div id="chat-screen" class="main-interface">
-        <aside class="glass-sidebar">
-            <div class="logo-mini">L<span class="dot">.</span></div>
-            <nav class="sidebar-nav">
-                <button class="nav-btn active" title="Чат">💬</button>
+    <div id="chat-screen" class="chat-layout" style="display: none;">
+        <aside class="sidebar-glass">
+            <nav class="nav-menu">
+                <button class="nav-btn active">💬</button>
             </nav>
-            <button class="nav-btn logout-btn" id="btn-logout" title="Выйти">⏻</button>
+            <button class="nav-btn logout-btn" id="btn-logout">⏻</button>
         </aside>
-
         <main class="glass-chat-area">
             <header class="chat-header">
                 <div class="chat-info">
                     <h3>Общий канал</h3>
-                    <span class="online-status">&#9679; онлайн</span>
+                    <span class="online-status">● онлайн</span>
                 </div>
                 <span class="current-user-badge" id="current-user-badge"></span>
             </header>
-
             <div id="messages" class="messages-container"></div>
-
             <div class="input-zone">
                 <div class="glass-input-wrapper">
-                    <button type="button" class="emoji-btn" id="emoji-trigger">&#128522;</button>
-                    <input type="text" id="message-input" placeholder="Написать сообщение..." autocomplete="off">
-                    <button type="button" class="send-btn" id="btn-send-msg">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
+                    <input type="text" id="message-input" placeholder="Сообщение..." autocomplete="off">
+                    <button id="btn-send-msg" class="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                     </button>
                 </div>
             </div>
         </main>
     </div>
 
+    <div id="toast" class="toast"></div>
     <script src="app.js"></script>
 </body>
 </html>
