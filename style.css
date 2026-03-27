@@ -1,216 +1,187 @@
-:root {
-    --bg-color: #050509;
-    --text-primary: #ffffff;
-    --text-secondary: #a0a0b0;
-    --text-muted: #4a4a5e; /* Темный текст для подзаголовков */
-    --accent-color: #3b82f6;
-    --accent-glow: rgba(59, 130, 246, 0.5);
-    
-    --glass-bg: rgba(255, 255, 255, 0.03);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    
-    --font-main: 'Montserrat', sans-serif;
-    --font-logo: 'Orbitron', sans-serif;
+/* --- Сброс и База --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 body {
-    margin: 0;
-    font-family: var(--font-main);
-    background-color: var(--bg-color);
-    color: var(--text-primary);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    overflow: hidden;
-    position: relative;
+    /* Тёмная тема + Твоя текстура */
+    background: radial-gradient(circle at center, #1a1a1a 0%, #050505 100%), url('bg.png') no-repeat center center fixed;
+    background-size: cover;
+    font-family: 'Inter', sans-serif;
+    color: rgba(255, 255, 255, 0.9);
 }
 
-/* Анимированный жидкий фон */
-.blob-1, .blob-2 {
+/* --- Логотип (Шрифт 'Syne') --- */
+.logo-container {
     position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    z-index: 1;
+    top: 30px;
+    text-align: center;
+}
+
+.logo-text {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 2.8rem;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #fff 30%, #a1a1a1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
+}
+
+.logo-text span {
+    font-weight: 400;
     opacity: 0.6;
-    animation: liquidMove 15s infinite alternate ease-in-out;
 }
 
-.blob-1 {
-    width: 400px; height: 400px;
-    background: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 100%);
-    top: -100px; left: -100px;
-}
-
-.blob-2 {
-    width: 350px; height: 350px;
-    background: linear-gradient(180deg, #6366f1 0%, #a855f7 100%);
-    bottom: -80px; right: -50px;
-    animation-delay: -5s;
-}
-
-@keyframes liquidMove {
-    0% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(30px, 50px) scale(1.1); }
-    100% { transform: translate(-20px, 20px) scale(0.9); }
-}
-
-.container {
-    width: 100%;
+/* --- Стиль LIQUID GLASS (Жидкое стекло) --- */
+.liquid-glass {
+    background: rgba(10, 10, 10, 0.1); /* Тёмное стекло */
+    border-radius: 30px;
+    padding: 30px;
+    width: 90%;
     max-width: 420px;
-    padding: 20px;
     position: relative;
-    z-index: 10;
+    overflow: hidden;
+
+    /* Эффект размытия */
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+
+    /* Граница "Жидкого стекла" */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    /* Основная тень и внутренний свет (эффект выпуклости) */
+    box-shadow: 
+        0 20px 80px rgba(0, 0, 0, 0.7), /* Внешняя тень */
+        inset 0 0 20px rgba(255, 255, 255, 0.03), /* Внутреннее свечение */
+        inset 0 2px 2px rgba(255, 255, 255, 0.08); /* Верхний блик */
 }
 
-/* Эффект Liquid Glass */
-.glass-card {
-    background: var(--glass-bg);
-    padding: 40px;
-    border-radius: 28px;
-    backdrop-filter: blur(25px) saturate(180%);
-    -webkit-backdrop-filter: blur(25px) saturate(180%);
-    border: 1px solid var(--glass-border);
-    box-shadow: 
-        inset 0 0 20px rgba(255, 255, 255, 0.05),
-        0 25px 50px rgba(0, 0, 0, 0.5);
-    min-height: 480px; /* Фиксируем высоту, чтобы карточка не "прыгала" */
+.section-title {
+    text-align: center;
+    font-size: 1.1rem;
+    opacity: 0.7;
+    margin-bottom: 25px;
+    font-weight: 600;
+}
+
+/* --- Элементы управления (Инпуты и Кнопки) --- */
+.glass-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 15px 20px;
+    border-radius: 15px;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+    
+    /* "Жидкая" тень инпута */
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.glass-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+}
+
+.glass-button {
+    width: 100%;
+    padding: 16px;
+    border-radius: 15px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Яркая "жидкая" кнопка */
+.glass-button.primary {
+    background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
+}
+
+.glass-button.primary:hover {
+    box-shadow: 0 8px 25px rgba(0, 198, 255, 0.5);
+    transform: translateY(-2px);
+}
+
+/* --- Чат (Жидкое стекло) --- */
+.chat-main {
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    margin-top: 100px; /* Отступ от лого */
+}
+
+.messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 10px;
     display: flex;
     flex-direction: column;
 }
 
-/* Анимация появления формы */
-.fade-in {
-    animation: fadeIn 0.5s ease forwards;
+/* Стилизация скроллбара (тоже "стеклянный") */
+.messages-area::-webkit-scrollbar {
+    width: 6px;
+}
+.messages-area::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+/* Сообщение ('Inter') */
+.message {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 12px 16px;
+    border-radius: 18px;
+    border-radius: 18px 18px 18px 4px; /* Уголок */
+    margin-bottom: 12px;
+    align-self: flex-start;
+    max-width: 80%;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.95);
 }
 
-/* Заголовок и логотип */
-.header {
-    text-align: center;
-    margin-bottom: 35px;
+/* Форма отправки */
+.message-input-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
 }
 
-.header h1 {
-    font-family: var(--font-logo);
-    font-size: 32px;
-    margin: 0;
-    letter-spacing: 1px;
-    text-shadow: 0 0 15px var(--accent-glow);
-    display: inline-block;
-    position: relative;
+.chat-input {
+    flex: 1;
+    margin-bottom: 0;
 }
 
-.header h1 sup {
-    font-family: var(--font-logo);
-    font-size: 11px;
-    color: var(--accent-color);
-    top: -1.5em;
-    left: 4px;
-    text-transform: uppercase;
+.send-btn {
+    width: auto;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #ff00cc 0%, #3333ff 100%);
+    box-shadow: 0 4px 15px rgba(255, 0, 204, 0.3);
 }
 
-.header p {
-    color: var(--text-muted);
-    margin-top: 10px;
-    font-size: 13px;
-}
-
-/* Поля ввода */
-.input-group {
-    margin-bottom: 20px;
-}
-
-.input-group label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-}
-
-.input-group input {
-    width: 100%;
-    padding: 14px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    box-sizing: border-box;
-    color: var(--text-primary);
-    font-family: var(--font-main);
-    transition: all 0.3s ease;
-}
-
-.input-group input:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    background: rgba(0, 0, 0, 0.4);
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
-}
-
-.input-group input::placeholder {
-    color: rgba(255, 255, 255, 0.15);
-}
-
-/* Кнопка */
-.btn-submit {
-    width: 100%;
-    padding: 14px;
-    background: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: var(--font-main);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.3s;
-    box-shadow: 0 4px 15px var(--accent-glow);
-    margin-top: 10px;
-}
-
-.btn-submit:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
-}
-
-.btn-shine {
-    position: absolute;
-    top: 0; left: -100%;
-    width: 100%; height: 100%;
-    background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-    transition: 0.6s;
-}
-
-.btn-submit:hover .btn-shine {
-    left: 100%;
-}
-
-/* Футер и переключатель */
-.footer {
-    text-align: center;
-    margin-top: auto; /* Прижимаем к низу карточки */
-    padding-top: 20px;
-    font-size: 13px;
-    color: var(--text-muted);
-}
-
-.auth-toggle-link {
-    color: var(--accent-color);
-    font-weight: 600;
-    cursor: pointer;
-    margin-left: 5px;
-    transition: 0.2s;
-}
-
-.auth-toggle-link:hover {
-    text-shadow: 0 0 10px var(--accent-glow);
+.send-btn:hover {
+    box-shadow: 0 8px 25px rgba(255, 0, 204, 0.5);
 }
