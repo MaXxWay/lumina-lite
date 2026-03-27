@@ -1,129 +1,179 @@
-// ВНИМАНИЕ: Вставь свои данные здесь снова!
 const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
-const SUPABASE_ANON_KEY = 'ВСТАВЬ_СВОЙ_ANON_KEY_СЮДА';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
 
 const { createClient } = supabase;
 const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Элементы интерфейса
-const stepEmail = document.getElementById('step-email');
-const stepPassword = document.getElementById('step-password');
-const chatContainer = document.getElementById('chat-container');
-const displayEmail = document.getElementById('display-email');
+// Ссылки на элементы
+const stepReg     = document.getElementById('step-register');
+const stepLogin   = document.getElementById('step-login');
+const chatScreen  = document.getElementById('chat-screen');
 const messagesDiv = document.getElementById('messages');
-const messageForm = document.getElementById('message-form');
+const toastEl     = document.getElementById('toast');
 
-// Кнопки
-const btnNext = document.getElementById('btn-next');
-const btnLogin = document.getElementById('btn-login');
-const btnBack = document.getElementById('btn-back');
+let currentUser   = null;
+let currentProfile = null;
+let toastTimer    = null;
 
-let currentEmail = '';
+// --- Вспомогательные функции ---
 
-// ЛОГИКА АВТОРИЗАЦИИ (Telegram Style)
+function showToast(msg, type = '') {
+    clearTimeout(toastTimer);
+    toastEl.textContent = msg;
+    toastEl.className = `toast ${type} show`;
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3000);
+}
 
-// Этап 1: Ввод почты и нажатие "Далее"
-btnNext.onclick = () => {
-    currentEmail = document.getElementById('email').value.trim();
-    if (!currentEmail || !currentEmail.includes('@')) {
-        return alert('Введите корректный Email');
+function showScreen(screen) {
+    [stepReg, stepLogin, chatScreen].forEach(s => {
+        if (!s) return;
+        s.style.display = 'none';
+        s.classList.remove('active', 'visible');
+    });
+    if (screen === chatScreen) {
+        screen.style.display = 'flex';
+        screen.classList.add('visible');
+    } else if (screen) {
+        screen.style.display = 'block';
+        screen.classList.add('active');
     }
-    
-    displayEmail.textContent = currentEmail;
-    
-    // Переключаем окна
-    stepEmail.classList.remove('active');
-    setTimeout(() => stepPassword.classList.add('active'), 200);
-    document.getElementById('password').focus();
-};
+}
 
-// Этап 2: Попытка входа / Регистрации
-btnLogin.onclick = async () => {
-    const password = document.getElementById('password').value;
-    if (!password) return alert('Введите пароль');
-    
-    btnLogin.textContent = 'Вход...';
-    btnLogin.disabled = true;
+// Генерация тех. почты
+const getVirtualEmail = (username) => `${username.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
 
-    // Сначала пробуем войти
-    const { data, error } = await _supabase.auth.signInWithPassword({ email: currentEmail, password });
-    
-    if (error) {
-        // Если ошибка входа, пробуем зарегистрировать
-        const { error: regError } = await _supabase.auth.signUp({ email: currentEmail, password });
-        
-        if (regError) {
-            alert(regError.message);
-            btnLogin.textContent = 'Войти';
-            btnLogin.disabled = false;
-            return;
-        }
-        
-        // Регистрация успешна, но в Supabase без подтверждения почты войти сразу нельзя
-        // (если ты не выключил это в настройках Supabase Auth)
-        alert("Новый пользователь создан! Теперь нажмите 'Войти' с этим паролем.");
-        btnLogin.textContent = 'Войти';
-        btnLogin.disabled = false;
-        return;
-        
-    } else {
-        // УСПЕШНЫЙ ВХОД
-        stepPassword.classList.remove('active');
-        setTimeout(() => {
-            chatContainer.style.display = 'flex';
-            initChat();
-        }, 300);
+// --- Логика входа и регистрации ---
+
+document.getElementById('to-login').onclick = () => showScreen(stepLogin);
+document.getElementById('to-register').onclick = () => showScreen(stepReg);
+
+// РЕГИСТРАЦИЯ
+document.getElementById('btn-do-reg').onclick = async () => {
+    const userField = document.getElementById('reg-username');
+    const nameField = document.getElementById('reg-full-name');
+    const passField = document.getElementById('reg-password');
+
+    const username = userField.value.trim().replace(/^@/, '');
+    const fullName = nameField.value.trim();
+    const password = passField.value.trim();
+
+    if (!username || !password || !fullName) return showToast('Заполните все поля!', 'error');
+
+    const { data, error } = await _supabase.auth.signUp({
+        email: getVirtualEmail(username),
+        password: password
+    });
+
+    if (error) return showToast(error.message, 'error');
+
+    if (data.user) {
+        await _supabase.from('profiles').upsert({
+            id: data.user.id,
+            username: username,
+            full_name: fullName
+        });
+        showToast('Профиль создан! Теперь войдите.', 'success');
+        showScreen(stepLogin);
     }
 };
 
-// Кнопка назад
-btnBack.onclick = () => {
-    stepPassword.classList.remove('active');
-    setTimeout(() => stepEmail.classList.add('active'), 200);
+// ВХОД
+document.getElementById('btn-do-login').onclick = async () => {
+    const userField = document.getElementById('login-username'); // Убедись, что в HTML id="login-username"
+    const passField = document.getElementById('login-password');
+
+    const username = userField.value.trim().replace(/^@/, '');
+    const password = passField.value.trim();
+
+    if (!username || !password) return showToast('Введите логин и пароль', 'error');
+
+    const { data, error } = await _supabase.auth.signInWithPassword({
+        email: getVirtualEmail(username),
+        password: password
+    });
+
+    if (error) return showToast('Ошибка: неверный логин или пароль', 'error');
+
+    currentUser = data.user;
+    const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+    currentProfile = p;
+    
+    enterChat();
 };
 
-// ЛОГИКА ЧАТА
+function enterChat() {
+    if (currentProfile) {
+        document.getElementById('current-user-badge').textContent = `${currentProfile.full_name} (@${currentProfile.username})`;
+    }
+    showScreen(chatScreen);
+    initChat();
+}
+
+document.getElementById('btn-logout').onclick = async () => {
+    await _supabase.auth.signOut();
+    location.reload();
+};
+
+// --- Работа с чатом ---
 
 async function initChat() {
-    // 1. Загружаем старые сообщения
-    const { data } = await _supabase
+    messagesDiv.innerHTML = '';
+    const { data: msgs } = await _supabase
         .from('messages')
-        .select('*')
+        .select('*, profiles(*)')
         .order('created_at', { ascending: true });
-    
-    if (data) data.forEach(appendMessage);
-    
-    // 2. Подписываемся на новые в реальном времени
-    _supabase
-        .channel('public:messages')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            appendMessage(payload.new);
+
+    if (msgs) msgs.forEach(renderMessage);
+
+    _supabase.channel('room1')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+            const { data: newMsg } = await _supabase
+                .from('messages')
+                .select('*, profiles(*)')
+                .eq('id', payload.new.id)
+                .single();
+            if (newMsg) renderMessage(newMsg);
         })
         .subscribe();
 }
 
-// Отправка сообщения
-messageForm.onsubmit = async (e) => {
-    e.preventDefault();
-    const input = document.getElementById('message-input');
-    const text = input.value.trim();
-    if (!text) return;
+function renderMessage(msg) {
+    const isOwn = currentUser && msg.user_id === currentUser.id;
+    const name = msg.profiles?.full_name || 'Аноним';
     
-    // Мы не вставляем author вручную, это делает SQL триггер в Supabase
-    const { error } = await _supabase.from('messages').insert([{ text }]);
-    
-    if (error) alert('Ошибка отправки: ' + error.message);
-    input.value = '';
-};
-
-// Отображение сообщения в списке
-function appendMessage(msg) {
     const div = document.createElement('div');
-    div.className = 'message';
-    
-    const name = msg.user_email ? msg.user_email.split('@')[0] : 'User';
-    
-    div.innerHTML = `<span class="msg-author">${name}</span>${msg.text}`;
+    div.className = `message ${isOwn ? 'own' : 'other'}`;
+    div.innerHTML = `
+        <div class="msg-avatar" style="background:#1a6dff">${name[0].toUpperCase()}</div>
+        <div class="msg-bubble">
+            ${!isOwn ? `<div style="font-size:10px; color:#00d4ff; font-weight:700;">${name}</div>` : ''}
+            <div class="text">${msg.text}</div>
+        </div>
+    `;
     messagesDiv.appendChild(div);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
+
+async function sendMessage() {
+    const input = document.getElementById('message-input');
+    const text = input.value.trim();
+    if (!text || !currentUser) return;
+    input.value = '';
+    await _supabase.from('messages').insert([{ text, user_id: currentUser.id }]);
+}
+
+document.getElementById('btn-send-msg').onclick = sendMessage;
+document.getElementById('message-input').onkeydown = (e) => { if(e.key === 'Enter') sendMessage(); };
+
+// Авто-вход
+(async () => {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session) {
+        currentUser = session.user;
+        const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+        if (p) {
+            currentProfile = p;
+            enterChat();
+        }
+    }
+})();
