@@ -2,23 +2,35 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lumina Lite — Liquid Glass Auth</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumina Lite</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&family=Orbitron:wght@700&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="blob-1"></div>
-    <div class="blob-2"></div>
     
-    <div class="container">
-        <div class="glass-card" id="auth-card"></div>
+    <div class="logo-container">
+        <h1 class="logo-text">Lumina<span>.Lite</span></h1>
     </div>
 
-    <script src="script.js"></script>
+    <div id="auth-container" class="liquid-glass">
+        <p class="section-title">Вход в систему</p>
+        <input type="email" id="email" placeholder="Email" class="glass-input">
+        <input type="password" id="password" placeholder="Пароль" class="glass-input">
+        <button onclick="handleLogin()" class="glass-button primary">Войти или Создать</button>
+    </div>
+
+    <div id="chat-container" class="liquid-glass chat-main" style="display: none;">
+        <div id="messages" class="messages-area"></div>
+        <form id="message-form" class="message-input-form">
+            <input type="text" id="message-input" placeholder="Напишите сообщение..." autocomplete="off" class="glass-input chat-input">
+            <button type="submit" class="glass-button send-btn">🚀</button>
+        </form>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
