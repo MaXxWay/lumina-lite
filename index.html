@@ -2,35 +2,26 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lumina Lite</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    
-    <div class="logo-container">
-        <h1 class="logo-text">Lumina<span>.Lite</span></h1>
-    </div>
-
     <div id="auth-container" class="liquid-glass">
-        <p class="section-title">Вход в систему</p>
-        <input type="email" id="email" placeholder="Email" class="glass-input">
-        <input type="password" id="password" placeholder="Пароль" class="glass-input">
-        <button onclick="handleLogin()" class="glass-button primary">Войти или Создать</button>
+        <h1>Lumina</h1>
+        <input type="email" id="email" class="glass-input" placeholder="Email">
+        <input type="password" id="password" class="glass-input" placeholder="Пароль">
+        <button id="login-btn" class="glass-button">Войти / Регистрация</button>
     </div>
 
-    <div id="chat-container" class="liquid-glass chat-main" style="display: none;">
+    <div id="chat-container" class="liquid-glass">
         <div id="messages" class="messages-area"></div>
-        <form id="message-form" class="message-input-form">
-            <input type="text" id="message-input" placeholder="Напишите сообщение..." autocomplete="off" class="glass-input chat-input">
-            <button type="submit" class="glass-button send-btn">🚀</button>
+        <form id="message-form">
+            <input type="text" id="message-input" class="glass-input" placeholder="Сообщение..." autocomplete="off">
+            <button type="submit" class="glass-button" style="width: 60px;">🚀</button>
         </form>
     </div>
-
     <script src="app.js"></script>
 </body>
 </html>
