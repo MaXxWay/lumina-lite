@@ -30,14 +30,17 @@ function showScreen(key) {
 
 function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
+    if (!t) return;
     t.textContent = msg;
     t.className = 'toast show' + (isError ? ' error' : '');
     setTimeout(() => { t.className = 'toast'; }, 3000);
 }
 
 // ─── Навигация авторизации ───────────────────────────────
-document.getElementById('to-login').onclick    = () => showScreen('login');
-document.getElementById('to-register').onclick = () => showScreen('reg');
+const toLogin = document.getElementById('to-login');
+const toRegister = document.getElementById('to-register');
+if (toLogin) toLogin.onclick = () => showScreen('login');
+if (toRegister) toRegister.onclick = () => showScreen('reg');
 
 // ─── Регистрация ─────────────────────────────────────────
 document.getElementById('btn-do-reg').onclick = async () => {
@@ -60,9 +63,12 @@ document.getElementById('btn-do-reg').onclick = async () => {
     }
 };
 
-document.getElementById('reg-password').onkeydown = (e) => {
-    if (e.key === 'Enter') document.getElementById('btn-do-reg').click();
-};
+const regPassword = document.getElementById('reg-password');
+if (regPassword) {
+    regPassword.onkeydown = (e) => {
+        if (e.key === 'Enter') document.getElementById('btn-do-reg').click();
+    };
+}
 
 // ─── Вход ────────────────────────────────────────────────
 document.getElementById('btn-do-login').onclick = async () => {
@@ -71,66 +77,103 @@ document.getElementById('btn-do-login').onclick = async () => {
     const { data, error } = await _supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
     if (error) return showToast('Ошибка входа: ' + error.message, true);
 
-    // Сразу заходим без перезагрузки
     currentUser = data.user;
+    
+    // Загружаем профиль
     const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
     currentProfile = p;
-    if (p) document.getElementById('current-user-badge').textContent = p.full_name;
+    
+    if (p) {
+        const badge = document.getElementById('current-user-badge');
+        if (badge) badge.textContent = p.full_name;
+    }
+    
     showScreen('chat');
     initChat();
 };
 
-document.getElementById('login-password').onkeydown = (e) => {
-    if (e.key === 'Enter') document.getElementById('btn-do-login').click();
-};
+const loginPassword = document.getElementById('login-password');
+if (loginPassword) {
+    loginPassword.onkeydown = (e) => {
+        if (e.key === 'Enter') document.getElementById('btn-do-login').click();
+    };
+}
 
 // ─── Выход ───────────────────────────────────────────────
-document.getElementById('btn-logout').onclick = async () => {
-    if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
-    await _supabase.auth.signOut();
-    currentUser = null;
-    currentProfile = null;
-    showScreen('reg');
-};
+const logoutBtn = document.getElementById('btn-logout');
+if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+        await _supabase.auth.signOut();
+        currentUser = null;
+        currentProfile = null;
+        showScreen('reg');
+    };
+}
 
 // ─── Профиль — открыть ──────────────────────────────────
-document.getElementById('btn-profile').onclick = () => {
-    if (!currentProfile) return;
-    const letter = (currentProfile.full_name || '?')[0].toUpperCase();
-    document.getElementById('profile-avatar-letter').textContent = letter;
-    document.getElementById('profile-fullname').value = currentProfile.full_name || '';
-    document.getElementById('profile-username').value = currentProfile.username || '';
-    document.getElementById('profile-bio').value       = currentProfile.bio || '';
-    showScreen('profile');
-};
+const profileBtn = document.getElementById('btn-profile');
+if (profileBtn) {
+    profileBtn.onclick = () => {
+        if (!currentProfile) return;
+        const letter = (currentProfile.full_name || '?')[0].toUpperCase();
+        const avatarLetter = document.getElementById('profile-avatar-letter');
+        const profileFullname = document.getElementById('profile-fullname');
+        const profileUsername = document.getElementById('profile-username');
+        const profileBio = document.getElementById('profile-bio');
+        
+        if (avatarLetter) avatarLetter.textContent = letter;
+        if (profileFullname) profileFullname.value = currentProfile.full_name || '';
+        if (profileUsername) profileUsername.value = currentProfile.username || '';
+        if (profileBio) profileBio.value = currentProfile.bio || '';
+        
+        showScreen('profile');
+    };
+}
 
 // ─── Профиль — назад ────────────────────────────────────
-document.getElementById('btn-profile-back').onclick = () => showScreen('chat');
+const profileBackBtn = document.getElementById('btn-profile-back');
+if (profileBackBtn) profileBackBtn.onclick = () => showScreen('chat');
 
-// ─── Профиль — выйти (кнопка на экране профиля) ─────────
-document.getElementById('btn-logout-profile').onclick = () => {
-    document.getElementById('btn-logout').click();
-};
+// ─── Профиль — выйти ────────────────────────────────────
+const profileLogoutBtn = document.getElementById('btn-logout-profile');
+if (profileLogoutBtn) {
+    profileLogoutBtn.onclick = async () => {
+        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+        await _supabase.auth.signOut();
+        currentUser = null;
+        currentProfile = null;
+        showScreen('reg');
+    };
+}
 
 // ─── Профиль — сохранить ────────────────────────────────
-document.getElementById('btn-save-profile').onclick = async () => {
-    const full_name = document.getElementById('profile-fullname').value.trim();
-    const bio       = document.getElementById('profile-bio').value.trim();
-    if (!full_name) return showToast('Имя не может быть пустым', true);
+const saveProfileBtn = document.getElementById('btn-save-profile');
+if (saveProfileBtn) {
+    saveProfileBtn.onclick = async () => {
+        const full_name = document.getElementById('profile-fullname').value.trim();
+        const bio = document.getElementById('profile-bio').value.trim();
+        if (!full_name) return showToast('Имя не может быть пустым', true);
 
-    const { error } = await _supabase.from('profiles')
-        .update({ full_name, bio })
-        .eq('id', currentUser.id);
+        const { error } = await _supabase.from('profiles')
+            .update({ full_name, bio })
+            .eq('id', currentUser.id);
 
-    if (error) return showToast('Ошибка сохранения', true);
+        if (error) return showToast('Ошибка сохранения', true);
 
-    currentProfile.full_name = full_name;
-    currentProfile.bio = bio;
-    document.getElementById('current-user-badge').textContent = full_name;
-    document.getElementById('profile-avatar-letter').textContent = full_name[0].toUpperCase();
-    showToast('Профиль сохранён ✓');
-    setTimeout(() => showScreen('chat'), 800);
-};
+        currentProfile.full_name = full_name;
+        currentProfile.bio = bio;
+        
+        const badge = document.getElementById('current-user-badge');
+        if (badge) badge.textContent = full_name;
+        
+        const avatarLetter = document.getElementById('profile-avatar-letter');
+        if (avatarLetter) avatarLetter.textContent = full_name[0].toUpperCase();
+        
+        showToast('Профиль сохранён ✓');
+        setTimeout(() => showScreen('chat'), 800);
+    };
+}
 
 // ─── Рендер сообщения ────────────────────────────────────
 function escapeHtml(str) {
@@ -143,20 +186,30 @@ function escapeHtml(str) {
 
 function render(msg) {
     const container = document.getElementById('messages');
+    if (!container) return;
 
     // Убираем заглушку "Начните переписку"
     const stub = container.querySelector('.msg-stub');
     if (stub) stub.remove();
 
-    const isOwn  = currentUser && msg.user_id === currentUser.id;
-    const name   = msg.profiles?.full_name || 'User';
+    const isOwn = currentUser && msg.user_id === currentUser.id;
+    // Получаем имя автора из profiles или из currentProfile
+    let name = 'Пользователь';
+    if (msg.profiles && msg.profiles.full_name) {
+        name = msg.profiles.full_name;
+    } else if (isOwn && currentProfile && currentProfile.full_name) {
+        name = currentProfile.full_name;
+    } else if (msg.user_id === currentUser?.id && currentProfile?.full_name) {
+        name = currentProfile.full_name;
+    }
+    
     const avatar = name[0].toUpperCase();
     const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
 
     const div = document.createElement('div');
-    div.className   = `message ${isOwn ? 'own' : 'other'}`;
-    div.dataset.id  = msg.id;
-    div.innerHTML   = `
+    div.className = `message ${isOwn ? 'own' : 'other'}`;
+    div.dataset.id = msg.id;
+    div.innerHTML = `
         <div class="msg-avatar" style="background:${isOwn ? '#0072ff' : '#1e293b'}">${avatar}</div>
         <div class="msg-bubble">
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)}</div>` : ''}
@@ -171,66 +224,135 @@ function render(msg) {
 // ─── Инициализация чата ──────────────────────────────────
 async function initChat() {
     const container = document.getElementById('messages');
+    if (!container) return;
+    
     container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Загрузка...</div>';
 
-    const { data: msgs } = await _supabase
-        .from('messages')
-        .select('*, profiles!messages_user_id_fkey(*)')
-        .order('created_at', { ascending: true })
-        .limit(100);
+    try {
+        // Исправленный запрос - убираем сложный синтаксис foreign key
+        const { data: msgs, error } = await _supabase
+            .from('messages')
+            .select(`
+                *,
+                profiles:user_id (
+                    full_name,
+                    username
+                )
+            `)
+            .order('created_at', { ascending: true })
+            .limit(100);
 
-    container.innerHTML = '';
+        if (error) {
+            console.error('Ошибка загрузки сообщений:', error);
+            container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Ошибка загрузки сообщений</div>';
+            return;
+        }
 
-    if (msgs && msgs.length > 0) {
-        msgs.forEach(render);
-    } else {
-        container.innerHTML = '<div class="msg-stub" style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Начните переписку</div>';
+        container.innerHTML = '';
+
+        if (msgs && msgs.length > 0) {
+            msgs.forEach(msg => {
+                // Преобразуем данные для корректного рендера
+                if (msg.profiles && Array.isArray(msg.profiles)) {
+                    msg.profiles = msg.profiles[0];
+                }
+                render(msg);
+            });
+        } else {
+            container.innerHTML = '<div class="msg-stub" style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Начните переписку</div>';
+        }
+    } catch (err) {
+        console.error('Ошибка в initChat:', err);
+        container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Ошибка загрузки</div>';
     }
 
     // Realtime подписка
-    if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
+    if (realtimeChannel) {
+        await _supabase.removeChannel(realtimeChannel);
+    }
 
     realtimeChannel = _supabase
         .channel('messages-channel')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
-            if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
-            const { data: n } = await _supabase
-                .from('messages')
-                .select('*, profiles!messages_user_id_fkey(*)')
-                .eq('id', payload.new.id)
-                .single();
-            if (n) render(n);
-        })
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'messages' }, 
+            async (payload) => {
+                // Проверяем, нет ли уже такого сообщения
+                if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
+                
+                // Загружаем полные данные сообщения с профилем
+                const { data: msg, error } = await _supabase
+                    .from('messages')
+                    .select(`
+                        *,
+                        profiles:user_id (
+                            full_name,
+                            username
+                        )
+                    `)
+                    .eq('id', payload.new.id)
+                    .single();
+                
+                if (msg && !error) {
+                    if (msg.profiles && Array.isArray(msg.profiles)) {
+                        msg.profiles = msg.profiles[0];
+                    }
+                    render(msg);
+                } else if (payload.new) {
+                    // Если не удалось загрузить профиль, показываем без него
+                    render(payload.new);
+                }
+            }
+        )
         .subscribe();
 }
 
-// ─── Отправка ────────────────────────────────────────────
-const sendMsg = async () => {
+// ─── Отправка сообщения ─────────────────────────────────
+async function sendMsg() {
     const input = document.getElementById('message-input');
-    const text  = input.value.trim();
+    if (!input) return;
+    
+    const text = input.value.trim();
     if (!text || !currentUser) return;
     
     input.value = ''; // Очищаем поле сразу для плавности
 
-    // Упрощаем запрос, чтобы он не падал из-за отсутствия связей в БД
     const { data, error } = await _supabase
         .from('messages')
         .insert([{ text, user_id: currentUser.id }])
-        .select() 
+        .select()
         .single();
 
     if (error) {
-        console.error('Ошибка Supabase:', error); // Посмотри в консоль F12, если не сработает
-        showToast('Ошибка отправки', true);
+        console.error('Ошибка отправки:', error);
+        showToast('Ошибка отправки: ' + error.message, true);
         input.value = text;
     } else {
-        // Добавляем данные текущего профиля вручную для мгновенного рендера
-        const msgWithProfile = { ...data, profiles: currentProfile };
-        if (!document.querySelector(`[data-id="${data.id}"]`)) {
-            render(msgWithProfile);
-        }
+        // Добавляем данные текущего профиля для мгновенного рендера
+        const msgWithProfile = { 
+            ...data, 
+            profiles: currentProfile 
+        };
+        render(msgWithProfile);
     }
-};
+}
+
+// Привязываем кнопку отправки
+const sendBtn = document.getElementById('btn-send-msg');
+if (sendBtn) {
+    sendBtn.onclick = sendMsg;
+}
+
+// Привязываем Enter в поле ввода
+const messageInput = document.getElementById('message-input');
+if (messageInput) {
+    messageInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMsg();
+        }
+    };
+}
+
 // ─── DVH фикс (Safari) ──────────────────────────────────
 function updateDvh() {
     document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
@@ -243,11 +365,13 @@ updateDvh();
     const { data: { session } } = await _supabase.auth.getSession();
 
     if (session) {
-        // Уже залогинен — сразу в чат, минуя экраны входа
         currentUser = session.user;
         const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
         currentProfile = p;
-        if (p) document.getElementById('current-user-badge').textContent = p.full_name;
+        if (p) {
+            const badge = document.getElementById('current-user-badge');
+            if (badge) badge.textContent = p.full_name;
+        }
         showScreen('chat');
         initChat();
     } else {
