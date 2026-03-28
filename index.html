@@ -22,9 +22,9 @@
         </div>
         <div class="glass-card">
             <h2 class="auth-title">Создать профиль</h2>
-            <input type="text" id="reg-username" class="glass-input" placeholder="@username">
-            <input type="text" id="reg-full-name" class="glass-input" placeholder="Ваше Имя">
-            <input type="password" id="reg-password" class="glass-input" placeholder="Пароль">
+            <input type="text" id="reg-username" class="glass-input" placeholder="@username" autocomplete="username">
+            <input type="text" id="reg-full-name" class="glass-input" placeholder="Ваше Имя" autocomplete="name">
+            <input type="password" id="reg-password" class="glass-input" placeholder="Пароль" autocomplete="new-password">
             <button id="btn-do-reg" class="glass-button primary">Зарегистрироваться</button>
             <p class="auth-footer">Есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
         </div>
@@ -38,67 +38,64 @@
         </div>
         <div class="glass-card">
             <h2 class="auth-title">Вход</h2>
-            <input type="text" id="login-username" class="glass-input" placeholder="@username">
-            <input type="password" id="login-password" class="glass-input" placeholder="Пароль">
+            <input type="text" id="login-username" class="glass-input" placeholder="@username" autocomplete="username">
+            <input type="password" id="login-password" class="glass-input" placeholder="Пароль" autocomplete="current-password">
             <button id="btn-do-login" class="glass-button primary">Войти</button>
             <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Создать</span></p>
         </div>
     </div>
 
-    <!-- SVG иконки -->
+    <!-- SVG иконки (inline спрайт) -->
     <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
-        <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </symbol>
-        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
         </symbol>
-        <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"/>
             <polygon points="22 2 15 22 11 13 2 9 22 2"/>
         </symbol>
-        <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </symbol>
-        <symbol id="icon-emoji" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
             <line x1="9" y1="9" x2="9.01" y2="9"/>
             <line x1="15" y1="9" x2="15.01" y2="9"/>
         </symbol>
-        <symbol id="icon-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+        </symbol>
+        <symbol id="icon-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 10h10a8 8 0 0 1 8 8v2"/>
             <path d="M3 10l4-4m-4 4l4 4"/>
         </symbol>
-        <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </symbol>
-        <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 3l4 4-7 7H10v-4l7-7z"/>
             <path d="M4 20h16"/>
         </symbol>
-        <symbol id="icon-delete" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <symbol id="icon-delete" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
             <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
         </symbol>
-        <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
+        <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
         </symbol>
-        <symbol id="icon-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10 6L4 12l6 6"/>
-            <path d="M20 12H4"/>
-        </symbol>
-        <symbol id="icon-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-            <line x1="9" y1="9" x2="9.01" y2="9"/>
-            <line x1="15" y1="9" x2="15.01" y2="9"/>
+        <symbol id="icon-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 10 20 15 15 20"/>
+            <path d="M4 4v7a4 4 0 0 0 4 4h12"/>
         </symbol>
     </svg>
 
@@ -108,7 +105,7 @@
             <div class="dialogs-header">
                 <div class="search-wrapper">
                     <svg width="16" height="16" class="search-icon"><use href="#icon-search"/></svg>
-                    <input type="text" id="search-dialogs" class="search-input" placeholder="Поиск диалогов или @username...">
+                    <input type="text" id="search-dialogs" class="search-input" placeholder="Поиск или @username...">
                 </div>
             </div>
             <div id="dialogs-list" class="dialogs-list">
@@ -126,7 +123,7 @@
                     <button id="footer-settings" class="profile-footer-btn" title="Настройки профиля">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="3"/>
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H5.78a1.65 1.65 0 0 0-1.51 1 1.65 1.65 0 0 0 .33 1.82l.04.04A10 10 0 0 0 12 17.66a10 10 0 0 0 6.36-2.62l.04-.04z"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                         </svg>
                     </button>
                     <button id="footer-logout" class="profile-footer-btn" title="Выйти">
@@ -142,6 +139,10 @@
 
         <main class="glass-chat-area">
             <header class="chat-header">
+                <!-- Кнопка назад — только на мобилке -->
+                <button class="mobile-back-btn" id="btn-mobile-back" title="Назад к диалогам">
+                    <svg width="22" height="22"><use href="#icon-arrow-left"/></svg>
+                </button>
                 <div class="chat-info">
                     <h3 id="chat-title">Lumina Lite</h3>
                     <span class="chat-status">выберите диалог</span>
@@ -157,7 +158,7 @@
                 </div>
             </div>
 
-            <div class="input-zone">
+            <div class="input-zone" style="display:none;">
                 <div class="glass-input-wrapper">
                     <button id="btn-emoji" class="emoji-btn" title="Эмодзи">
                         <svg width="20" height="20"><use href="#icon-smile"/></svg>
@@ -167,38 +168,36 @@
                         <svg width="18" height="18"><use href="#icon-send"/></svg>
                     </button>
                 </div>
-                <div id="emoji-picker" class="emoji-picker" style="display: none;">
+                <div id="emoji-picker" class="emoji-picker" style="display:none;">
                     <div class="emoji-list">
-                        <span class="emoji-item">😀</span>
-                        <span class="emoji-item">😂</span>
-                        <span class="emoji-item">😍</span>
-                        <span class="emoji-item">😢</span>
-                        <span class="emoji-item">😡</span>
-                        <span class="emoji-item">👍</span>
                         <span class="emoji-item">❤️</span>
                         <span class="emoji-item">🔥</span>
-                        <span class="emoji-item">🎉</span>
-                        <span class="emoji-item">🇷🇺</span>
+                        <span class="emoji-item">😂</span>
+                        <span class="emoji-item">🤣</span>
+                        <span class="emoji-item">😇</span>
+                        <span class="emoji-item">🙂</span>
+                        <span class="emoji-item">😉</span>
+                        <span class="emoji-item">😌</span>
+                        <span class="emoji-item">🥰</span>
+                        <span class="emoji-item">😘</span>
+                        <span class="emoji-item">😛</span>
+                        <span class="emoji-item">😝</span>
+                        <span class="emoji-item">🤪</span>
+                        <span class="emoji-item">🤨</span>
+                        <span class="emoji-item">🤓</span>
+                        <span class="emoji-item">😎</span>
+                        <span class="emoji-item">🥳</span>
+                        <span class="emoji-item">🤩</span>
+                        <span class="emoji-item">😭</span>
+                        <span class="emoji-item">💀</span>
                     </div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Панель реакций -->
-    <div id="reactions-panel" class="reactions-panel" style="display: none;">
-        <div class="reactions-list">
-            <span class="reaction-item" data-reaction="👍">👍</span>
-            <span class="reaction-item" data-reaction="❤️">❤️</span>
-            <span class="reaction-item" data-reaction="🔥">🔥</span>
-            <span class="reaction-item" data-reaction="🎉">🎉</span>
-            <span class="reaction-item" data-reaction="😢">😢</span>
-            <span class="reaction-item" data-reaction="😡">😡</span>
-        </div>
-    </div>
-
-    <!-- Контекстное меню для сообщения -->
-    <div id="message-menu" class="message-menu" style="display: none;">
+    <!-- Контекстное меню -->
+    <div id="message-menu" class="message-menu" style="display:none;">
         <div class="menu-item" data-action="reply">
             <svg width="16" height="16"><use href="#icon-reply"/></svg>
             <span>Ответить</span>
@@ -230,15 +229,13 @@
         <aside class="glass-sidebar dialogs-sidebar">
             <div class="dialogs-header">
                 <div class="search-wrapper">
-                    <svg width="16" height="16" class="search-icon"><use href="#icon-search"/></svg>
-                    <input type="text" class="search-input" placeholder="Настройки профиля" disabled style="opacity:0.5;">
+                    <svg width="16" height="16" class="search-icon"><use href="#icon-user"/></svg>
+                    <input type="text" class="search-input" placeholder="Настройки профиля" disabled style="opacity:0.5; padding-left:36px;">
                 </div>
             </div>
-            <div class="dialogs-list" style="padding: 20px;">
-                <div style="text-align: center; color: var(--text-dim);">
-                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.5;"><use href="#icon-user"/></svg>
-                    <p>Редактирование профиля</p>
-                </div>
+            <div class="dialogs-list" style="display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-dim); gap:12px; padding:40px 20px; text-align:center;">
+                <svg width="48" height="48" style="opacity:0.4;"><use href="#icon-user"/></svg>
+                <p style="font-size:13px;">Редактирование профиля</p>
             </div>
         </aside>
 
@@ -246,37 +243,36 @@
             <header class="chat-header">
                 <div class="chat-info">
                     <h3>Мой профиль</h3>
-                    <span class="chat-status">активен</span>
+                    <span class="chat-status">настройки аккаунта</span>
                 </div>
                 <button id="btn-profile-back" class="profile-back-btn" title="Назад в чат">
                     <svg width="20" height="20"><use href="#icon-chat"/></svg>
                 </button>
             </header>
 
-            <div class="messages-container" style="justify-content: flex-start; padding-top: 40px;">
-                <div class="profile-card glass-card" style="max-width: 480px; width: 100%; align-self: center;">
-                    <div class="profile-avatar-wrap" style="text-align:center; margin-bottom:24px;">
-                        <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;margin:0 auto 12px;font-family:'Syne',sans-serif;" id="profile-avatar-letter">?</div>
+            <div class="messages-container" style="justify-content:flex-start; padding-top:32px;">
+                <div class="profile-card glass-card" style="max-width:480px; width:100%; align-self:center;">
+                    <div style="text-align:center; margin-bottom:20px;">
+                        <div id="profile-avatar-letter" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;margin:0 auto 10px;font-family:'Syne',sans-serif;">?</div>
                     </div>
 
-                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Имя</label>
+                    <label style="font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Имя</label>
                     <input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
 
-                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;margin-top:4px;">Username</label>
-                    <input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.5;cursor:not-allowed;">
+                    <label style="font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Username</label>
+                    <input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.45; cursor:not-allowed;">
 
-                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;margin-top:4px;">О себе</label>
+                    <label style="font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">О себе</label>
                     <textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
 
-                    <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
-                    <button id="btn-logout-profile" class="glass-button" style="margin-top: 12px; background: rgba(255,71,87,0.2); border: 1px solid rgba(255,71,87,0.3);">Выйти</button>
+                    <button id="btn-save-profile" class="glass-button primary">Сохранить</button>
+                    <button id="btn-logout-profile" class="glass-button" style="width:100%;padding:14px;border-radius:var(--radius-input);border:1px solid rgba(255,71,87,0.3);background:rgba(255,71,87,0.12);color:#ff6b6b;font-weight:600;font-size:15px;cursor:pointer;margin-top:10px;transition:var(--transition);">Выйти из аккаунта</button>
                 </div>
             </div>
         </main>
     </div>
 
     <div id="toast" class="toast"></div>
-    
     <script src="app.js"></script>
 </body>
 </html>
