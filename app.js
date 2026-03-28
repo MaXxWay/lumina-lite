@@ -1020,88 +1020,23 @@ updateDvh();
 
 // ─── Запуск с индикатором загрузки ───────────────────────
 (async () => {
-    showLoading(true);
+// Плавное появление/исчезновение загрузки
+const loadingOverlay = document.getElementById('loading-overlay');
+
+function showLoading(show) {
+    if (!loadingOverlay) return;
     
-    try {
-        const { data: { session } } = await _supabase.auth.getSession();
-        
-        if (session) {
-            currentUser = session.user;
-            
-            const { data: p, error: profileError } = await _supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', currentUser.id)
-                .maybeSingle();
-            
-            if (profileError) {
-                console.error('Ошибка загрузки профиля:', profileError);
-            }
-            
-            if (!p) {
-                const email = currentUser.email;
-                let username = email ? email.split('@')[0] : 'user';
-                username = username.replace(/@lumina\.local$/, '');
-                
-                const { data: newProfile, error: insertError } = await _supabase
-                    .from('profiles')
-                    .insert({
-                        id: currentUser.id,
-                        username: username,
-                        full_name: username
-                    })
-                    .select()
-                    .maybeSingle();
-                
-                if (insertError) {
-                    console.error('Ошибка создания профиля:', insertError);
-                }
-                currentProfile = newProfile;
-            } else {
-                currentProfile = p;
-            }
-            
-            if (currentProfile) {
-                const badge = document.getElementById('current-user-badge');
-                if (badge) badge.textContent = currentProfile.full_name;
-                updateProfileFooter();
-                initProfileFooter();
-            }
-            
-            await loadAllUsers();
-            await ensureBotChat();
-            
-            showLoading(false);
-            showScreen('chat');
-            await loadDialogs();
-            
-            const chatTitle = document.getElementById('chat-title');
-            if (chatTitle) chatTitle.textContent = 'Lumina Lite';
-            
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) chatStatus.textContent = 'выберите диалог';
-            
-            const inputZone = document.querySelector('.input-zone');
-            if (inputZone) inputZone.style.display = 'none';
-            
-            const messagesContainer = document.getElementById('messages');
-            if (messagesContainer) {
-                messagesContainer.innerHTML = `
-                    <div class="msg-stub">
-                        <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                        <p>Выберите диалог, чтобы начать общение</p>
-                    </div>
-                `;
-            }
-            
-            currentChat = null;
-        } else {
-            showLoading(false);
-            showScreen('reg');
-        }
-    } catch (err) {
-        console.error('Ошибка при инициализации:', err);
-        showLoading(false);
-        showScreen('reg');
+    if (show) {
+        loadingOverlay.classList.remove('hidden');
+        // Добавляем небольшую задержку перед началом анимации
+        setTimeout(() => {
+            loadingOverlay.style.opacity = '1';
+        }, 10);
+    } else {
+        loadingOverlay.classList.add('hidden');
+        // После завершения анимации можно очистить
+        setTimeout(() => {
+            loadingOverlay.style.opacity = '0';
+        }, 10);
     }
-})();
+}();
