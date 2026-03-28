@@ -228,7 +228,6 @@ async function markChatMessagesAsRead(chatId) {
             messagesCache.set(chatId, cachedMessages);
         }
         
-        // Обновляем счетчик в sidebar
         await loadDialogs();
     } catch (err) {
         console.error('Ошибка отметки прочитанных:', err);
@@ -255,7 +254,7 @@ async function ensureBotChat() {
             
             if (!welcomeMsg) {
                 await _supabase.from('messages').insert({
-                    text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
+                    text: 'Добро пожаловать в Lumina Lite! 🚀\n\nЭто приватный мессенджер, который работает без VPN.\n\n• Общайтесь с друзьями\n• Используйте реакции 👍❤️🔥\n• Настраивайте профиль\n\nПриятного общения!',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_welcome: true,
@@ -280,7 +279,7 @@ async function ensureBotChat() {
         
         if (newChat) {
             await _supabase.from('messages').insert({
-                text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
+                text: 'Добро пожаловать в Lumina Lite! 🚀\n\nЭто приватный мессенджер, который работает без VPN.\n\n• Общайтесь с друзьями\n• Используйте реакции 👍❤️🔥\n• Настраивайте профиль\n\nПриятного общения!',
                 user_id: BOT_USER_ID,
                 chat_id: newChat.id,
                 is_welcome: true,
@@ -726,23 +725,185 @@ if (emojiBtn && emojiPicker) {
     });
 }
 
+// ─── Реакции на сообщения ────────────────────────────────
+const reactionsPanel = document.getElementById('reactions-panel');
+let activeMessageForReaction = null;
+
+function showReactionsPanel(e, messageId, messageElement) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    activeMessageForReaction = { id: messageId, element: messageElement };
+    
+    if (reactionsPanel) {
+        reactionsPanel.style.display = 'flex';
+        
+        let left = e.clientX;
+        let top = e.clientY - 50;
+        
+        const panelWidth = reactionsPanel.offsetWidth || 200;
+        const panelHeight = reactionsPanel.offsetHeight || 50;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        if (left + panelWidth > viewportWidth) {
+            left = viewportWidth - panelWidth - 10;
+        }
+        if (left < 10) left = 10;
+        
+        if (top < 10) {
+            top = e.clientY + 20;
+        }
+        if (top + panelHeight > viewportHeight) {
+            top = viewportHeight - panelHeight - 10;
+        }
+        
+        reactionsPanel.style.left = `${left}px`;
+        reactionsPanel.style.top = `${top}px`;
+        
+        document.querySelectorAll('.reaction-item').forEach(item => {
+            item.onclick = () => {
+                const reaction = item.dataset.reaction;
+                addReaction(messageId, reaction);
+                reactionsPanel.style.display = 'none';
+                activeMessageForReaction = null;
+            };
+        });
+        
+        setTimeout(() => {
+            document.addEventListener('click', hideReactionsPanel);
+        }, 0);
+    }
+}
+
+function hideReactionsPanel() {
+    if (reactionsPanel) {
+        reactionsPanel.style.display = 'none';
+    }
+    activeMessageForReaction = null;
+    document.removeEventListener('click', hideReactionsPanel);
+}
+
+async function addReaction(messageId, reaction) {
+    try {
+        const { data: existing } = await _supabase
+            .from('message_reactions')
+            .select('*')
+            .eq('message_id', messageId)
+            .eq('user_id', currentUser.id)
+            .eq('reaction', reaction)
+            .maybeSingle();
+        
+        if (existing) {
+            await _supabase
+                .from('message_reactions')
+                .delete()
+                .eq('id', existing.id);
+        } else {
+            await _supabase
+                .from('message_reactions')
+                .insert({
+                    message_id: messageId,
+                    user_id: currentUser.id,
+                    reaction: reaction
+                });
+        }
+        
+        await updateMessageReactions(messageId);
+    } catch (err) {
+        console.error('Ошибка добавления реакции:', err);
+    }
+}
+
+async function updateMessageReactions(messageId) {
+    try {
+        const { data: reactions, error } = await _supabase
+            .from('message_reactions')
+            .select('reaction, user_id')
+            .eq('message_id', messageId);
+        
+        if (error) throw error;
+        
+        const reactionMap = new Map();
+        reactions.forEach(r => {
+            if (!reactionMap.has(r.reaction)) {
+                reactionMap.set(r.reaction, { count: 0, users: [] });
+            }
+            const item = reactionMap.get(r.reaction);
+            item.count++;
+            item.users.push(r.user_id);
+        });
+        
+        const messageDiv = document.querySelector(`.message[data-id="${messageId}"]`);
+        if (!messageDiv) return;
+        
+        let reactionsContainer = messageDiv.querySelector('.message-reactions');
+        if (!reactionsContainer) {
+            reactionsContainer = document.createElement('div');
+            reactionsContainer.className = 'message-reactions';
+            const bubble = messageDiv.querySelector('.msg-bubble');
+            if (bubble) bubble.appendChild(reactionsContainer);
+        }
+        
+        if (reactionMap.size === 0) {
+            reactionsContainer.innerHTML = '';
+            reactionsContainer.style.display = 'none';
+        } else {
+            reactionsContainer.style.display = 'flex';
+            reactionsContainer.innerHTML = '';
+            for (let [reaction, data] of reactionMap) {
+                const badge = document.createElement('span');
+                badge.className = 'reaction-badge';
+                badge.innerHTML = `${reaction} <span class="count">${data.count}</span>`;
+                badge.onclick = (e) => {
+                    e.stopPropagation();
+                    addReaction(messageId, reaction);
+                };
+                reactionsContainer.appendChild(badge);
+            }
+        }
+    } catch (err) {
+        console.error('Ошибка обновления реакций:', err);
+    }
+}
+
 // ─── Контекстное меню сообщений ──────────────────────────
 const messageMenu = document.getElementById('message-menu');
-let activeMessage = null;
+let activeMessageForMenu = null;
 
 function showMessageMenu(e, messageId, messageText, isOwn) {
     e.preventDefault();
     e.stopPropagation();
     
+    activeMessageForMenu = { id: messageId, text: messageText, isOwn };
+    
     if (messageMenu) {
         messageMenu.style.display = 'block';
-        messageMenu.style.left = `${e.clientX}px`;
-        messageMenu.style.top = `${e.clientY}px`;
+        
+        let left = e.clientX;
+        let top = e.clientY;
+        
+        const menuWidth = messageMenu.offsetWidth || 180;
+        const menuHeight = messageMenu.offsetHeight || 200;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        if (left + menuWidth > viewportWidth) {
+            left = viewportWidth - menuWidth - 10;
+        }
+        if (left < 10) left = 10;
+        
+        if (top + menuHeight > viewportHeight) {
+            top = viewportHeight - menuHeight - 10;
+        }
+        
+        messageMenu.style.left = `${left}px`;
+        messageMenu.style.top = `${top}px`;
         
         const menuItems = messageMenu.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
             const action = item.dataset.action;
-            item.onclick = () => handleMessageAction(action, messageId, messageText, isOwn);
+            item.onclick = () => handleMessageAction(action);
         });
         
         setTimeout(() => {
@@ -755,10 +916,14 @@ function hideMessageMenu() {
     if (messageMenu) {
         messageMenu.style.display = 'none';
     }
+    activeMessageForMenu = null;
     document.removeEventListener('click', hideMessageMenu);
 }
 
-async function handleMessageAction(action, messageId, messageText, isOwn) {
+async function handleMessageAction(action) {
+    if (!activeMessageForMenu) return;
+    
+    const { id: messageId, text: messageText, isOwn } = activeMessageForMenu;
     hideMessageMenu();
     
     switch (action) {
@@ -806,6 +971,11 @@ async function handleMessageAction(action, messageId, messageText, isOwn) {
             if (isOwn) {
                 const confirm = window.confirm('Удалить сообщение?');
                 if (confirm) {
+                    await _supabase
+                        .from('message_reactions')
+                        .delete()
+                        .eq('message_id', messageId);
+                    
                     const { error } = await _supabase
                         .from('messages')
                         .delete()
@@ -1022,7 +1192,10 @@ async function loadMessages(chatId) {
         container.innerHTML = '';
         
         if (messagesWithProfiles.length > 0) {
-            messagesWithProfiles.forEach(msg => renderMessage(msg));
+            for (const msg of messagesWithProfiles) {
+                renderMessage(msg);
+                await updateMessageReactions(msg.id);
+            }
         } else {
             container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
         }
@@ -1069,6 +1242,7 @@ function subscribeToMessages(chatId) {
                 }
                 
                 renderMessage(newMessage);
+                await updateMessageReactions(payload.new.id);
                 
                 const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
                 if (dialogItem) {
@@ -1148,8 +1322,14 @@ function renderMessage(msg) {
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
             <div class="text">${escapeHtml(msg.text)}</div>
             <div class="msg-time">${timeStr}</div>
+            <div class="message-reactions"></div>
         </div>
     `;
+    
+    div.onclick = (e) => {
+        e.stopPropagation();
+        showReactionsPanel(e, msg.id, div);
+    };
     
     div.oncontextmenu = (e) => {
         showMessageMenu(e, msg.id, msg.text, isOwn);
