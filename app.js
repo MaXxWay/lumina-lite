@@ -225,12 +225,23 @@ async function markChatMessagesAsRead(chatId) {
         
         if (error) throw error;
         
-        // Обновляем элемент в списке диалогов
+        // Обновляем только нужный элемент, без полной перезагрузки
         const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
         if (dialogItem) {
             const badge = dialogItem.querySelector('.unread-badge-count');
             if (badge) badge.remove();
             dialogItem.classList.remove('unread-dialog');
+        }
+        
+        // Обновляем кэш сообщений, помечая их как прочитанные
+        if (messagesCache.has(chatId)) {
+            const cachedMessages = messagesCache.get(chatId);
+            cachedMessages.forEach(msg => {
+                if (msg.user_id !== currentUser.id) {
+                    msg.is_read = true;
+                }
+            });
+            messagesCache.set(chatId, cachedMessages);
         }
     } catch (err) {
         console.error('Ошибка отметки сообщений как прочитанных:', err);
@@ -387,6 +398,7 @@ async function getOrCreatePrivateChat(otherUserId) {
 
 // ─── Загрузка диалогов (без мигания) ─────────────────────
 let isUpdatingDialogs = false;
+let dialogCache = new Map();
 
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
@@ -498,12 +510,13 @@ async function loadDialogs(searchTerm = '') {
             );
         }
         
-        // Обновляем DOM только если нужно
-        const currentIds = Array.from(container.children).map(el => el.dataset.chatId).filter(id => id);
-        const newIds = filteredData.map(chat => chat.id);
+        // Проверяем, изменился ли список
+        const newIds = filteredData.map(chat => chat.id).join(',');
+        const oldIds = dialogCache.get('ids') || '';
         
-        if (JSON.stringify(currentIds) !== JSON.stringify(newIds) || searchTerm) {
+        if (newIds !== oldIds) {
             container.innerHTML = '';
+            dialogCache.set('ids', newIds);
             
             if (filteredData.length === 0) {
                 container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска пользователей</div>';
@@ -549,6 +562,7 @@ async function loadDialogs(searchTerm = '') {
         isUpdatingDialogs = false;
     }
 }
+
 
 // ─── Поиск диалогов и пользователей ──────────────────────
 const searchInputElem = document.getElementById('search-dialogs');
@@ -640,60 +654,94 @@ if (loginBtn) {
 }
 
 // ─── Открыть чат ─────────────────────────────────────────
+let isOpeningChat = false;
+
 async function openChat(chatId, otherUserId, otherUser) {
-    const isBot = otherUserId === BOT_USER_ID;
+    // Защита от повторных кликов
+    if (isOpeningChat) return;
+    if (currentChat?.id === chatId) return;
     
-    currentChat = {
-        id: chatId,
-        type: 'private',
-        other_user: otherUser || (isBot ? BOT_PROFILE : null)
-    };
+    isOpeningChat = true;
     
-    const chatTitle = document.getElementById('chat-title');
-    if (chatTitle) {
-        const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-        chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge" style="font-size:10px;margin-left:8px;">Бот</span>' : ''}`;
-    }
-    
-    const chatStatus = document.querySelector('.chat-status');
-    if (chatStatus) {
-        chatStatus.textContent = isBot ? 'бот' : 'онлайн';
-    }
-    
-    const messageInput = document.getElementById('message-input');
-    const sendButton = document.getElementById('btn-send-msg');
-    const inputZone = document.querySelector('.input-zone');
-    
-    if (isBot) {
-        if (inputZone) inputZone.style.display = 'none';
-        if (messageInput) messageInput.disabled = true;
-        if (sendButton) sendButton.disabled = true;
-    } else {
-        if (inputZone) inputZone.style.display = 'flex';
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Написать сообщение...';
+    try {
+        const isBot = otherUserId === BOT_USER_ID;
+        
+        currentChat = {
+            id: chatId,
+            type: 'private',
+            other_user: otherUser || (isBot ? BOT_PROFILE : null)
+        };
+        
+        const chatTitle = document.getElementById('chat-title');
+        if (chatTitle) {
+            const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
+            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge" style="font-size:10px;margin-left:8px;">Бот</span>' : ''}`;
         }
-        if (sendButton) sendButton.disabled = false;
-    }
-    
-    await loadMessages(chatId);
-    subscribeToMessages(chatId);
-    
-    document.querySelectorAll('.dialog-item').forEach(el => {
-        el.classList.remove('active');
-        if (el.dataset.chatId === chatId) {
-            el.classList.add('active');
+        
+        const chatStatus = document.querySelector('.chat-status');
+        if (chatStatus) {
+            chatStatus.textContent = isBot ? 'бот' : 'онлайн';
         }
-    });
+        
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('btn-send-msg');
+        const inputZone = document.querySelector('.input-zone');
+        
+        if (isBot) {
+            if (inputZone) inputZone.style.display = 'none';
+            if (messageInput) messageInput.disabled = true;
+            if (sendButton) sendButton.disabled = true;
+        } else {
+            if (inputZone) inputZone.style.display = 'flex';
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.placeholder = 'Написать сообщение...';
+            }
+            if (sendButton) sendButton.disabled = false;
+        }
+        
+        await loadMessages(chatId);
+        subscribeToMessages(chatId);
+        
+        document.querySelectorAll('.dialog-item').forEach(el => {
+            el.classList.remove('active');
+            if (el.dataset.chatId === chatId) {
+                el.classList.add('active');
+            }
+        });
+    } finally {
+        isOpeningChat = false;
+    }
 }
 
 // ─── Загрузка сообщений ─────────────────────────────────
+let messagesCache = new Map();
+let isLoadingMessages = false;
+
 async function loadMessages(chatId) {
     const container = document.getElementById('messages');
     if (!container) return;
     
-    container.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+    // Если уже есть кэш для этого чата и он не пустой, показываем его без загрузки
+    if (messagesCache.has(chatId) && messagesCache.get(chatId).length > 0) {
+        const cachedMessages = messagesCache.get(chatId);
+        container.innerHTML = '';
+        cachedMessages.forEach(msg => {
+            renderMessage(msg);
+        });
+        container.scrollTop = container.scrollHeight;
+        return;
+    }
+    
+    // Если уже идет загрузка, не запускаем новую
+    if (isLoadingMessages) return;
+    isLoadingMessages = true;
+    
+    // Показываем индикатор загрузки только если нет сообщений
+    const currentMessages = container.querySelectorAll('.message');
+    if (currentMessages.length === 0) {
+        container.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+    }
     
     try {
         const { data: msgs, error } = await _supabase
@@ -720,12 +768,19 @@ async function loadMessages(chatId) {
         }
         profilesMap.set(BOT_USER_ID, BOT_PROFILE);
         
+        const messagesWithProfiles = (msgs || []).map(msg => ({
+            ...msg,
+            profiles: profilesMap.get(msg.user_id)
+        }));
+        
+        // Сохраняем в кэш
+        messagesCache.set(chatId, messagesWithProfiles);
+        
         container.innerHTML = '';
         
-        if (msgs && msgs.length > 0) {
-            msgs.forEach(msg => {
-                const profile = profilesMap.get(msg.user_id);
-                renderMessage({ ...msg, profiles: profile });
+        if (messagesWithProfiles.length > 0) {
+            messagesWithProfiles.forEach(msg => {
+                renderMessage(msg);
             });
         } else {
             container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
@@ -734,10 +789,13 @@ async function loadMessages(chatId) {
         container.scrollTop = container.scrollHeight;
     } catch (err) {
         console.error('Ошибка загрузки сообщений:', err);
-        container.innerHTML = '<div class="loading-messages">Ошибка загрузки сообщений</div>';
+        if (container.querySelector('.loading-messages')) {
+            container.innerHTML = '<div class="loading-messages">Ошибка загрузки сообщений</div>';
+        }
+    } finally {
+        isLoadingMessages = false;
     }
 }
-
 // ─── Подписка на новые сообщения ─────────────────────────
 function subscribeToMessages(chatId) {
     if (realtimeChannel) {
@@ -750,6 +808,32 @@ function subscribeToMessages(chatId) {
             { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, 
             async (payload) => {
                 if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
+                
+                // Обновляем кэш сообщений
+                let profile = currentProfile;
+                if (payload.new.user_id !== currentUser?.id) {
+                    if (payload.new.user_id === BOT_USER_ID) {
+                        profile = BOT_PROFILE;
+                    } else {
+                        const { data: userProfile } = await _supabase
+                            .from('profiles')
+                            .select('full_name, username')
+                            .eq('id', payload.new.user_id)
+                            .single();
+                        if (userProfile) profile = userProfile;
+                    }
+                }
+                
+                const newMessage = { ...payload.new, profiles: profile };
+                
+                // Добавляем в кэш
+                if (messagesCache.has(chatId)) {
+                    const cached = messagesCache.get(chatId);
+                    cached.push(newMessage);
+                    messagesCache.set(chatId, cached);
+                }
+                
+                renderMessage(newMessage);
                 
                 // Обновляем последнее сообщение в списке диалогов
                 const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
@@ -778,32 +862,15 @@ function subscribeToMessages(chatId) {
                         dialogItem.classList.add('unread-dialog');
                     }
                     
-                    // Перемещаем чат вверх списка
+                    // Перемещаем чат вверх
                     const parent = dialogItem.parentNode;
                     parent.removeChild(dialogItem);
                     parent.insertBefore(dialogItem, parent.firstChild);
                 }
-                
-                let profile = currentProfile;
-                if (payload.new.user_id !== currentUser?.id) {
-                    if (payload.new.user_id === BOT_USER_ID) {
-                        profile = BOT_PROFILE;
-                    } else {
-                        const { data: userProfile } = await _supabase
-                            .from('profiles')
-                            .select('full_name, username')
-                            .eq('id', payload.new.user_id)
-                            .single();
-                        if (userProfile) profile = userProfile;
-                    }
-                }
-                
-                renderMessage({ ...payload.new, profiles: profile });
             }
         )
         .subscribe();
 }
-
 // ─── Рендер сообщения с анимацией ────────────────────────
 function escapeHtml(str) {
     if (!str) return '';
