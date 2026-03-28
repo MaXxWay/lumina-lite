@@ -24,12 +24,18 @@ const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.loca
 const loadingOverlay = document.getElementById('loading-overlay');
 
 function showLoading(show) {
-    if (loadingOverlay) {
-        if (show) {
-            loadingOverlay.classList.remove('hidden');
-        } else {
-            loadingOverlay.classList.add('hidden');
-        }
+    if (!loadingOverlay) return;
+    
+    if (show) {
+        loadingOverlay.classList.remove('hidden');
+        setTimeout(() => {
+            loadingOverlay.style.opacity = '1';
+        }, 10);
+    } else {
+        loadingOverlay.classList.add('hidden');
+        setTimeout(() => {
+            loadingOverlay.style.opacity = '0';
+        }, 10);
     }
 }
 
@@ -212,6 +218,8 @@ async function getLastMessage(chatId) {
 }
 
 // ─── Отметить сообщения как прочитанные ──────────────────
+let messagesCache = new Map();
+
 async function markChatMessagesAsRead(chatId) {
     if (!chatId) return;
     
@@ -225,7 +233,6 @@ async function markChatMessagesAsRead(chatId) {
         
         if (error) throw error;
         
-        // Обновляем только нужный элемент, без полной перезагрузки
         const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
         if (dialogItem) {
             const badge = dialogItem.querySelector('.unread-badge-count');
@@ -233,7 +240,6 @@ async function markChatMessagesAsRead(chatId) {
             dialogItem.classList.remove('unread-dialog');
         }
         
-        // Обновляем кэш сообщений, помечая их как прочитанные
         if (messagesCache.has(chatId)) {
             const cachedMessages = messagesCache.get(chatId);
             cachedMessages.forEach(msg => {
@@ -480,7 +486,6 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        // Получаем данные для всех чатов
         const chatData = await Promise.all((chats || []).map(async (chat) => {
             const otherId = chat.participants.find(id => id !== currentUser.id);
             const otherUser = profileMap.get(otherId);
@@ -510,7 +515,6 @@ async function loadDialogs(searchTerm = '') {
             );
         }
         
-        // Проверяем, изменился ли список
         const newIds = filteredData.map(chat => chat.id).join(',');
         const oldIds = dialogCache.get('ids') || '';
         
@@ -562,7 +566,6 @@ async function loadDialogs(searchTerm = '') {
         isUpdatingDialogs = false;
     }
 }
-
 
 // ─── Поиск диалогов и пользователей ──────────────────────
 const searchInputElem = document.getElementById('search-dialogs');
@@ -657,7 +660,6 @@ if (loginBtn) {
 let isOpeningChat = false;
 
 async function openChat(chatId, otherUserId, otherUser) {
-    // Защита от повторных кликов
     if (isOpeningChat) return;
     if (currentChat?.id === chatId) return;
     
@@ -715,14 +717,12 @@ async function openChat(chatId, otherUserId, otherUser) {
 }
 
 // ─── Загрузка сообщений ─────────────────────────────────
-let messagesCache = new Map();
 let isLoadingMessages = false;
 
 async function loadMessages(chatId) {
     const container = document.getElementById('messages');
     if (!container) return;
     
-    // Если уже есть кэш для этого чата и он не пустой, показываем его без загрузки
     if (messagesCache.has(chatId) && messagesCache.get(chatId).length > 0) {
         const cachedMessages = messagesCache.get(chatId);
         container.innerHTML = '';
@@ -733,11 +733,9 @@ async function loadMessages(chatId) {
         return;
     }
     
-    // Если уже идет загрузка, не запускаем новую
     if (isLoadingMessages) return;
     isLoadingMessages = true;
     
-    // Показываем индикатор загрузки только если нет сообщений
     const currentMessages = container.querySelectorAll('.message');
     if (currentMessages.length === 0) {
         container.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
@@ -773,7 +771,6 @@ async function loadMessages(chatId) {
             profiles: profilesMap.get(msg.user_id)
         }));
         
-        // Сохраняем в кэш
         messagesCache.set(chatId, messagesWithProfiles);
         
         container.innerHTML = '';
@@ -796,6 +793,7 @@ async function loadMessages(chatId) {
         isLoadingMessages = false;
     }
 }
+
 // ─── Подписка на новые сообщения ─────────────────────────
 function subscribeToMessages(chatId) {
     if (realtimeChannel) {
@@ -809,7 +807,6 @@ function subscribeToMessages(chatId) {
             async (payload) => {
                 if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
                 
-                // Обновляем кэш сообщений
                 let profile = currentProfile;
                 if (payload.new.user_id !== currentUser?.id) {
                     if (payload.new.user_id === BOT_USER_ID) {
@@ -826,7 +823,6 @@ function subscribeToMessages(chatId) {
                 
                 const newMessage = { ...payload.new, profiles: profile };
                 
-                // Добавляем в кэш
                 if (messagesCache.has(chatId)) {
                     const cached = messagesCache.get(chatId);
                     cached.push(newMessage);
@@ -835,7 +831,6 @@ function subscribeToMessages(chatId) {
                 
                 renderMessage(newMessage);
                 
-                // Обновляем последнее сообщение в списке диалогов
                 const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
                 if (dialogItem) {
                     const previewSpan = dialogItem.querySelector('.dialog-preview');
@@ -862,7 +857,6 @@ function subscribeToMessages(chatId) {
                         dialogItem.classList.add('unread-dialog');
                     }
                     
-                    // Перемещаем чат вверх
                     const parent = dialogItem.parentNode;
                     parent.removeChild(dialogItem);
                     parent.insertBefore(dialogItem, parent.firstChild);
@@ -871,6 +865,7 @@ function subscribeToMessages(chatId) {
         )
         .subscribe();
 }
+
 // ─── Рендер сообщения с анимацией ────────────────────────
 function escapeHtml(str) {
     if (!str) return '';
@@ -971,7 +966,6 @@ async function sendMsg() {
             })
             .eq('id', currentChat.id);
         
-        // Обновляем последнее сообщение в списке диалогов
         const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${currentChat.id}"]`);
         if (dialogItem) {
             const previewSpan = dialogItem.querySelector('.dialog-preview');
@@ -979,7 +973,6 @@ async function sendMsg() {
                 let shortText = text.length > 50 ? text.slice(0, 47) + '...' : text;
                 previewSpan.textContent = 'Вы: ' + shortText;
             }
-            // Перемещаем вверх
             const parent = dialogItem.parentNode;
             parent.removeChild(dialogItem);
             parent.insertBefore(dialogItem, parent.firstChild);
@@ -1087,23 +1080,88 @@ updateDvh();
 
 // ─── Запуск с индикатором загрузки ───────────────────────
 (async () => {
-// Плавное появление/исчезновение загрузки
-const loadingOverlay = document.getElementById('loading-overlay');
-
-function showLoading(show) {
-    if (!loadingOverlay) return;
+    showLoading(true);
     
-    if (show) {
-        loadingOverlay.classList.remove('hidden');
-        // Добавляем небольшую задержку перед началом анимации
-        setTimeout(() => {
-            loadingOverlay.style.opacity = '1';
-        }, 10);
-    } else {
-        loadingOverlay.classList.add('hidden');
-        // После завершения анимации можно очистить
-        setTimeout(() => {
-            loadingOverlay.style.opacity = '0';
-        }, 10);
+    try {
+        const { data: { session } } = await _supabase.auth.getSession();
+        
+        if (session) {
+            currentUser = session.user;
+            
+            const { data: p, error: profileError } = await _supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .maybeSingle();
+            
+            if (profileError) {
+                console.error('Ошибка загрузки профиля:', profileError);
+            }
+            
+            if (!p) {
+                const email = currentUser.email;
+                let username = email ? email.split('@')[0] : 'user';
+                username = username.replace(/@lumina\.local$/, '');
+                
+                const { data: newProfile, error: insertError } = await _supabase
+                    .from('profiles')
+                    .insert({
+                        id: currentUser.id,
+                        username: username,
+                        full_name: username
+                    })
+                    .select()
+                    .maybeSingle();
+                
+                if (insertError) {
+                    console.error('Ошибка создания профиля:', insertError);
+                }
+                currentProfile = newProfile;
+            } else {
+                currentProfile = p;
+            }
+            
+            if (currentProfile) {
+                const badge = document.getElementById('current-user-badge');
+                if (badge) badge.textContent = currentProfile.full_name;
+                updateProfileFooter();
+                initProfileFooter();
+            }
+            
+            await loadAllUsers();
+            await ensureBotChat();
+            
+            showLoading(false);
+            showScreen('chat');
+            await loadDialogs();
+            
+            const chatTitle = document.getElementById('chat-title');
+            if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+            
+            const chatStatus = document.querySelector('.chat-status');
+            if (chatStatus) chatStatus.textContent = 'выберите диалог';
+            
+            const inputZone = document.querySelector('.input-zone');
+            if (inputZone) inputZone.style.display = 'none';
+            
+            const messagesContainer = document.getElementById('messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = `
+                    <div class="msg-stub">
+                        <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                        <p>Выберите диалог, чтобы начать общение</p>
+                    </div>
+                `;
+            }
+            
+            currentChat = null;
+        } else {
+            showLoading(false);
+            showScreen('reg');
+        }
+    } catch (err) {
+        console.error('Ошибка при инициализации:', err);
+        showLoading(false);
+        showScreen('reg');
     }
-}();
+})();
