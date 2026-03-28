@@ -898,3 +898,34 @@ body {
 .user-search-item:hover {
     background: rgba(0, 114, 255, 0.1);
 }
+.unread-badge-count {
+    display: inline-block;
+    background: var(--accent-blue);
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* Подсветка непрочитанного диалога */
+.unread-dialog {
+    background: rgba(0, 114, 255, 0.1);
+    border-left: 3px solid var(--accent-blue);
+}
+
+.unread-dialog:hover {
+    background: rgba(0, 114, 255, 0.15);
+}
+
+/* Плавное обновление списка диалогов */
+.dialogs-list {
+    transition: all 0.2s ease;
+}
+
+.dialog-item {
+    transition: background 0.2s ease, border-left 0.2s ease;
+}
