@@ -91,59 +91,50 @@ if (regBtn) {
     };
 }
 
-// ─── Вход ────────────────────────────────────────────────
-const loginBtn = document.getElementById('btn-do-login');
-if (loginBtn) {
-    loginBtn.onclick = async () => {
-        const user = document.getElementById('login-username').value.trim();
-        const pass = document.getElementById('login-password').value.trim();
-        const { data, error } = await _supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
-        if (error) return showToast('Ошибка входа: ' + error.message, true);
+// ─── Уведомление о непрочитанном сообщении ───────────────
+function showUnreadNotification() {
+    const chatTitle = document.getElementById('chat-title');
+    const chatStatus = document.querySelector('.chat-status');
+    
+    if (chatTitle && !chatTitle.innerHTML.includes('unread-badge')) {
+        chatTitle.innerHTML = 'Lumina Lite <span class="unread-badge">1</span>';
+    }
+    if (chatStatus && !chatStatus.innerHTML.includes('новое сообщение')) {
+        chatStatus.innerHTML = 'новое сообщение от Lumina Bot';
+    }
+}
 
-        currentUser = data.user;
+// ─── Отметить сообщения как прочитанные ──────────────────
+async function markMessagesAsRead(chatId) {
+    if (!chatId) return;
+    
+    try {
+        await _supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('chat_id', chatId)
+            .eq('user_id', BOT_USER_ID)
+            .eq('is_read', false);
         
-        const { data: p, error: profileError } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-        if (profileError) {
-            console.error('Ошибка загрузки профиля:', profileError);
-        }
-        currentProfile = p;
-        
-        if (p) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = p.full_name;
-        }
-        
-        await loadAllUsers();
-        await ensureBotChat();
-        
-        showScreen('chat');
-        await loadDialogs();
-        
-        // НЕ открываем чат с ботом автоматически
+        // Убираем уведомление
         const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) chatTitle.textContent = 'Lumina Lite';
-        
         const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) chatStatus.textContent = 'выберите диалог';
         
-        // Скрываем поле ввода
-        const inputZone = document.querySelector('.input-zone');
-        if (inputZone) inputZone.style.display = 'none';
-        
-        // Очищаем сообщения
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = `
-                <div class="msg-stub">
-                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                    <p>Выберите диалог, чтобы начать общение</p>
-                </div>
-            `;
+        if (chatTitle) {
+            chatTitle.innerHTML = chatTitle.innerHTML.replace('<span class="unread-badge">1</span>', '');
+        }
+        if (chatStatus && chatStatus.innerHTML.includes('новое сообщение')) {
+            const isBot = currentChat?.other_user?.id === BOT_USER_ID;
+            chatStatus.textContent = isBot ? 'бот' : 'онлайн';
         }
         
-        // Сбрасываем currentChat
-        currentChat = null;
-    };
+        const dialogBot = document.querySelector('.dialog-item[data-other-user-id="00000000-0000-0000-0000-000000000000"]');
+        if (dialogBot) {
+            dialogBot.classList.remove('unread-dialog');
+        }
+    } catch (err) {
+        console.error('Ошибка отметки сообщений как прочитанных:', err);
+    }
 }
 
 // ─── Создание чата с ботом ───────────────────────────────
@@ -164,19 +155,23 @@ async function ensureBotChat() {
         if (existing) {
             const { data: welcomeMsg } = await _supabase
                 .from('messages')
-                .select('id')
+                .select('id, is_read')
                 .eq('chat_id', existing.id)
                 .eq('is_welcome', true)
                 .maybeSingle();
             
             if (!welcomeMsg) {
                 await _supabase.from('messages').insert({
-                    text: 'Добро пожаловать в мессенджер Lumina Lite! Начните общение прямо сейчас!',
+                    text: 'Добро пожаловать в мессенджер Lumina Lite! Нажмите на мой диалог, чтобы начать общение!',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_welcome: true,
-                    is_system: true
+                    is_system: true,
+                    is_read: false
                 });
+                setTimeout(() => showUnreadNotification(), 500);
+            } else if (welcomeMsg && !welcomeMsg.is_read) {
+                showUnreadNotification();
             }
             return;
         }
@@ -195,12 +190,14 @@ async function ensureBotChat() {
         
         if (newChat && !createError) {
             await _supabase.from('messages').insert({
-                text: 'Добро пожаловать в мессенджер Lumina Lite! Начните общение прямо сейчас!',
+                text: 'Добро пожаловать в мессенджер Lumina Lite! Нажмите на мой диалог, чтобы начать общение!',
                 user_id: BOT_USER_ID,
                 chat_id: newChat.id,
                 is_welcome: true,
-                is_system: true
+                is_system: true,
+                is_read: false
             });
+            setTimeout(() => showUnreadNotification(), 500);
         }
     } catch (err) {
         console.error('Ошибка в ensureBotChat:', err);
@@ -220,6 +217,31 @@ async function loadAllUsers() {
     } catch (err) {
         console.error('Ошибка загрузки пользователей:', err);
         allUsers = [];
+    }
+}
+
+// ─── Поиск пользователей по юзернейму ────────────────────
+async function searchUsersByUsername(username) {
+    if (!username || username.length < 1) return [];
+    
+    let cleanUsername = username;
+    if (cleanUsername.startsWith('@')) {
+        cleanUsername = cleanUsername.substring(1);
+    }
+    
+    try {
+        const { data, error } = await _supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .ilike('username', `%${cleanUsername}%`)
+            .neq('id', currentUser.id)
+            .limit(10);
+        
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.error('Ошибка поиска пользователей:', err);
+        return [];
     }
 }
 
@@ -263,10 +285,59 @@ async function getOrCreatePrivateChat(otherUserId) {
     }
 }
 
-// ─── Загрузка диалогов ────────────────────────────────────
+// ─── Загрузка диалогов с поиском пользователей ────────────
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
     if (!container) return;
+    
+    const isUserSearch = searchTerm.startsWith('@');
+    
+    if (isUserSearch && searchTerm.length > 1) {
+        const users = await searchUsersByUsername(searchTerm);
+        
+        container.innerHTML = `
+            <div class="search-header">
+                <span class="search-title">👥 Найдено пользователей: ${users.length}</span>
+            </div>
+        `;
+        
+        if (users.length === 0) {
+            container.innerHTML += '<div class="dialogs-loading">Пользователи не найдены</div>';
+        } else {
+            users.forEach(user => {
+                const name = user.full_name || user.username;
+                
+                const div = document.createElement('div');
+                div.className = 'dialog-item user-search-item';
+                div.dataset.userId = user.id;
+                div.innerHTML = `
+                    <div class="dialog-avatar">
+                        <div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>
+                    </div>
+                    <div class="dialog-info">
+                        <div class="dialog-name">
+                            ${escapeHtml(name)}
+                            <span class="username-hint">@${escapeHtml(user.username)}</span>
+                        </div>
+                        <div class="dialog-preview">Нажмите, чтобы начать чат</div>
+                    </div>
+                `;
+                div.onclick = async () => {
+                    try {
+                        const chatId = await getOrCreatePrivateChat(user.id);
+                        await openChat(chatId, user.id, user);
+                        const searchInputElem = document.getElementById('search-dialogs');
+                        if (searchInputElem) searchInputElem.value = '';
+                        loadDialogs();
+                    } catch (err) {
+                        showToast('Ошибка создания чата', true);
+                    }
+                };
+                container.appendChild(div);
+            });
+        }
+        return;
+    }
     
     container.innerHTML = '<div class="dialogs-loading">Загрузка диалогов...</div>';
     
@@ -279,7 +350,6 @@ async function loadDialogs(searchTerm = '') {
         
         if (error) throw error;
         
-        // Получаем профили участников
         const allParticipantIds = chats ? chats.flatMap(c => c.participants) : [];
         const profileMap = new Map();
         
@@ -295,13 +365,28 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
+        let hasUnreadBotMessage = false;
+        if (chats) {
+            const botChat = chats.find(c => c.participants.includes(BOT_USER_ID));
+            if (botChat) {
+                const { data: unreadMsg } = await _supabase
+                    .from('messages')
+                    .select('id')
+                    .eq('chat_id', botChat.id)
+                    .eq('user_id', BOT_USER_ID)
+                    .eq('is_read', false)
+                    .maybeSingle();
+                hasUnreadBotMessage = !!unreadMsg;
+            }
+        }
+        
         container.innerHTML = '';
         
         if (!chats || chats.length === 0) {
-            container.innerHTML = '<div class="dialogs-loading">Нет диалогов</div>';
+            container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска пользователей</div>';
         } else {
             let filteredChats = chats;
-            if (searchTerm) {
+            if (searchTerm && !isUserSearch) {
                 filteredChats = chats.filter(chat => {
                     const otherId = chat.participants.find(id => id !== currentUser.id);
                     const otherUser = profileMap.get(otherId);
@@ -311,16 +396,17 @@ async function loadDialogs(searchTerm = '') {
             }
             
             if (filteredChats.length === 0) {
-                container.innerHTML = '<div class="dialogs-loading">Ничего не найдено</div>';
+                container.innerHTML = '<div class="dialogs-loading">Диалоги не найдены</div>';
             } else {
                 filteredChats.forEach(chat => {
                     const otherId = chat.participants.find(id => id !== currentUser.id);
                     const otherUser = profileMap.get(otherId);
                     const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
                     const isBot = otherId === BOT_USER_ID;
+                    const hasUnread = hasUnreadBotMessage && isBot;
                     
                     const div = document.createElement('div');
-                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''}`;
+                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${hasUnread ? 'unread-dialog' : ''}`;
                     div.dataset.chatId = chat.id;
                     div.dataset.otherUserId = otherId;
                     div.innerHTML = `
@@ -332,14 +418,24 @@ async function loadDialogs(searchTerm = '') {
                             <div class="dialog-name">
                                 ${escapeHtml(name)}
                                 ${isBot ? '<span class="bot-badge">Бот</span>' : ''}
+                                ${hasUnread ? '<span class="unread-dot"></span>' : ''}
                             </div>
                             <div class="dialog-preview">${chat.last_message ? escapeHtml(chat.last_message) : 'Нет сообщений'}</div>
                         </div>
                     `;
-                    div.onclick = () => openChat(chat.id, otherId, otherUser);
+                    div.onclick = async () => {
+                        await openChat(chat.id, otherId, otherUser);
+                        if (hasUnread) {
+                            await markMessagesAsRead(chat.id);
+                        }
+                    };
                     container.appendChild(div);
                 });
             }
+        }
+        
+        if (hasUnreadBotMessage) {
+            showUnreadNotification();
         }
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
@@ -347,72 +443,91 @@ async function loadDialogs(searchTerm = '') {
     }
 }
 
-// ─── Поиск диалогов ──────────────────────────────────────
-const searchInput = document.getElementById('search-dialogs');
-if (searchInput) {
-    searchInput.oninput = (e) => {
-        loadDialogs(e.target.value);
+// ─── Поиск диалогов и пользователей ──────────────────────
+const searchInputElem = document.getElementById('search-dialogs');
+if (searchInputElem) {
+    let searchTimeout;
+    searchInputElem.oninput = (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            loadDialogs(e.target.value);
+        }, 300);
     };
 }
 
-// ─── Диалог выбора пользователя ──────────────────────────
-function showNewChatDialog() {
-    const availableUsers = allUsers.filter(u => u.id !== BOT_USER_ID);
-    
-    if (availableUsers.length === 0) {
-        showToast('Нет других пользователей', true);
-        return;
-    }
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-        <div class="modal-content glass-card">
-            <h3>Выберите собеседника</h3>
-            <div class="modal-search">
-                <svg width="18" height="18"><use href="#icon-search"/></svg>
-                <input type="text" id="modal-search-input" placeholder="Поиск...">
-            </div>
-            <div id="users-list" style="max-height:300px;overflow-y:auto;">
-                ${availableUsers.map(user => `
-                    <div class="user-select-item" data-id="${user.id}" data-name="${escapeHtml(user.full_name || user.username)}">
-                        ${escapeHtml(user.full_name || user.username)}
-                    </div>
-                `).join('')}
-            </div>
-            <button class="close-modal-btn">Отмена</button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    const searchInputModal = modal.querySelector('#modal-search-input');
-    if (searchInputModal) {
-        searchInputModal.oninput = (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const items = modal.querySelectorAll('.user-select-item');
-            items.forEach(item => {
-                const name = item.dataset.name.toLowerCase();
-                item.style.display = name.includes(searchTerm) ? 'block' : 'none';
-            });
-        };
-    }
-    
-    modal.querySelectorAll('.user-select-item').forEach(el => {
-        el.onclick = async () => {
-            const userId = el.dataset.id;
-            modal.remove();
-            try {
-                const chatId = await getOrCreatePrivateChat(userId);
-                const otherUser = availableUsers.find(u => u.id === userId);
-                await openChat(chatId, userId, otherUser);
-            } catch (err) {
-                showToast('Ошибка создания чата', true);
+// ─── Вход ────────────────────────────────────────────────
+const loginBtn = document.getElementById('btn-do-login');
+if (loginBtn) {
+    loginBtn.onclick = async () => {
+        const user = document.getElementById('login-username').value.trim();
+        const pass = document.getElementById('login-password').value.trim();
+        const { data, error } = await _supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
+        if (error) return showToast('Ошибка входа: ' + error.message, true);
+
+        currentUser = data.user;
+        
+        const { data: p, error: profileError } = await _supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+        
+        if (profileError) {
+            console.error('Ошибка загрузки профиля:', profileError);
+        }
+        
+        if (!p) {
+            const username = user.replace(/^@/, '');
+            const { data: newProfile, error: insertError } = await _supabase
+                .from('profiles')
+                .insert({
+                    id: currentUser.id,
+                    username: username,
+                    full_name: username
+                })
+                .select()
+                .maybeSingle();
+            
+            if (insertError) {
+                console.error('Ошибка создания профиля:', insertError);
             }
-        };
-    });
-    
-    modal.querySelector('.close-modal-btn').onclick = () => modal.remove();
+            currentProfile = newProfile;
+        } else {
+            currentProfile = p;
+        }
+        
+        if (currentProfile) {
+            const badge = document.getElementById('current-user-badge');
+            if (badge) badge.textContent = currentProfile.full_name;
+        }
+        
+        await loadAllUsers();
+        await ensureBotChat();
+        
+        showScreen('chat');
+        await loadDialogs();
+        
+        const chatTitle = document.getElementById('chat-title');
+        if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+        
+        const chatStatus = document.querySelector('.chat-status');
+        if (chatStatus) chatStatus.textContent = 'выберите диалог';
+        
+        const inputZone = document.querySelector('.input-zone');
+        if (inputZone) inputZone.style.display = 'none';
+        
+        const messagesContainer = document.getElementById('messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="msg-stub">
+                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                    <p>Выберите диалог, чтобы начать общение</p>
+                </div>
+            `;
+        }
+        
+        currentChat = null;
+    };
 }
 
 // ─── Открыть чат ─────────────────────────────────────────
@@ -548,7 +663,7 @@ function subscribeToMessages(chatId) {
         .subscribe();
 }
 
-// ─── Рендер сообщения ────────────────────────────────────
+// ─── Рендер сообщения с анимацией ────────────────────────
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -595,7 +710,13 @@ function renderMessage(msg) {
     `;
     
     container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+    // Плавная прокрутка
+    setTimeout(() => {
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 50);
 }
 
 // ─── Отправка сообщения ─────────────────────────────────
@@ -725,9 +846,9 @@ if (saveProfileBtn) {
 const sendButton = document.getElementById('btn-send-msg');
 if (sendButton) sendButton.onclick = sendMsg;
 
-const messageInputElem = document.getElementById('message-input');
-if (messageInputElem) {
-    messageInputElem.addEventListener('keypress', (e) => {
+const messageInputField = document.getElementById('message-input');
+if (messageInputField) {
+    messageInputField.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMsg();
@@ -751,12 +872,45 @@ updateDvh();
         
         if (session) {
             currentUser = session.user;
-            const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-            currentProfile = p;
-            if (p) {
-                const badge = document.getElementById('current-user-badge');
-                if (badge) badge.textContent = p.full_name;
+            
+            const { data: p, error: profileError } = await _supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .maybeSingle();
+            
+            if (profileError) {
+                console.error('Ошибка загрузки профиля:', profileError);
             }
+            
+            if (!p) {
+                const email = currentUser.email;
+                let username = email ? email.split('@')[0] : 'user';
+                username = username.replace(/@lumina\.local$/, '');
+                
+                const { data: newProfile, error: insertError } = await _supabase
+                    .from('profiles')
+                    .insert({
+                        id: currentUser.id,
+                        username: username,
+                        full_name: username
+                    })
+                    .select()
+                    .maybeSingle();
+                
+                if (insertError) {
+                    console.error('Ошибка создания профиля:', insertError);
+                }
+                currentProfile = newProfile;
+            } else {
+                currentProfile = p;
+            }
+            
+            if (currentProfile) {
+                const badge = document.getElementById('current-user-badge');
+                if (badge) badge.textContent = currentProfile.full_name;
+            }
+            
             await loadAllUsers();
             await ensureBotChat();
             
@@ -764,7 +918,6 @@ updateDvh();
             showScreen('chat');
             await loadDialogs();
             
-            // НЕ открываем чат с ботом автоматически
             const chatTitle = document.getElementById('chat-title');
             if (chatTitle) chatTitle.textContent = 'Lumina Lite';
             
