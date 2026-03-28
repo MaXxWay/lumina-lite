@@ -1,4 +1,4 @@
-/* --- ТВОИ ОРИГИНАЛЬНЫЕ ПЕРЕМЕННЫЕ (212 строк дизайна) --- */
+/* --- ОСНОВНЫЕ ПЕРЕМЕННЫЕ --- */
 :root {
     --bg-deep: #03081a;
     --glass-bg: rgba(10, 25, 60, 0.25);
@@ -11,8 +11,6 @@
     --radius-card: 35px;
     --radius-input: 14px;
     --transition: 0.3s ease;
-    
-    /* Добавил переменную для мобильного DVH */
     --dvh: 100vh;
 }
 
@@ -32,12 +30,12 @@ body {
     position: relative;
 }
 
-/* Твои оригинальные Орбы */
+/* Орбы */
 .orb {
     position: absolute;
     border-radius: 40%;
-    filter: blur(120px); 
-    opacity: 0.15; 
+    filter: blur(120px);
+    opacity: 0.15;
     z-index: 0;
     pointer-events: none;
 }
@@ -45,7 +43,7 @@ body {
 .orb-2 { width: 400px; height: 400px; background: var(--accent-cyan); bottom: -100px; right: -100px; }
 .orb-3 { width: 250px; height: 250px; background: #7b2fff; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
-/* --- АВТОРИЗАЦИЯ (Твой стиль) --- */
+/* --- АВТОРИЗАЦИЯ --- */
 .auth-container {
     display: none;
     width: 100%;
@@ -61,14 +59,13 @@ body {
 .logo-badge { font-size: 14px; font-weight: 400; letter-spacing: 2px; text-transform: lowercase; background: var(--accent-cyan); -webkit-text-fill-color: var(--bg-deep); padding: 2px 8px; border-radius: 6px; margin-left: 10px; vertical-align: middle; }
 .logo-sub { font-size: 12px; color: var(--text-dim); margin-top: 5px; letter-spacing: 1px; }
 
-.glass-card { background: var(--glass-bg); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border: 1px solid var(--glass-border); border-radius: var(--radius-card); padding: 40px; box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5); }
+.glass-card { background: var(--glass-bg); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); border-radius: var(--radius-card); padding: 40px; box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5); }
 .auth-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px; text-align: center; margin-bottom: 25px; background: linear-gradient(135deg, #fff 0%, var(--text-dim) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .glass-input { width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); padding: 16px; border-radius: var(--radius-input); color: white; margin-bottom: 15px; font-size: 16px; transition: var(--transition); }
 .glass-input:focus { border-color: var(--accent-cyan); background: rgba(0, 0, 0, 0.5); }
 
 .glass-button.primary { width: 100%; padding: 16px; border-radius: var(--radius-input); border: none; background: linear-gradient(135deg, var(--accent-blue) 0%, #003399 100%); color: white; font-weight: 700; font-size: 16px; cursor: pointer; transition: var(--transition); }
 .glass-button.primary:hover { box-shadow: 0 0 15px rgba(0, 114, 255, 0.5); transform: translateY(-1px); }
-.glass-button.primary:active { transform: translateY(0); }
 
 .auth-footer { margin-top: 20px; text-align: center; font-size: 14px; color: var(--text-dim); }
 .link-btn { color: var(--accent-cyan); cursor: pointer; font-weight: 600; text-decoration: underline; }
@@ -77,7 +74,7 @@ body {
 .toast.show { opacity: 1; }
 .toast.error { background: #ff4757; }
 
-/* --- ПОЛНОЭКРАННЫЙ РЕЖИМ --- */
+/* --- ОСНОВНОЙ ИНТЕРФЕЙС --- */
 .main-interface {
     display: none;
     position: fixed;
@@ -86,28 +83,23 @@ body {
     width: 100vw;
     height: 100vh;
     height: var(--dvh);
-    max-width: 100%;
     background: var(--glass-bg);
     backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    border: none;
-    border-radius: 0;
     overflow: hidden;
     z-index: 5;
 }
 .main-interface.visible { display: flex !important; animation: fadeIn 0.5s ease; }
 
 /* Сайдбар */
-.glass-sidebar { width: var(--sidebar-w, 70px); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: rgba(0,0,0,0.2); }
+.glass-sidebar { border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; align-items: center; padding: 20px 0; background: rgba(0,0,0,0.2); }
 .logo-mini { font-family: 'Syne'; font-size: 24px; font-weight: 800; margin-bottom: 30px; }
 .logo-mini .dot { color: var(--accent-cyan); }
 .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 15px; }
 .nav-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-dim); padding: 10px; border-radius: 10px; transition: var(--transition); }
 .nav-btn:hover, .nav-btn.active { color: white; background: rgba(255,255,255,0.1); }
 .logout-btn { color: #ff4757; margin-top: auto; }
-.logout-btn:hover { background: rgba(255, 71, 87, 0.1); }
 
-/* Зона Чата */
+/* Зона чата */
 .glass-chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .chat-header { padding: 20px 30px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .chat-info h3 { font-weight: 700; font-size: 18px; }
@@ -124,34 +116,25 @@ body {
 .message.other { align-self: flex-start; }
 .msg-avatar { width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: white; flex-shrink: 0; position: relative; background: #1e293b; }
 .msg-avatar img { width: 28px; height: 28px; object-fit: contain; border-radius: 50%; }
-.msg-bubble { background: rgba(255, 255, 255, 0.05); padding: 12px 16px; border-radius: 18px; position: relative; }
+.msg-bubble { background: rgba(255, 255, 255, 0.05); padding: 12px 16px; border-radius: 18px; }
 .message.own .msg-bubble { background: var(--accent-blue); border-bottom-right-radius: 5px; }
 .message.other .msg-bubble { border-bottom-left-radius: 5px; }
-
-/* Имя отправителя и время */
 .msg-sender { font-size: 10px; color: var(--accent-cyan); font-weight: 800; margin-bottom: 4px; }
 .msg-time { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 5px; text-align: right; }
 .message.own .msg-time { color: rgba(255,255,255,0.5); }
 
-/* Зона Ввода */
+/* Поле ввода */
 .input-zone { padding: 20px 30px; border-top: 1px solid var(--glass-border); flex-shrink: 0; display: none; }
 .input-zone.visible { display: block; }
 .glass-input-wrapper { display: flex; background: rgba(0, 0, 0, 0.3); border-radius: var(--radius-input); padding: 10px; gap: 10px; align-items: center; }
-.emoji-btn, .send-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-dim); transition: var(--transition); }
-.emoji-btn:hover, .send-btn:hover { color: white; }
+.send-btn { background: none; border: none; cursor: pointer; color: var(--text-dim); transition: var(--transition); }
+.send-btn:hover { color: white; }
 .glass-input-wrapper input { flex: 1; background: none; border: none; color: white; font-size: 14px; }
-
-/* Эмодзи и Реакции */
-.emoji-picker { position: absolute; bottom: 80px; left: 50px; background: rgba(0,0,0,0.9); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; display: flex; gap: 10px; z-index: 10; }
-.emoji-opt { cursor: pointer; font-size: 20px; transition: transform 0.2s; }
-.emoji-opt:hover { transform: scale(1.2); }
-.reaction-chip { background: rgba(255,255,255,0.1); border-radius: 10px; padding: 2px 5px; font-size: 12px; margin-top: 5px; display: inline-block; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes messageAppear { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes spin { to { transform: rotate(360deg); } }
 
-/* --- ДИАЛОГИ (личные сообщения) --- */
+/* --- ДИАЛОГИ --- */
 .dialogs-sidebar {
     width: 300px !important;
     min-width: 260px;
@@ -166,37 +149,6 @@ body {
     padding: 20px 20px 16px;
     border-bottom: 1px solid var(--glass-border);
     width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.dialogs-header h4 {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin: 0;
-}
-
-.new-chat-fab {
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    color: white;
-}
-
-.new-chat-fab:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(0, 114, 255, 0.4);
 }
 
 .dialogs-list {
@@ -204,7 +156,6 @@ body {
     width: 100%;
     overflow-y: auto;
     padding: 8px 0;
-    transition: all 0.2s ease;
 }
 
 .dialogs-loading {
@@ -228,19 +179,10 @@ body {
     cursor: pointer;
     transition: background 0.2s ease, border-left 0.2s ease;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    position: relative;
 }
+.dialog-item:hover { background: rgba(255, 255, 255, 0.08); }
+.dialog-item.active { background: linear-gradient(90deg, rgba(0, 114, 255, 0.2), transparent); border-left: 3px solid var(--accent-blue); }
 
-.dialog-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.dialog-item.active {
-    background: linear-gradient(90deg, rgba(0, 114, 255, 0.2), transparent);
-    border-left: 3px solid var(--accent-blue);
-}
-
-/* Стили для аватара бота - без серой обводки */
 .dialog-avatar {
     width: 48px;
     height: 48px;
@@ -254,25 +196,10 @@ body {
     position: relative;
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
 }
+.dialog-avatar.bot-avatar { background: linear-gradient(135deg, #4a5568, #2d3748); }
+.dialog-avatar img { width: 32px; height: 32px; object-fit: contain; border-radius: 50%; }
+.avatar-letter { font-weight: 700; font-size: 18px; color: white; }
 
-.dialog-avatar.bot-avatar {
-    background: linear-gradient(135deg, #4a5568, #2d3748);
-}
-
-.dialog-avatar img {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    border-radius: 50%;
-}
-
-.avatar-letter {
-    font-weight: 700;
-    font-size: 18px;
-    color: white;
-}
-
-/* Галочка верификации */
 .verified-badge {
     position: absolute;
     bottom: -2px;
@@ -285,14 +212,7 @@ body {
     align-items: center;
     justify-content: center;
 }
-
-.verified-badge svg {
-    width: 10px;
-    height: 10px;
-    stroke: white;
-    stroke-width: 3;
-}
-
+.verified-badge svg { width: 10px; height: 10px; stroke: white; stroke-width: 3; }
 .verified-badge-small {
     position: absolute;
     bottom: -2px;
@@ -305,165 +225,30 @@ body {
     align-items: center;
     justify-content: center;
 }
+.verified-badge-small svg { width: 8px; height: 8px; stroke: white; stroke-width: 3; }
 
-.verified-badge-small svg {
-    width: 8px;
-    height: 8px;
-    stroke: white;
-    stroke-width: 3;
-}
-
-.dialog-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.dialog-name {
-    font-weight: 600;
-    margin-bottom: 4px;
-    font-size: 15px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.dialog-preview {
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+.dialog-info { flex: 1; min-width: 0; }
+.dialog-name { font-weight: 600; margin-bottom: 4px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dialog-preview { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Стили для бота */
-.bot-badge {
-    display: inline-block;
-    background: #4a5568;
-    color: white;
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    margin-left: 6px;
-    font-weight: 600;
-    vertical-align: middle;
-}
+.bot-badge { display: inline-block; background: #4a5568; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 6px; font-weight: 600; vertical-align: middle; }
+.bot-badge-small { display: inline-block; background: #4a5568; color: white; font-size: 9px; padding: 1px 5px; border-radius: 8px; margin-left: 6px; font-weight: 600; vertical-align: middle; }
+.bot-message .msg-bubble { background: rgba(74, 85, 104, 0.3); border: 1px solid rgba(74, 85, 104, 0.5); }
+.bot-message .msg-sender { color: #a0aec0; }
+.msg-avatar.bot-avatar { background: #4a5568; }
 
-.bot-badge-small {
-    display: inline-block;
-    background: #4a5568;
-    color: white;
-    font-size: 9px;
-    padding: 1px 5px;
-    border-radius: 8px;
-    margin-left: 6px;
-    font-weight: 600;
-    vertical-align: middle;
-}
+.loading-messages { text-align: center; color: var(--text-dim); padding: 40px; font-size: 13px; }
+.msg-stub { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
 
-/* Сообщения бота - не ярко-зеленые */
-.bot-message .msg-bubble {
-    background: rgba(74, 85, 104, 0.3);
-    border: 1px solid rgba(74, 85, 104, 0.5);
-}
+#message-input:disabled, #btn-send-msg:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.bot-message .msg-sender {
-    color: #a0aec0;
-}
-
-.msg-avatar.bot-avatar {
-    background: #4a5568;
-}
-
-.loading-messages {
-    text-align: center;
-    color: var(--text-dim);
-    padding: 40px;
-    font-size: 13px;
-}
-
-.msg-stub {
-    text-align: center;
-    color: var(--text-dim);
-    padding: 60px 20px;
-    font-size: 14px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-}
-
-/* Отключенное поле ввода */
-#message-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-#btn-send-msg:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Стили для системных сообщений */
-.system-message .msg-bubble {
-    background: rgba(255, 255, 255, 0.05);
-    text-align: center;
-    font-style: italic;
-}
-
-/* Кнопка нового чата в мобильной версии */
-.new-chat-btn {
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-    border: none;
-    padding: 10px;
-    border-radius: 20px;
-    color: white;
-    cursor: pointer;
-    font-weight: 600;
-    transition: 0.2s;
-}
-
-.new-chat-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 114, 255, 0.3);
-}
-
-/* Поиск в диалогах */
-.search-wrapper {
-    flex: 1;
-    position: relative;
-    margin-right: 12px;
-}
-
-.search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-dim);
-    pointer-events: none;
-}
-
-.search-input {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    padding: 8px 12px 8px 36px;
-    color: white;
-    font-size: 13px;
-    transition: 0.2s;
-}
-
-.search-input:focus {
-    border-color: var(--accent-cyan);
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.search-input::placeholder {
-    color: var(--text-dim);
-    font-size: 12px;
-}
+/* Поиск */
+.search-wrapper { flex: 1; position: relative; margin-right: 12px; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.search-input { width: 100%; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: 20px; padding: 8px 12px 8px 36px; color: white; font-size: 13px; transition: 0.2s; }
+.search-input:focus { border-color: var(--accent-cyan); background: rgba(0, 0, 0, 0.5); }
+.search-input::placeholder { color: var(--text-dim); font-size: 12px; }
 
 /* Модальное окно */
 .modal-overlay {
@@ -480,111 +265,67 @@ body {
     z-index: 2000;
     animation: fadeIn 0.2s ease;
 }
+.modal-content { width: 90%; max-width: 400px; max-height: 80vh; padding: 24px; overflow-y: auto; }
+.modal-content h3 { font-size: 20px; margin-bottom: 20px; text-align: center; font-family: 'Syne', sans-serif; }
+.modal-search { margin-bottom: 16px; position: relative; }
+.modal-search input { width: 100%; padding: 12px 16px; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--glass-border); border-radius: 30px; color: white; font-size: 14px; padding-left: 40px; }
+.modal-search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text-dim); }
+.user-select-item { padding: 12px 16px; border-bottom: 1px solid var(--glass-border); cursor: pointer; transition: 0.2s; border-radius: 12px; margin: 4px 0; }
+.user-select-item:hover { background: rgba(0, 114, 255, 0.3); transform: translateX(4px); }
+.close-modal-btn { margin-top: 20px; width: 100%; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--glass-border); padding: 12px; border-radius: 30px; color: white; cursor: pointer; font-weight: 600; transition: 0.2s; }
+.close-modal-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
-.modal-content {
-    width: 90%;
-    max-width: 400px;
-    max-height: 80vh;
-    padding: 24px;
-    overflow-y: auto;
-}
+/* Профиль */
+.profile-back-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.profile-back-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+.profile-card { max-width: 480px; width: 100%; align-self: center; }
 
-.modal-content h3 {
-    font-size: 20px;
-    margin-bottom: 20px;
-    text-align: center;
-    font-family: 'Syne', sans-serif;
-}
-
-.modal-search {
-    margin-bottom: 16px;
-    position: relative;
-}
-
-.modal-search input {
-    width: 100%;
+/* Нижняя панель профиля */
+.profile-footer {
+    margin-top: auto;
+    border-top: 1px solid var(--glass-border);
     padding: 12px 16px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--glass-border);
-    border-radius: 30px;
-    color: white;
-    font-size: 14px;
-    padding-left: 40px;
-}
-
-.modal-search svg {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 18px;
-    height: 18px;
-    color: var(--text-dim);
-}
-
-.user-select-item {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--glass-border);
-    cursor: pointer;
-    transition: 0.2s;
-    border-radius: 12px;
-    margin: 4px 0;
-}
-
-.user-select-item:hover {
-    background: rgba(0, 114, 255, 0.3);
-    transform: translateX(4px);
-}
-
-.close-modal-btn {
-    margin-top: 20px;
-    width: 100%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--glass-border);
-    padding: 12px;
-    border-radius: 30px;
-    color: white;
-    cursor: pointer;
-    font-weight: 600;
-    transition: 0.2s;
-}
-
-.close-modal-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-/* Кнопка назад в профиле */
-.profile-back-btn {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    background: rgba(0, 0, 0, 0.3);
+    cursor: pointer;
     transition: 0.2s;
 }
+.profile-footer:hover { background: rgba(255, 255, 255, 0.05); }
+.profile-footer-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.profile-footer-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: white; flex-shrink: 0; }
+.profile-footer-details { flex: 1; min-width: 0; }
+.profile-footer-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-footer-username { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-footer-actions { display: flex; gap: 8px; }
+.profile-footer-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.profile-footer-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
 
-.profile-back-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+/* Непрочитанные сообщения */
+.unread-badge-count {
+    display: inline-block;
+    background: var(--accent-blue);
     color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+    min-width: 18px;
+    text-align: center;
 }
+.unread-dialog { background: rgba(0, 114, 255, 0.1); border-left: 3px solid var(--accent-blue); }
+.unread-dialog:hover { background: rgba(0, 114, 255, 0.15); }
 
-/* Карточка профиля */
-.profile-card {
-    max-width: 480px;
-    width: 100%;
-    align-self: center;
-}
+/* Поиск пользователей */
+.search-header { padding: 12px 20px; border-bottom: 1px solid var(--glass-border); margin-bottom: 8px; }
+.search-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.username-hint { font-size: 11px; color: var(--text-dim); margin-left: 6px; font-weight: normal; }
+.user-search-item { cursor: pointer; }
+.user-search-item:hover { background: rgba(0, 114, 255, 0.1); }
 
-/* Скрытые элементы */
-.hidden {
-    display: none !important;
-}
-
-/* Индикатор загрузки */
+/* Загрузка */
 .loading-overlay {
     position: fixed;
     top: 0;
@@ -599,224 +340,142 @@ body {
     z-index: 9999;
     transition: opacity 0.3s ease;
 }
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-spinner { width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.1); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay p { color: var(--text-dim); font-size: 14px; }
 
-.loading-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
-}
+.hidden { display: none !important; }
+.new-chat-fab, .new-chat-btn { display: none !important; }
 
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255, 255, 255, 0.1);
-    border-top-color: var(--accent-blue);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 16px;
-}
-
-.loading-overlay p {
-    color: var(--text-dim);
-    font-size: 14px;
-}
-
-/* Скрытие кнопок нового чата */
-.new-chat-fab,
-.new-chat-btn {
-    display: none !important;
-}
-
-/* Стили для поиска пользователей */
-.search-header {
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--glass-border);
-    margin-bottom: 8px;
-}
-
-.search-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-dim);
-}
-
-.username-hint {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-left: 6px;
-    font-weight: normal;
-}
-
-.user-search-item {
-    cursor: pointer;
-}
-
-.user-search-item:hover {
-    background: rgba(0, 114, 255, 0.1);
-}
-
-/* Синий кружок для непрочитанных сообщений */
-.unread-badge-count {
-    display: inline-block;
-    background: var(--accent-blue);
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 10px;
-    margin-left: 8px;
-    min-width: 18px;
-    text-align: center;
-}
-
-/* Подсветка непрочитанного диалога */
-.unread-dialog {
-    background: rgba(0, 114, 255, 0.1);
-    border-left: 3px solid var(--accent-blue);
-}
-
-.unread-dialog:hover {
-    background: rgba(0, 114, 255, 0.15);
-}
-
-/* Нижняя панель с профилем */
-.profile-footer {
-    margin-top: auto;
-    border-top: 1px solid var(--glass-border);
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-.profile-footer:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.profile-footer-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-    min-width: 0;
-}
-
-.profile-footer-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 16px;
-    color: white;
-    flex-shrink: 0;
-}
-
-.profile-footer-details {
-    flex: 1;
-    min-width: 0;
-}
-
-.profile-footer-name {
-    font-weight: 600;
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.profile-footer-username {
-    font-size: 11px;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.profile-footer-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.profile-footer-btn {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: 0.2s;
-}
-
-.profile-footer-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-}
-
-/* Адаптив для мобильных */
+/* Адаптив */
 @media (max-width: 768px) {
     .auth-container { max-width: 100%; padding: 15px; }
     .glass-card { padding: 30px 20px; border-radius: 25px; }
     .logo-text { font-size: 42px; }
-    
-    .main-interface {
-        flex-direction: column;
+    .main-interface { flex-direction: column; }
+    .dialogs-sidebar { width: 100% !important; min-width: 100%; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--glass-border); flex-direction: column !important; }
+    .dialogs-header { padding: 12px 16px; }
+    .search-wrapper { margin-right: 8px; }
+    .search-input { font-size: 12px; padding: 6px 10px 6px 32px; }
+    .search-icon { left: 10px; width: 14px; height: 14px; }
+    .dialogs-list { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; }
+    .dialog-item { padding: 8px 16px; }
+    .dialog-avatar { width: 40px; height: 40px; font-size: 14px; }
+    .dialog-avatar img { width: 28px; height: 28px; }
+    .dialog-name { font-size: 14px; }
+    .glass-chat-area { height: calc(100% - 200px); }
+    .chat-header { padding: 12px 16px; }
+    .messages-container { padding: 12px; }
+    .message { max-width: 90%; }
+    .input-zone { padding: 12px; }
+    .glass-input-wrapper { padding: 5px 10px; }
+    .glass-input-wrapper input { font-size: 16px; }
+    .glass-sidebar { width: 100%; height: 65px; flex-direction: row; border-right: none; border-top: 1px solid var(--glass-border); padding: 0 20px; justify-content: space-around; border-bottom: none; flex-shrink: 0; }
+    .logo-mini { display: none; }
+    .sidebar-nav { flex-direction: row; gap: 5px; flex: none; align-items: center; }
+    .nav-btn { margin-bottom: 0; padding: 15px; }
+    .logout-btn { margin-top: 0; }
+    .msg-stub svg { width: 36px; height: 36px; }
+    .profile-footer { padding: 10px 12px; }
+    .profile-footer-avatar { width: 32px; height: 32px; font-size: 14px; }
+    .profile-footer-name { font-size: 13px; }
+    .profile-footer-username { font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+    .dialogs-sidebar { max-height: 180px; }
+    .dialogs-list { max-height: 130px; }
+    .dialog-avatar { width: 36px; height: 36px; font-size: 12px; }
+    .dialog-avatar img { width: 24px; height: 24px; }
+    .dialog-item { padding: 6px 12px; }
+    .glass-chat-area { height: calc(100% - 180px); }
+    .modal-content { width: 95%; padding: 20px; }
+    .message { max-width: 95%; }
+    .msg-bubble { padding: 8px 12px; }
+    .verified-badge { width: 14px; height: 14px; }
+    .verified-badge svg { width: 8px; height: 8px; }
+}
+/* Статус онлайн */
+.status-online {
+    color: #4ade80;
+    position: relative;
+    padding-left: 12px;
+}
+
+.status-online::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #4ade80;
+    border-radius: 50%;
+    animation: pulse-green 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
     }
-    
-    .dialogs-sidebar {
-        width: 100% !important;
-        min-width: 100%;
-        height: auto;
-        max-height: 200px;
-        border-right: none;
-        border-bottom: 1px solid var(--glass-border);
-        flex-direction: column !important;
+    50% {
+        opacity: 0.6;
+        transform: translateY(-50%) scale(1.2);
     }
-    
-    .dialogs-header {
-        padding: 12px 16px;
-    }
-    
-    .search-wrapper {
-        margin-right: 8px;
-    }
-    
-    .search-input {
-        font-size: 12px;
-        padding: 6px 10px 6px 32px;
-    }
-    
-    .search-icon {
-        left: 10px;
-        width: 14px;
-        height: 14px;
-    }
-    
-    .dialogs-list {
-        max-height: 150px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-    }
-    
+}
+
+/* Статус офлайн */
+.status-offline {
+    color: var(--text-dim);
+    opacity: 0.7;
+}
+
+/* Статус бота */
+.status-bot {
+    color: #a0aec0;
+}
+
+/* Статус в списке диалогов */
+.dialog-status {
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.dialog-status-online {
+    color: #4ade80;
+}
+
+.dialog-status-offline {
+    color: var(--text-dim);
+}
+/* Стили для статуса в диалогах */
+.dialog-status {
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.dialog-status-online {
+    color: #4ade80;
+}
+
+.dialog-status-offline {
+    color: var(--text-dim);
+    opacity: 0.7;
+}
+
+/* Адаптация для мобильных телефонов */
+@media (max-width: 768px) {
+    /* Увеличиваем отступы для удобства */
     .dialog-item {
-        padding: 8px 16px;
+        padding: 10px 16px;
     }
     
     .dialog-avatar {
-        width: 40px;
-        height: 40px;
-        font-size: 14px;
+        width: 44px;
+        height: 44px;
     }
     
     .dialog-avatar img {
@@ -825,66 +484,80 @@ body {
     }
     
     .dialog-name {
-        font-size: 14px;
+        font-size: 15px;
     }
     
-    .glass-chat-area {
-        height: calc(100% - 200px);
+    .dialog-preview {
+        font-size: 12px;
     }
     
-    .chat-header {
-        padding: 12px 16px;
+    .dialog-status {
+        font-size: 10px;
     }
     
-    .messages-container {
-        padding: 12px;
-    }
-    
-    .message {
-        max-width: 90%;
-    }
-    
-    .input-zone {
-        padding: 12px;
-    }
-    
+    /* Улучшаем поле ввода на телефоне */
     .glass-input-wrapper {
-        padding: 5px 10px;
+        padding: 8px 12px;
     }
     
     .glass-input-wrapper input {
         font-size: 16px;
     }
     
-    .glass-sidebar {
-        width: 100%;
-        height: 65px;
-        flex-direction: row;
-        border-right: none;
-        border-top: 1px solid var(--glass-border);
-        padding: 0 20px;
-        justify-content: space-around;
-        border-bottom: none;
-        flex-shrink: 0;
+    .send-btn {
+        padding: 8px;
     }
     
-    .logo-mini { display: none; }
-    .sidebar-nav { flex-direction: row; gap: 5px; flex: none; align-items: center; }
-    .nav-btn { margin-bottom: 0; padding: 15px; }
-    .logout-btn { margin-top: 0; }
-    
-    .msg-stub svg {
-        width: 36px;
-        height: 36px;
+    /* Сообщения на телефоне */
+    .message {
+        max-width: 85%;
     }
     
+    .msg-bubble {
+        padding: 10px 14px;
+    }
+    
+    .msg-avatar {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .msg-avatar img {
+        width: 24px;
+        height: 24px;
+    }
+    
+    /* Заголовок чата */
+    .chat-header {
+        padding: 12px 16px;
+    }
+    
+    .chat-info h3 {
+        font-size: 16px;
+    }
+    
+    .chat-status {
+        font-size: 11px;
+    }
+    
+    .current-user-badge {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+    
+    /* Контейнер сообщений */
+    .messages-container {
+        padding: 12px;
+    }
+    
+    /* Нижняя панель профиля */
     .profile-footer {
-        padding: 10px 12px;
+        padding: 8px 12px;
     }
     
     .profile-footer-avatar {
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         font-size: 14px;
     }
     
@@ -895,21 +568,33 @@ body {
     .profile-footer-username {
         font-size: 10px;
     }
+    
+    .profile-footer-btn {
+        padding: 6px;
+    }
+    
+    .profile-footer-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+    
+    /* Поиск */
+    .search-input {
+        font-size: 13px;
+        padding: 8px 10px 8px 32px;
+    }
+    
+    .search-icon {
+        width: 14px;
+        height: 14px;
+        left: 10px;
+    }
 }
 
 @media (max-width: 480px) {
-    .dialogs-sidebar {
-        max-height: 180px;
-    }
-    
-    .dialogs-list {
-        max-height: 130px;
-    }
-    
     .dialog-avatar {
-        width: 36px;
-        height: 36px;
-        font-size: 12px;
+        width: 40px;
+        height: 40px;
     }
     
     .dialog-avatar img {
@@ -917,110 +602,41 @@ body {
         height: 24px;
     }
     
-    .dialog-item {
-        padding: 6px 12px;
+    .avatar-letter {
+        font-size: 14px;
     }
     
-    .glass-chat-area {
-        height: calc(100% - 180px);
+    .dialog-name {
+        font-size: 14px;
     }
     
-    .modal-content {
-        width: 95%;
-        padding: 20px;
+    .dialog-preview {
+        font-size: 11px;
     }
     
     .message {
-        max-width: 95%;
+        max-width: 90%;
     }
     
     .msg-bubble {
         padding: 8px 12px;
     }
     
-    .verified-badge {
-        width: 14px;
-        height: 14px;
+    .msg-sender {
+        font-size: 9px;
     }
     
-    .verified-badge svg {
-        width: 8px;
-        height: 8px;
+    .msg-time {
+        font-size: 9px;
     }
-}
-/* Минималистичная плавная загрузка */
-.loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--bg-deep);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    z-index: 9999;
-    transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s ease;
-    opacity: 1;
-    visibility: visible;
-}
-
-.loading-overlay.hidden {
-    opacity: 0;
-    visibility: hidden;
-}
-
-.loading-ring {
-    position: relative;
-    width: 80px;
-    height: 80px;
-    margin-bottom: 32px;
-}
-
-.loading-ring svg {
-    width: 100%;
-    height: 100%;
-    animation: rotate 1.2s linear infinite;
-}
-
-.loading-ring circle {
-    stroke: url(#gradient);
-    stroke-width: 3;
-    fill: none;
-    stroke-linecap: round;
-    stroke-dasharray: 180;
-    stroke-dashoffset: 180;
-    animation: dash 1.2s ease-in-out infinite;
-}
-
-@keyframes rotate {
-    to { transform: rotate(360deg); }
-}
-
-@keyframes dash {
-    0% { stroke-dashoffset: 180; }
-    50% { stroke-dashoffset: 40; }
-    100% { stroke-dashoffset: 180; }
-}
-
-.loading-text-minimal {
-    font-size: 13px;
-    color: var(--text-dim);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-weight: 500;
-    opacity: 0;
-    animation: fadeInText 0.8s ease forwards 0.3s;
-}
-
-@keyframes fadeInText {
-    to {
-        opacity: 1;
-        transform: translateY(0);
+    
+    .profile-footer-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
     }
-    from {
-        opacity: 0;
-        transform: translateY(10px);
+    
+    .profile-footer-name {
+        font-size: 12px;
     }
 }
