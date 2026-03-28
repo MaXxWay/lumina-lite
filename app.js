@@ -402,6 +402,98 @@ async function getOrCreatePrivateChat(otherUserId) {
     }
 }
 
+// ─── Статус пользователя ─────────────────────────────────
+let lastActivityUpdate = 0;
+
+async function updateLastSeen() {
+    if (!currentUser) return;
+    
+    const now = Date.now();
+    if (now - lastActivityUpdate < 30000) return;
+    lastActivityUpdate = now;
+    
+    try {
+        await _supabase
+            .from('profiles')
+            .update({ last_seen: new Date().toISOString() })
+            .eq('id', currentUser.id);
+    } catch (err) {
+        console.error('Ошибка обновления last_seen:', err);
+    }
+}
+
+function getUserStatus(lastSeen) {
+    if (!lastSeen) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
+    
+    const lastSeenDate = new Date(lastSeen);
+    const now = new Date();
+    const diffMs = now - lastSeenDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 5) {
+        return { text: 'онлайн', class: 'status-online', isOnline: true };
+    }
+    
+    let text = '';
+    if (diffMins < 60) {
+        text = `был(а) ${diffMins} мин. назад`;
+    } else if (diffHours < 24) {
+        text = `был(а) ${diffHours} ч. назад`;
+    } else if (diffDays === 1) {
+        text = `был(а) вчера в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        text = `был(а) ${diffDays} дн. назад`;
+    }
+    
+    return { text, class: 'status-offline', isOnline: false };
+}
+
+let statusSubscription = null;
+
+function subscribeToUserStatus(userId) {
+    if (statusSubscription) {
+        _supabase.removeChannel(statusSubscription);
+    }
+    
+    statusSubscription = _supabase
+        .channel(`status-${userId}`)
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+            async (payload) => {
+                if (payload.new && currentChat?.other_user?.id === userId) {
+                    updateChatStatus(payload.new.last_seen);
+                }
+            }
+        )
+        .subscribe();
+}
+
+function updateChatStatus(lastSeen) {
+    const chatStatus = document.querySelector('.chat-status');
+    if (!chatStatus) return;
+    
+    const isBot = currentChat?.other_user?.id === BOT_USER_ID;
+    if (isBot) {
+        chatStatus.textContent = 'бот';
+        chatStatus.className = 'chat-status status-bot';
+        return;
+    }
+    
+    const status = getUserStatus(lastSeen);
+    chatStatus.textContent = status.text;
+    chatStatus.className = `chat-status ${status.class}`;
+}
+
+function trackUserActivity() {
+    document.addEventListener('click', () => updateLastSeen());
+    document.addEventListener('keypress', () => updateLastSeen());
+    document.addEventListener('scroll', () => updateLastSeen());
+    setInterval(() => updateLastSeen(), 30000);
+    updateLastSeen();
+}
+
 // ─── Загрузка диалогов (без мигания) ─────────────────────
 let isUpdatingDialogs = false;
 let dialogCache = new Map();
@@ -477,7 +569,7 @@ async function loadDialogs(searchTerm = '') {
         if (allParticipantIds.length > 0) {
             const { data: profiles } = await _supabase
                 .from('profiles')
-                .select('id, full_name, username')
+                .select('id, full_name, username, last_seen')
                 .in('id', allParticipantIds);
             
             if (profiles) {
@@ -493,6 +585,7 @@ async function loadDialogs(searchTerm = '') {
             const isBot = otherId === BOT_USER_ID;
             const unreadCount = await getUnreadCount(chat.id);
             const lastMessage = await getLastMessage(chat.id);
+            const status = otherUser ? getUserStatus(otherUser.last_seen) : { text: '', class: '' };
             
             return {
                 id: chat.id,
@@ -502,7 +595,9 @@ async function loadDialogs(searchTerm = '') {
                 isBot,
                 unreadCount,
                 lastMessage: lastMessage || 'Нет сообщений',
-                updatedAt: chat.updated_at
+                updatedAt: chat.updated_at,
+                statusText: status.text,
+                statusClass: status.class
             };
         }));
         
@@ -542,6 +637,7 @@ async function loadDialogs(searchTerm = '') {
                                 ${chat.unreadCount > 0 ? `<span class="unread-badge-count">${chat.unreadCount}</span>` : ''}
                             </div>
                             <div class="dialog-preview">${escapeHtml(chat.lastMessage)}</div>
+                            ${!chat.isBot && chat.statusText ? `<div class="dialog-status ${chat.statusClass === 'status-online' ? 'dialog-status-online' : 'dialog-status-offline'}">${chat.statusText}</div>` : ''}
                         </div>
                     `;
                     div.onclick = async () => {
@@ -607,7 +703,8 @@ if (loginBtn) {
                 .insert({
                     id: currentUser.id,
                     username: username,
-                    full_name: username
+                    full_name: username,
+                    last_seen: new Date().toISOString()
                 })
                 .select()
                 .maybeSingle();
@@ -653,6 +750,7 @@ if (loginBtn) {
         }
         
         currentChat = null;
+        trackUserActivity();
     };
 }
 
@@ -680,9 +778,29 @@ async function openChat(chatId, otherUserId, otherUser) {
             chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge" style="font-size:10px;margin-left:8px;">Бот</span>' : ''}`;
         }
         
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = isBot ? 'бот' : 'онлайн';
+        if (!isBot && otherUserId) {
+            const { data: profile } = await _supabase
+                .from('profiles')
+                .select('last_seen')
+                .eq('id', otherUserId)
+                .maybeSingle();
+            
+            if (profile) {
+                updateChatStatus(profile.last_seen);
+                subscribeToUserStatus(otherUserId);
+            } else {
+                const chatStatus = document.querySelector('.chat-status');
+                if (chatStatus) {
+                    chatStatus.textContent = 'неизвестно';
+                    chatStatus.className = 'chat-status status-offline';
+                }
+            }
+        } else if (isBot) {
+            const chatStatus = document.querySelector('.chat-status');
+            if (chatStatus) {
+                chatStatus.textContent = 'бот';
+                chatStatus.className = 'chat-status status-bot';
+            }
         }
         
         const messageInput = document.getElementById('message-input');
@@ -985,6 +1103,7 @@ const logoutBtn = document.getElementById('btn-logout');
 if (logoutBtn) {
     logoutBtn.onclick = async () => {
         if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
         await _supabase.auth.signOut();
         currentUser = null;
         currentProfile = null;
@@ -1020,6 +1139,7 @@ const profileLogoutBtn = document.getElementById('btn-logout-profile');
 if (profileLogoutBtn) {
     profileLogoutBtn.onclick = async () => {
         if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
         await _supabase.auth.signOut();
         currentUser = null;
         currentProfile = null;
@@ -1108,7 +1228,8 @@ updateDvh();
                     .insert({
                         id: currentUser.id,
                         username: username,
-                        full_name: username
+                        full_name: username,
+                        last_seen: new Date().toISOString()
                     })
                     .select()
                     .maybeSingle();
@@ -1155,6 +1276,7 @@ updateDvh();
             }
             
             currentChat = null;
+            trackUserActivity();
         } else {
             showLoading(false);
             showScreen('reg');
