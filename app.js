@@ -115,7 +115,6 @@ function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
     
-    // Клик по панели профиля открывает настройки
     const footerInfo = footer.querySelector('.profile-footer-info');
     if (footerInfo) {
         footerInfo.onclick = () => {
@@ -135,7 +134,6 @@ function initProfileFooter() {
         };
     }
     
-    // Кнопка настроек
     const settingsBtn = document.getElementById('footer-settings');
     if (settingsBtn) {
         settingsBtn.onclick = () => {
@@ -155,7 +153,6 @@ function initProfileFooter() {
         };
     }
     
-    // Кнопка выхода
     const logoutFooterBtn = document.getElementById('footer-logout');
     if (logoutFooterBtn) {
         logoutFooterBtn.onclick = async () => {
@@ -187,7 +184,34 @@ async function getUnreadCount(chatId) {
     }
 }
 
-// ─── Отметить сообщения как прочитанные в конкретном чате ─
+// ─── Получение последнего сообщения в чате ───────────────
+async function getLastMessage(chatId) {
+    try {
+        const { data, error } = await _supabase
+            .from('messages')
+            .select('text, user_id')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        
+        if (error) throw error;
+        
+        if (data) {
+            const isOwn = data.user_id === currentUser.id;
+            const prefix = isOwn ? 'Вы: ' : '';
+            let text = data.text;
+            if (text.length > 50) text = text.slice(0, 47) + '...';
+            return prefix + text;
+        }
+        return null;
+    } catch (err) {
+        console.error('Ошибка получения последнего сообщения:', err);
+        return null;
+    }
+}
+
+// ─── Отметить сообщения как прочитанные ──────────────────
 async function markChatMessagesAsRead(chatId) {
     if (!chatId) return;
     
@@ -201,8 +225,13 @@ async function markChatMessagesAsRead(chatId) {
         
         if (error) throw error;
         
-        // Обновляем список диалогов, чтобы убрать счетчик
-        loadDialogs(document.getElementById('search-dialogs')?.value || '');
+        // Обновляем элемент в списке диалогов
+        const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
+        if (dialogItem) {
+            const badge = dialogItem.querySelector('.unread-badge-count');
+            if (badge) badge.remove();
+            dialogItem.classList.remove('unread-dialog');
+        }
     } catch (err) {
         console.error('Ошибка отметки сообщений как прочитанных:', err);
     }
@@ -356,7 +385,9 @@ async function getOrCreatePrivateChat(otherUserId) {
     }
 }
 
-// ─── Загрузка диалогов с поиском пользователей и счетчиками ─
+// ─── Загрузка диалогов (без мигания) ─────────────────────
+let isUpdatingDialogs = false;
+
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
     if (!container) return;
@@ -410,7 +441,8 @@ async function loadDialogs(searchTerm = '') {
         return;
     }
     
-    container.innerHTML = '<div class="dialogs-loading">Загрузка диалогов...</div>';
+    if (isUpdatingDialogs) return;
+    isUpdatingDialogs = true;
     
     try {
         const { data: chats, error } = await _supabase
@@ -436,63 +468,85 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        container.innerHTML = '';
-        
-        if (!chats || chats.length === 0) {
-            container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска пользователей</div>';
-        } else {
-            let filteredChats = chats;
-            if (searchTerm && !isUserSearch) {
-                filteredChats = chats.filter(chat => {
-                    const otherId = chat.participants.find(id => id !== currentUser.id);
-                    const otherUser = profileMap.get(otherId);
-                    const name = (otherUser?.full_name || otherUser?.username || '').toLowerCase();
-                    return name.includes(searchTerm.toLowerCase());
-                });
-            }
+        // Получаем данные для всех чатов
+        const chatData = await Promise.all((chats || []).map(async (chat) => {
+            const otherId = chat.participants.find(id => id !== currentUser.id);
+            const otherUser = profileMap.get(otherId);
+            const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
+            const isBot = otherId === BOT_USER_ID;
+            const unreadCount = await getUnreadCount(chat.id);
+            const lastMessage = await getLastMessage(chat.id);
             
-            if (filteredChats.length === 0) {
-                container.innerHTML = '<div class="dialogs-loading">Диалоги не найдены</div>';
+            return {
+                id: chat.id,
+                otherId,
+                otherUser,
+                name,
+                isBot,
+                unreadCount,
+                lastMessage: lastMessage || 'Нет сообщений',
+                updatedAt: chat.updated_at
+            };
+        }));
+        
+        chatData.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        
+        let filteredData = chatData;
+        if (searchTerm && !isUserSearch) {
+            filteredData = chatData.filter(chat => 
+                chat.name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+        
+        // Обновляем DOM только если нужно
+        const currentIds = Array.from(container.children).map(el => el.dataset.chatId).filter(id => id);
+        const newIds = filteredData.map(chat => chat.id);
+        
+        if (JSON.stringify(currentIds) !== JSON.stringify(newIds) || searchTerm) {
+            container.innerHTML = '';
+            
+            if (filteredData.length === 0) {
+                container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска пользователей</div>';
             } else {
-                // Для каждого чата получаем количество непрочитанных
-                for (const chat of filteredChats) {
-                    const otherId = chat.participants.find(id => id !== currentUser.id);
-                    const otherUser = profileMap.get(otherId);
-                    const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
-                    const isBot = otherId === BOT_USER_ID;
-                    const unreadCount = await getUnreadCount(chat.id);
-                    
+                filteredData.forEach(chat => {
                     const div = document.createElement('div');
-                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${unreadCount > 0 ? 'unread-dialog' : ''}`;
+                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''}`;
                     div.dataset.chatId = chat.id;
-                    div.dataset.otherUserId = otherId;
+                    div.dataset.otherUserId = chat.otherId;
                     div.innerHTML = `
-                        <div class="dialog-avatar ${isBot ? 'bot-avatar' : ''}">
-                            ${isBot ? '<img src="lumina.svg" alt="Bot" width="32" height="32">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
-                            ${isBot ? '<div class="verified-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+                        <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''}">
+                            ${chat.isBot ? '<img src="lumina.svg" alt="Bot" width="32" height="32">' : `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`}
+                            ${chat.isBot ? '<div class="verified-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
                         </div>
                         <div class="dialog-info">
                             <div class="dialog-name">
-                                ${escapeHtml(name)}
-                                ${isBot ? '<span class="bot-badge">Бот</span>' : ''}
-                                ${unreadCount > 0 ? `<span class="unread-badge-count">${unreadCount}</span>` : ''}
+                                ${escapeHtml(chat.name)}
+                                ${chat.isBot ? '<span class="bot-badge">Бот</span>' : ''}
+                                ${chat.unreadCount > 0 ? `<span class="unread-badge-count">${chat.unreadCount}</span>` : ''}
                             </div>
-                            <div class="dialog-preview">${chat.last_message ? escapeHtml(chat.last_message) : 'Нет сообщений'}</div>
+                            <div class="dialog-preview">${escapeHtml(chat.lastMessage)}</div>
                         </div>
                     `;
                     div.onclick = async () => {
-                        await openChat(chat.id, otherId, otherUser);
-                        if (unreadCount > 0) {
+                        await openChat(chat.id, chat.otherId, chat.otherUser);
+                        if (chat.unreadCount > 0) {
                             await markChatMessagesAsRead(chat.id);
+                            const badge = div.querySelector('.unread-badge-count');
+                            if (badge) badge.remove();
+                            div.classList.remove('unread-dialog');
                         }
                     };
                     container.appendChild(div);
-                }
+                });
             }
         }
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
-        container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки диалогов</div>';
+        if (container.children.length === 0) {
+            container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки диалогов</div>';
+        }
+    } finally {
+        isUpdatingDialogs = false;
     }
 }
 
@@ -697,6 +751,39 @@ function subscribeToMessages(chatId) {
             async (payload) => {
                 if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
                 
+                // Обновляем последнее сообщение в списке диалогов
+                const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
+                if (dialogItem) {
+                    const previewSpan = dialogItem.querySelector('.dialog-preview');
+                    if (previewSpan) {
+                        const isOwn = payload.new.user_id === currentUser.id;
+                        const prefix = isOwn ? 'Вы: ' : '';
+                        let text = payload.new.text;
+                        if (text.length > 50) text = text.slice(0, 47) + '...';
+                        previewSpan.textContent = prefix + text;
+                    }
+                    
+                    if (payload.new.user_id !== currentUser.id && currentChat?.id !== chatId) {
+                        let badge = dialogItem.querySelector('.unread-badge-count');
+                        if (badge) {
+                            const currentCount = parseInt(badge.textContent);
+                            badge.textContent = currentCount + 1;
+                        } else {
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'unread-badge-count';
+                            newBadge.textContent = '1';
+                            const nameSpan = dialogItem.querySelector('.dialog-name');
+                            if (nameSpan) nameSpan.appendChild(newBadge);
+                        }
+                        dialogItem.classList.add('unread-dialog');
+                    }
+                    
+                    // Перемещаем чат вверх списка
+                    const parent = dialogItem.parentNode;
+                    parent.removeChild(dialogItem);
+                    parent.insertBefore(dialogItem, parent.firstChild);
+                }
+                
                 let profile = currentProfile;
                 if (payload.new.user_id !== currentUser?.id) {
                     if (payload.new.user_id === BOT_USER_ID) {
@@ -712,7 +799,6 @@ function subscribeToMessages(chatId) {
                 }
                 
                 renderMessage({ ...payload.new, profiles: profile });
-                loadDialogs(document.getElementById('search-dialogs')?.value || '');
             }
         )
         .subscribe();
@@ -818,7 +904,19 @@ async function sendMsg() {
             })
             .eq('id', currentChat.id);
         
-        loadDialogs(document.getElementById('search-dialogs')?.value || '');
+        // Обновляем последнее сообщение в списке диалогов
+        const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${currentChat.id}"]`);
+        if (dialogItem) {
+            const previewSpan = dialogItem.querySelector('.dialog-preview');
+            if (previewSpan) {
+                let shortText = text.length > 50 ? text.slice(0, 47) + '...' : text;
+                previewSpan.textContent = 'Вы: ' + shortText;
+            }
+            // Перемещаем вверх
+            const parent = dialogItem.parentNode;
+            parent.removeChild(dialogItem);
+            parent.insertBefore(dialogItem, parent.firstChild);
+        }
     }
 }
 
