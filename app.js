@@ -20,6 +20,19 @@ const BOT_PROFILE = {
 
 const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
 
+// Показываем/скрываем индикатор загрузки
+const loadingOverlay = document.getElementById('loading-overlay');
+
+function showLoading(show) {
+    if (loadingOverlay) {
+        if (show) {
+            loadingOverlay.classList.remove('hidden');
+        } else {
+            loadingOverlay.classList.add('hidden');
+        }
+    }
+}
+
 // ─── Экраны ─────────────────────────────────────────────
 const screens = {
     reg:     document.getElementById('step-register'),
@@ -132,7 +145,6 @@ if (loginBtn) {
         currentChat = null;
     };
 }
-
 
 // ─── Создание чата с ботом ───────────────────────────────
 async function ensureBotChat() {
@@ -283,16 +295,10 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        container.innerHTML = `
-            <div style="padding: 12px;">
-                <button id="new-chat-btn-mobile" class="new-chat-btn">
-                    + Новый чат
-                </button>
-            </div>
-        `;
+        container.innerHTML = '';
         
         if (!chats || chats.length === 0) {
-            container.innerHTML += '<div class="dialogs-loading">Нет диалогов</div>';
+            container.innerHTML = '<div class="dialogs-loading">Нет диалогов</div>';
         } else {
             let filteredChats = chats;
             if (searchTerm) {
@@ -305,7 +311,7 @@ async function loadDialogs(searchTerm = '') {
             }
             
             if (filteredChats.length === 0) {
-                container.innerHTML += '<div class="dialogs-loading">Ничего не найдено</div>';
+                container.innerHTML = '<div class="dialogs-loading">Ничего не найдено</div>';
             } else {
                 filteredChats.forEach(chat => {
                     const otherId = chat.participants.find(id => id !== currentUser.id);
@@ -335,15 +341,11 @@ async function loadDialogs(searchTerm = '') {
                 });
             }
         }
-        
-        const newBtn = document.getElementById('new-chat-btn-mobile');
-        if (newBtn) newBtn.onclick = showNewChatDialog;
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
         container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки диалогов</div>';
     }
 }
-
 
 // ─── Поиск диалогов ──────────────────────────────────────
 const searchInput = document.getElementById('search-dialogs');
@@ -439,12 +441,10 @@ async function openChat(chatId, otherUserId, otherUser) {
     const inputZone = document.querySelector('.input-zone');
     
     if (isBot) {
-        // Для бота - полностью скрываем поле ввода
         if (inputZone) inputZone.style.display = 'none';
         if (messageInput) messageInput.disabled = true;
         if (sendButton) sendButton.disabled = true;
     } else {
-        // Для обычных пользователей - показываем поле ввода
         if (inputZone) inputZone.style.display = 'flex';
         if (messageInput) {
             messageInput.disabled = false;
@@ -742,37 +742,56 @@ function updateDvh() {
 window.addEventListener('resize', updateDvh);
 updateDvh();
 
-// ─── Запуск ──────────────────────────────────────────────
+// ─── Запуск с индикатором загрузки ───────────────────────
 (async () => {
-    const { data: { session } } = await _supabase.auth.getSession();
+    showLoading(true);
     
-    if (session) {
-        currentUser = session.user;
-        const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-        currentProfile = p;
-        if (p) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = p.full_name;
-        }
-        await loadAllUsers();
-        await ensureBotChat();
-        showScreen('chat');
-        await loadDialogs();
+    try {
+        const { data: { session } } = await _supabase.auth.getSession();
         
-        const { data: botChat } = await _supabase
-            .from('chats')
-            .select('id')
-            .contains('participants', [currentUser.id, BOT_USER_ID])
-            .maybeSingle();
-        
-        if (botChat) {
-            await openChat(botChat.id, BOT_USER_ID, BOT_PROFILE);
-        } else {
-            // Скрываем поле ввода если нет выбранного чата
+        if (session) {
+            currentUser = session.user;
+            const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+            currentProfile = p;
+            if (p) {
+                const badge = document.getElementById('current-user-badge');
+                if (badge) badge.textContent = p.full_name;
+            }
+            await loadAllUsers();
+            await ensureBotChat();
+            
+            showLoading(false);
+            showScreen('chat');
+            await loadDialogs();
+            
+            // НЕ открываем чат с ботом автоматически
+            const chatTitle = document.getElementById('chat-title');
+            if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+            
+            const chatStatus = document.querySelector('.chat-status');
+            if (chatStatus) chatStatus.textContent = 'выберите диалог';
+            
             const inputZone = document.querySelector('.input-zone');
             if (inputZone) inputZone.style.display = 'none';
+            
+            const messagesContainer = document.getElementById('messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = `
+                    <div class="msg-stub">
+                        <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                        <p>Выберите диалог, чтобы начать общение</p>
+                    </div>
+                `;
+            }
+            
+            currentChat = null;
+        } else {
+            showLoading(false);
+            showScreen('reg');
         }
-    } else {
+    } catch (err) {
+        console.error('Ошибка при инициализации:', err);
+        showLoading(false);
         showScreen('reg');
     }
 })();
