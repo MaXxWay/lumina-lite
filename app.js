@@ -1,380 +1,174 @@
-const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lumina Lite — приватный мессенджер</title>
+    <link rel="icon" type="image/svg+xml" href="lumina.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
 
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-let currentUser = null;
-let currentProfile = null;
-let realtimeChannel = null;
+    <!-- Регистрация -->
+    <div id="step-register" class="auth-container">
+        <div class="background-logo">
+            <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
+            <p class="logo-sub">Приватный мессенджер нового поколения</p>
+        </div>
+        <div class="glass-card">
+            <h2 class="auth-title">Создать профиль</h2>
+            <input type="text" id="reg-username" class="glass-input" placeholder="@username">
+            <input type="text" id="reg-full-name" class="glass-input" placeholder="Ваше Имя">
+            <input type="password" id="reg-password" class="glass-input" placeholder="Пароль">
+            <button id="btn-do-reg" class="glass-button primary">Зарегистрироваться</button>
+            <p class="auth-footer">Есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
+        </div>
+    </div>
 
-const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
+    <!-- Вход -->
+    <div id="step-login" class="auth-container">
+        <div class="background-logo">
+            <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
+            <p class="logo-sub">Приватный мессенджер нового поколения</p>
+        </div>
+        <div class="glass-card">
+            <h2 class="auth-title">Вход</h2>
+            <input type="text" id="login-username" class="glass-input" placeholder="@username">
+            <input type="password" id="login-password" class="glass-input" placeholder="Пароль">
+            <button id="btn-do-login" class="glass-button primary">Войти</button>
+            <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Создать</span></p>
+        </div>
+    </div>
 
-// ─── Экраны ─────────────────────────────────────────────
-const screens = {
-    reg:     document.getElementById('step-register'),
-    login:   document.getElementById('step-login'),
-    chat:    document.getElementById('chat-screen'),
-    profile: document.getElementById('profile-screen')
-};
+    <!-- SVG иконки (inline спрайт) -->
+    <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+        <symbol id="icon-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </symbol>
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+        </symbol>
+        <symbol id="icon-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+            <line x1="12" y1="2" x2="12" y2="12"/>
+        </symbol>
+        <symbol id="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </symbol>
+        <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </symbol>
+    </svg>
 
-function showScreen(key) {
-    Object.values(screens).forEach(s => {
-        if (!s) return;
-        s.style.display = 'none';
-        s.classList.remove('active', 'visible');
-    });
-    const el = screens[key];
-    if (!el) return;
-    el.style.display = 'flex';
-    el.classList.add(key === 'chat' || key === 'profile' ? 'visible' : 'active');
-}
+    <!-- Чат -->
+    <div id="chat-screen" class="main-interface">
+        <!-- Левая панель с диалогами -->
+        <aside class="glass-sidebar dialogs-sidebar">
+            <div class="dialogs-header">
+                <div class="search-wrapper">
+                    <svg width="16" height="16" class="search-icon"><use href="#icon-search"/></svg>
+                    <input type="text" id="search-dialogs" class="search-input" placeholder="Поиск диалогов...">
+                </div>
+            </div>
+            <div id="dialogs-list" class="dialogs-list">
+                <div class="dialogs-loading">Загрузка диалогов...</div>
+            </div>
+        </aside>
 
-function showToast(msg, isError = false) {
-    const t = document.getElementById('toast');
-    if (!t) return;
-    t.textContent = msg;
-    t.className = 'toast show' + (isError ? ' error' : '');
-    setTimeout(() => { t.className = 'toast'; }, 3000);
-}
+        <!-- Правая панель с чатом -->
+        <main class="glass-chat-area">
+            <header class="chat-header">
+                <div class="chat-info">
+                    <h3 id="chat-title">Lumina Lite</h3>
+                    <span class="chat-status">выберите диалог</span>
+                </div>
+                <span class="current-user-badge" id="current-user-badge"></span>
+            </header>
 
-// ─── Навигация авторизации ───────────────────────────────
-const toLogin = document.getElementById('to-login');
-const toRegister = document.getElementById('to-register');
-if (toLogin) toLogin.onclick = () => showScreen('login');
-if (toRegister) toRegister.onclick = () => showScreen('reg');
+            <div id="messages" class="messages-container">
+                <div class="msg-stub">
+                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                    <p>Выберите диалог, чтобы начать общение</p>
+                </div>
+            </div>
 
-// ─── Регистрация ─────────────────────────────────────────
-const regBtn = document.getElementById('btn-do-reg');
-if (regBtn) {
-    regBtn.onclick = async () => {
-        const user = document.getElementById('reg-username').value.trim();
-        const pass = document.getElementById('reg-password').value.trim();
-        const name = document.getElementById('reg-full-name').value.trim();
-        if (!user || !pass) return showToast('Заполните все поля', true);
+            <div class="input-zone">
+                <div class="glass-input-wrapper">
+                    <input type="text" id="message-input" placeholder="Написать сообщение..." autocomplete="off" disabled>
+                    <button id="btn-send-msg" class="send-btn" disabled>
+                        <svg width="18" height="18"><use href="#icon-send"/></svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
 
-        const { data, error } = await _supabase.auth.signUp({ email: getEmail(user), password: pass });
-        if (error) return showToast(error.message, true);
+    <!-- Профиль -->
+    <div id="profile-screen" class="main-interface">
+        <aside class="glass-sidebar dialogs-sidebar">
+            <div class="dialogs-header">
+                <div class="search-wrapper">
+                    <svg width="16" height="16" class="search-icon"><use href="#icon-search"/></svg>
+                    <input type="text" class="search-input" placeholder="Настройки профиля" disabled style="opacity:0.5;">
+                </div>
+            </div>
+            <div class="dialogs-list" style="padding: 20px;">
+                <div style="text-align: center; color: var(--text-dim);">
+                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.5;"><use href="#icon-user"/></svg>
+                    <p>Редактирование профиля</p>
+                </div>
+            </div>
+        </aside>
 
-        if (data.user) {
-            await _supabase.from('profiles').upsert({
-                id: data.user.id,
-                username: user.replace(/^@/, ''),
-                full_name: name || user
-            });
-            showToast('Аккаунт создан! Войдите.');
-            setTimeout(() => showScreen('login'), 1000);
-        }
-    };
-}
+        <main class="glass-chat-area">
+            <header class="chat-header">
+                <div class="chat-info">
+                    <h3>Мой профиль</h3>
+                    <span class="chat-status">активен</span>
+                </div>
+                <button id="btn-profile-back" class="profile-back-btn" title="Назад в чат">
+                    <svg width="20" height="20"><use href="#icon-chat"/></svg>
+                </button>
+            </header>
 
-const regPassword = document.getElementById('reg-password');
-if (regPassword) {
-    regPassword.onkeydown = (e) => {
-        if (e.key === 'Enter') document.getElementById('btn-do-reg').click();
-    };
-}
+            <div class="messages-container" style="justify-content: flex-start; padding-top: 40px;">
+                <div class="profile-card glass-card" style="max-width: 480px; width: 100%; align-self: center;">
+                    <div class="profile-avatar-wrap" style="text-align:center; margin-bottom:24px;">
+                        <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;margin:0 auto 12px;font-family:'Syne',sans-serif;" id="profile-avatar-letter">?</div>
+                    </div>
 
-// ─── Вход ────────────────────────────────────────────────
-const loginBtn = document.getElementById('btn-do-login');
-if (loginBtn) {
-    loginBtn.onclick = async () => {
-        const user = document.getElementById('login-username').value.trim();
-        const pass = document.getElementById('login-password').value.trim();
-        const { data, error } = await _supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
-        if (error) return showToast('Ошибка входа: ' + error.message, true);
+                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;">Имя</label>
+                    <input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
 
-        currentUser = data.user;
-        
-        // Загружаем профиль
-        const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-        currentProfile = p;
-        
-        if (p) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = p.full_name;
-        }
-        
-        showScreen('chat');
-        initChat();
-    };
-}
+                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;margin-top:4px;">Username</label>
+                    <input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.5;cursor:not-allowed;">
 
-const loginPassword = document.getElementById('login-password');
-if (loginPassword) {
-    loginPassword.onkeydown = (e) => {
-        if (e.key === 'Enter') document.getElementById('btn-do-login').click();
-    };
-}
+                    <label style="font-size:12px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;margin-top:4px;">О себе</label>
+                    <textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
 
-// ─── Выход ───────────────────────────────────────────────
-const logoutBtn = document.getElementById('btn-logout');
-if (logoutBtn) {
-    logoutBtn.onclick = async () => {
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        showScreen('reg');
-    };
-}
+                    <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
+                    <button id="btn-logout-profile" class="glass-button" style="margin-top: 12px; background: rgba(255,71,87,0.2); border: 1px solid rgba(255,71,87,0.3);">Выйти</button>
+                </div>
+            </div>
+        </main>
+    </div>
 
-// ─── Профиль — открыть ──────────────────────────────────
-const profileBtn = document.getElementById('btn-profile');
-if (profileBtn) {
-    profileBtn.onclick = () => {
-        if (!currentProfile) return;
-        const letter = (currentProfile.full_name || '?')[0].toUpperCase();
-        const avatarLetter = document.getElementById('profile-avatar-letter');
-        const profileFullname = document.getElementById('profile-fullname');
-        const profileUsername = document.getElementById('profile-username');
-        const profileBio = document.getElementById('profile-bio');
-        
-        if (avatarLetter) avatarLetter.textContent = letter;
-        if (profileFullname) profileFullname.value = currentProfile.full_name || '';
-        if (profileUsername) profileUsername.value = currentProfile.username || '';
-        if (profileBio) profileBio.value = currentProfile.bio || '';
-        
-        showScreen('profile');
-    };
-}
-
-// ─── Профиль — назад ────────────────────────────────────
-const profileBackBtn = document.getElementById('btn-profile-back');
-if (profileBackBtn) profileBackBtn.onclick = () => showScreen('chat');
-
-// ─── Профиль — выйти ────────────────────────────────────
-const profileLogoutBtn = document.getElementById('btn-logout-profile');
-if (profileLogoutBtn) {
-    profileLogoutBtn.onclick = async () => {
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        showScreen('reg');
-    };
-}
-
-// ─── Профиль — сохранить ────────────────────────────────
-const saveProfileBtn = document.getElementById('btn-save-profile');
-if (saveProfileBtn) {
-    saveProfileBtn.onclick = async () => {
-        const full_name = document.getElementById('profile-fullname').value.trim();
-        const bio = document.getElementById('profile-bio').value.trim();
-        if (!full_name) return showToast('Имя не может быть пустым', true);
-
-        const { error } = await _supabase.from('profiles')
-            .update({ full_name, bio })
-            .eq('id', currentUser.id);
-
-        if (error) return showToast('Ошибка сохранения', true);
-
-        currentProfile.full_name = full_name;
-        currentProfile.bio = bio;
-        
-        const badge = document.getElementById('current-user-badge');
-        if (badge) badge.textContent = full_name;
-        
-        const avatarLetter = document.getElementById('profile-avatar-letter');
-        if (avatarLetter) avatarLetter.textContent = full_name[0].toUpperCase();
-        
-        showToast('Профиль сохранён ✓');
-        setTimeout(() => showScreen('chat'), 800);
-    };
-}
-
-// ─── Кнопка отправки сообщения ──────────────────────────
-const sendButton = document.getElementById('btn-send-msg');
-if (sendButton) {
-    sendButton.onclick = sendMsg;
-}
-
-// ─── Рендер сообщения ────────────────────────────────────
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-function render(msg) {
-    const container = document.getElementById('messages');
-    if (!container) return;
-
-    // Убираем заглушку "Начните переписку"
-    const stub = container.querySelector('.msg-stub');
-    if (stub) stub.remove();
-
-    const isOwn = currentUser && msg.user_id === currentUser.id;
-    let name = 'Пользователь';
+    <div id="toast" class="toast"></div>
     
-    if (msg.profiles && msg.profiles.full_name) {
-        name = msg.profiles.full_name;
-    } else if (isOwn && currentProfile && currentProfile.full_name) {
-        name = currentProfile.full_name;
-    }
+    <!-- Индикатор загрузки -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Загрузка...</p>
+    </div>
     
-    const avatar = name[0].toUpperCase();
-    const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
-
-    const div = document.createElement('div');
-    div.className = `message ${isOwn ? 'own' : 'other'}`;
-    div.dataset.id = msg.id;
-    div.innerHTML = `
-        <div class="msg-avatar" style="background:${isOwn ? '#0072ff' : '#1e293b'}">${escapeHtml(avatar)}</div>
-        <div class="msg-bubble">
-            ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)}</div>` : ''}
-            <div class="text">${escapeHtml(msg.text)}</div>
-            <div class="msg-time">${timeStr}</div>
-        </div>`;
-
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-}
-
-// ─── Инициализация чата ──────────────────────────────────
-async function initChat() {
-    const container = document.getElementById('messages');
-    if (!container) return;
-    
-    container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Загрузка...</div>';
-
-    try {
-        // Загружаем сообщения
-        const { data: msgs, error: msgsError } = await _supabase
-            .from('messages')
-            .select('*')
-            .order('created_at', { ascending: true })
-            .limit(100);
-
-        if (msgsError) {
-            console.error('Ошибка загрузки сообщений:', msgsError);
-            container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Ошибка загрузки сообщений</div>';
-            return;
-        }
-
-        // Загружаем профили всех авторов
-        const profilesMap = new Map();
-        const userIds = [...new Set(msgs?.map(m => m.user_id) || [])];
-        
-        if (userIds.length > 0) {
-            const { data: profiles } = await _supabase
-                .from('profiles')
-                .select('id, full_name, username')
-                .in('id', userIds);
-            
-            if (profiles) {
-                profiles.forEach(p => profilesMap.set(p.id, p));
-            }
-        }
-
-        container.innerHTML = '';
-
-        if (msgs && msgs.length > 0) {
-            msgs.forEach(msg => {
-                const profile = profilesMap.get(msg.user_id) || currentProfile;
-                render({ ...msg, profiles: profile });
-            });
-        } else {
-            container.innerHTML = '<div class="msg-stub" style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Начните переписку</div>';
-        }
-    } catch (err) {
-        console.error('Ошибка в initChat:', err);
-        container.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;font-size:13px;">Ошибка загрузки</div>';
-    }
-
-    // Realtime подписка
-    if (realtimeChannel) {
-        await _supabase.removeChannel(realtimeChannel);
-    }
-
-    realtimeChannel = _supabase
-        .channel('messages-channel')
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'messages' }, 
-            async (payload) => {
-                console.log('Новое сообщение получено:', payload.new);
-                
-                if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
-                
-                // Загружаем профиль автора
-                let profile = currentProfile;
-                if (payload.new.user_id !== currentUser?.id) {
-                    const { data: userProfile } = await _supabase
-                        .from('profiles')
-                        .select('full_name, username')
-                        .eq('id', payload.new.user_id)
-                        .single();
-                    if (userProfile) profile = userProfile;
-                }
-                
-                render({ ...payload.new, profiles: profile });
-            }
-        )
-        .subscribe();
-}
-
-// ─── Отправка сообщения ─────────────────────────────────
-async function sendMsg() {
-    const input = document.getElementById('message-input');
-    if (!input) return;
-    
-    const text = input.value.trim();
-    if (!text || !currentUser) return;
-    
-    console.log('Отправка сообщения:', text);
-    
-    input.value = '';
-
-    const { data, error } = await _supabase
-        .from('messages')
-        .insert([{ text, user_id: currentUser.id }])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Ошибка отправки:', error);
-        showToast('Ошибка отправки: ' + error.message, true);
-        input.value = text;
-    } else {
-        console.log('Сообщение отправлено, ID:', data.id);
-        const msgWithProfile = { ...data, profiles: currentProfile };
-        render(msgWithProfile);
-    }
-}
-
-// ─── Обработчик Enter в поле ввода ──────────────────────
-const messageInput = document.getElementById('message-input');
-if (messageInput) {
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMsg();
-        }
-    });
-}
-
-// ─── DVH фикс (Safari) ──────────────────────────────────
-function updateDvh() {
-    document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
-}
-window.addEventListener('resize', updateDvh);
-updateDvh();
-
-// ─── Запуск: проверяем сессию ────────────────────────────
-(async () => {
-    const { data: { session } } = await _supabase.auth.getSession();
-
-    if (session) {
-        currentUser = session.user;
-        const { data: p } = await _supabase.from('profiles').select('*').eq('id', currentUser.id).single();
-        currentProfile = p;
-        if (p) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = p.full_name;
-        }
-        showScreen('chat');
-        initChat();
-    } else {
-        showScreen('reg');
-    }
-})();
+    <script src="app.js"></script>
+</body>
+</html>
