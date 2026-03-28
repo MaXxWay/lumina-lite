@@ -201,15 +201,17 @@ async function getLastMessage(chatId) {
 let messagesCache = new Map();
 
 async function markChatMessagesAsRead(chatId) {
-    if (!chatId) return;
+    if (!chatId || !currentUser) return;
     
     try {
-        await _supabase
+        const { error } = await _supabase
             .from('messages')
-            .update({ is_read: true })
+            .update({ is_read: true, read_at: new Date().toISOString() })
             .eq('chat_id', chatId)
             .neq('user_id', currentUser.id)
             .eq('is_read', false);
+        
+        if (error) throw error;
         
         const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
         if (dialogItem) {
@@ -225,8 +227,11 @@ async function markChatMessagesAsRead(chatId) {
             });
             messagesCache.set(chatId, cachedMessages);
         }
+        
+        // Обновляем счетчик в sidebar
+        await loadDialogs();
     } catch (err) {
-        console.error(err);
+        console.error('Ошибка отметки прочитанных:', err);
     }
 }
 
@@ -250,7 +255,7 @@ async function ensureBotChat() {
             
             if (!welcomeMsg) {
                 await _supabase.from('messages').insert({
-                    text: 'Добро пожаловать в мессенджер Lumina Lite!',
+                    text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_welcome: true,
@@ -275,7 +280,7 @@ async function ensureBotChat() {
         
         if (newChat) {
             await _supabase.from('messages').insert({
-                text: 'Добро пожаловать в мессенджер Lumina Lite!',
+                text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
                 user_id: BOT_USER_ID,
                 chat_id: newChat.id,
                 is_welcome: true,
@@ -352,7 +357,8 @@ async function getOrCreatePrivateChat(otherUserId) {
             .insert({
                 type: 'private',
                 participants: [currentUser.id, otherUserId],
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             })
             .select()
             .single();
@@ -480,11 +486,13 @@ function setupTypingIndicator() {
 async function sendTypingStatus(isTypingNow) {
     if (!currentChat || !typingChannel) return;
     
-    await typingChannel.send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: { isTyping: isTypingNow, userId: currentUser.id }
-    });
+    try {
+        await typingChannel.send({
+            type: 'broadcast',
+            event: 'typing',
+            payload: { isTyping: isTypingNow, userId: currentUser.id }
+        });
+    } catch (err) {}
 }
 
 function subscribeToTyping(chatId, otherUserId) {
@@ -662,9 +670,6 @@ async function loadDialogs(searchTerm = '') {
                         await openChat(chat.id, chat.otherId, chat.otherUser);
                         if (chat.unreadCount > 0) {
                             await markChatMessagesAsRead(chat.id);
-                            const badge = div.querySelector('.unread-badge-count');
-                            if (badge) badge.remove();
-                            div.classList.remove('unread-dialog');
                         }
                     };
                     container.appendChild(div);
@@ -691,6 +696,133 @@ if (searchInputElem) {
             loadDialogs(e.target.value);
         }, 300);
     };
+}
+
+// ─── Эмодзи панель ───────────────────────────────────────
+const emojiBtn = document.getElementById('btn-emoji');
+const emojiPicker = document.getElementById('emoji-picker');
+if (emojiBtn && emojiPicker) {
+    emojiBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isVisible = emojiPicker.style.display === 'flex';
+        emojiPicker.style.display = isVisible ? 'none' : 'flex';
+    };
+    
+    document.querySelectorAll('.emoji-item').forEach(emoji => {
+        emoji.onclick = () => {
+            const input = document.getElementById('message-input');
+            if (input) {
+                input.value += emoji.textContent;
+                input.focus();
+            }
+            emojiPicker.style.display = 'none';
+        };
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+            emojiPicker.style.display = 'none';
+        }
+    });
+}
+
+// ─── Контекстное меню сообщений ──────────────────────────
+const messageMenu = document.getElementById('message-menu');
+let activeMessage = null;
+
+function showMessageMenu(e, messageId, messageText, isOwn) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (messageMenu) {
+        messageMenu.style.display = 'block';
+        messageMenu.style.left = `${e.clientX}px`;
+        messageMenu.style.top = `${e.clientY}px`;
+        
+        const menuItems = messageMenu.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            const action = item.dataset.action;
+            item.onclick = () => handleMessageAction(action, messageId, messageText, isOwn);
+        });
+        
+        setTimeout(() => {
+            document.addEventListener('click', hideMessageMenu);
+        }, 0);
+    }
+}
+
+function hideMessageMenu() {
+    if (messageMenu) {
+        messageMenu.style.display = 'none';
+    }
+    document.removeEventListener('click', hideMessageMenu);
+}
+
+async function handleMessageAction(action, messageId, messageText, isOwn) {
+    hideMessageMenu();
+    
+    switch (action) {
+        case 'reply':
+            const input = document.getElementById('message-input');
+            if (input) {
+                input.value = `> ${messageText}\n\n`;
+                input.focus();
+            }
+            break;
+        case 'copy':
+            await navigator.clipboard.writeText(messageText);
+            showToast('Текст скопирован');
+            break;
+        case 'edit':
+            if (isOwn) {
+                const newText = prompt('Изменить сообщение:', messageText);
+                if (newText && newText.trim()) {
+                    const { error } = await _supabase
+                        .from('messages')
+                        .update({ text: newText.trim(), is_edited: true })
+                        .eq('id', messageId);
+                    if (error) {
+                        showToast('Ошибка редактирования', true);
+                    } else {
+                        showToast('Сообщение изменено');
+                        const messageDiv = document.querySelector(`.message[data-id="${messageId}"]`);
+                        if (messageDiv) {
+                            const textDiv = messageDiv.querySelector('.text');
+                            if (textDiv) textDiv.textContent = newText.trim();
+                        }
+                    }
+                }
+            } else {
+                showToast('Можно редактировать только свои сообщения', true);
+            }
+            break;
+        case 'pin':
+            showToast('Функция закрепления в разработке');
+            break;
+        case 'forward':
+            showToast('Функция пересылки в разработке');
+            break;
+        case 'delete':
+            if (isOwn) {
+                const confirm = window.confirm('Удалить сообщение?');
+                if (confirm) {
+                    const { error } = await _supabase
+                        .from('messages')
+                        .delete()
+                        .eq('id', messageId);
+                    if (error) {
+                        showToast('Ошибка удаления', true);
+                    } else {
+                        showToast('Сообщение удалено');
+                        const messageDiv = document.querySelector(`.message[data-id="${messageId}"]`);
+                        if (messageDiv) messageDiv.remove();
+                    }
+                }
+            } else {
+                showToast('Можно удалять только свои сообщения', true);
+            }
+            break;
+    }
 }
 
 // ─── Вход ────────────────────────────────────────────────
@@ -742,7 +874,8 @@ if (loginBtn) {
         
         document.getElementById('chat-title').textContent = 'Lumina Lite';
         document.querySelector('.chat-status').textContent = 'выберите диалог';
-        document.querySelector('.input-zone').style.display = 'none';
+        const inputZone = document.querySelector('.input-zone');
+        if (inputZone) inputZone.style.display = 'none';
         
         const messagesContainer = document.getElementById('messages');
         if (messagesContainer) {
@@ -756,7 +889,6 @@ if (loginBtn) {
         
         currentChat = null;
         
-        // Активность
         document.addEventListener('click', () => updateLastSeen());
         document.addEventListener('keypress', () => updateLastSeen());
         setInterval(() => updateLastSeen(), 30000);
@@ -817,11 +949,11 @@ async function openChat(chatId, otherUserId, otherUser) {
             if (messageInput) messageInput.disabled = true;
             if (sendButton) sendButton.disabled = true;
         } else {
-            if (inputZone) inputZone.style.display = 'flex';
+            if (inputZone) inputZone.style.display = 'block';
             if (messageInput) {
                 messageInput.disabled = false;
                 messageInput.placeholder = 'Написать сообщение...';
-                messageInput.focus();
+                setTimeout(() => messageInput.focus(), 100);
             }
             if (sendButton) sendButton.disabled = false;
             setupTypingIndicator();
@@ -835,7 +967,6 @@ async function openChat(chatId, otherUserId, otherUser) {
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
         
-        // Отмечаем сообщения как прочитанные
         await markChatMessagesAsRead(chatId);
     } finally {
         isOpeningChat = false;
@@ -905,7 +1036,7 @@ async function loadMessages(chatId) {
     }
 }
 
-// ─── Подписка на новые сообщения ─────────────────────────
+// ─── Подписка на новые сообщения (РЕАЛЬНОЕ ВРЕМЯ!) ──────
 function subscribeToMessages(chatId) {
     if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
     
@@ -914,7 +1045,7 @@ function subscribeToMessages(chatId) {
         .on('postgres_changes', 
             { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, 
             async (payload) => {
-                if (document.querySelector(`[data-id="${payload.new.id}"]`)) return;
+                if (document.querySelector(`.message[data-id="${payload.new.id}"]`)) return;
                 
                 let profile = currentProfile;
                 if (payload.new.user_id !== currentUser?.id) {
@@ -1006,6 +1137,8 @@ function renderMessage(msg) {
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''}`;
     div.dataset.id = msg.id;
+    div.dataset.text = msg.text;
+    
     div.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
             ${isBot ? '<img src="lumina.svg" alt="Bot" width="28" height="28">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
@@ -1017,6 +1150,11 @@ function renderMessage(msg) {
             <div class="msg-time">${timeStr}</div>
         </div>
     `;
+    
+    div.oncontextmenu = (e) => {
+        showMessageMenu(e, msg.id, msg.text, isOwn);
+        return false;
+    };
     
     container.appendChild(div);
     setTimeout(() => {
@@ -1048,7 +1186,8 @@ async function sendMsg() {
             text, 
             user_id: currentUser.id,
             chat_id: currentChat.id,
-            is_read: false
+            is_read: false,
+            created_at: new Date().toISOString()
         }])
         .select()
         .single();
@@ -1172,7 +1311,6 @@ function updateDvh() {
 window.addEventListener('resize', updateDvh);
 updateDvh();
 
-// Фикс для клавиатуры на мобилках
 let originalHeight = window.innerHeight;
 window.addEventListener('resize', () => {
     const newHeight = window.innerHeight;
@@ -1235,7 +1373,8 @@ window.addEventListener('resize', () => {
         
         document.getElementById('chat-title').textContent = 'Lumina Lite';
         document.querySelector('.chat-status').textContent = 'выберите диалог';
-        document.querySelector('.input-zone').style.display = 'none';
+        const inputZone = document.querySelector('.input-zone');
+        if (inputZone) inputZone.style.display = 'none';
         
         document.getElementById('messages').innerHTML = `
             <div class="msg-stub">
