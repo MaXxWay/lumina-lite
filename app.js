@@ -367,7 +367,6 @@ async function getOrCreatePrivateChat(otherUserId) {
 let lastActivityUpdate = 0;
 let typingTimeout = null;
 let isTyping = false;
-let typingChannel = null;
 
 async function updateLastSeen() {
     if (!currentUser) return;
@@ -455,6 +454,8 @@ function updateChatStatus(lastSeen) {
 }
 
 // ─── Отслеживание печатания ──────────────────────────────
+let typingChannel = null;
+
 function setupTypingIndicator() {
     const messageInput = document.getElementById('message-input');
     if (!messageInput) return;
@@ -496,12 +497,17 @@ function subscribeToTyping(chatId, otherUserId) {
         .on('broadcast', { event: 'typing' }, (payload) => {
             if (payload.payload.userId === currentUser.id) return;
             
-            const typingStatus = document.getElementById('typing-status');
+            const typingStatus = document.querySelector('.typing-status');
             if (!typingStatus) return;
             
             if (payload.payload.isTyping) {
                 typingStatus.textContent = 'печатает...';
                 typingStatus.style.display = 'block';
+                setTimeout(() => {
+                    if (typingStatus.textContent === 'печатает...') {
+                        typingStatus.style.display = 'none';
+                    }
+                }, 3000);
             } else {
                 typingStatus.style.display = 'none';
             }
@@ -815,6 +821,7 @@ async function openChat(chatId, otherUserId, otherUser) {
             if (messageInput) {
                 messageInput.disabled = false;
                 messageInput.placeholder = 'Написать сообщение...';
+                messageInput.focus();
             }
             if (sendButton) sendButton.disabled = false;
             setupTypingIndicator();
@@ -827,6 +834,9 @@ async function openChat(chatId, otherUserId, otherUser) {
             el.classList.remove('active');
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
+        
+        // Отмечаем сообщения как прочитанные
+        await markChatMessagesAsRead(chatId);
     } finally {
         isOpeningChat = false;
     }
@@ -957,6 +967,10 @@ function subscribeToMessages(chatId) {
                     parent.removeChild(dialogItem);
                     parent.insertBefore(dialogItem, parent.firstChild);
                 }
+                
+                if (currentChat?.id === chatId && payload.new.user_id !== currentUser.id) {
+                    await markChatMessagesAsRead(chatId);
+                }
             }
         )
         .subscribe();
@@ -1064,6 +1078,8 @@ async function sendMsg() {
             parent.removeChild(dialogItem);
             parent.insertBefore(dialogItem, parent.firstChild);
         }
+        
+        input.focus();
     }
 }
 
@@ -1149,82 +1165,92 @@ if (messageInputField) {
     });
 }
 
-// ─── DVH фикс ────────────────────────────────────────────
+// ─── DVH фикс и адаптация под клавиатуру ─────────────────
 function updateDvh() {
     document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
 }
 window.addEventListener('resize', updateDvh);
 updateDvh();
 
+// Фикс для клавиатуры на мобилках
+let originalHeight = window.innerHeight;
+window.addEventListener('resize', () => {
+    const newHeight = window.innerHeight;
+    if (newHeight < originalHeight - 100) {
+        setTimeout(() => {
+            const inputZone = document.querySelector('.input-zone');
+            if (inputZone && inputZone.style.display !== 'none') {
+                const input = document.getElementById('message-input');
+                if (input) input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
+    }
+    originalHeight = newHeight;
+    updateDvh();
+});
+
 // ─── Запуск ──────────────────────────────────────────────
 (async () => {
-    try {
-        const { data: { session } } = await _supabase.auth.getSession();
+    const { data: { session } } = await _supabase.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
         
-        if (session) {
-            currentUser = session.user;
-            
-            const { data: p } = await _supabase
+        const { data: p } = await _supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+        
+        if (!p) {
+            const email = currentUser.email;
+            let username = email ? email.split('@')[0] : 'user';
+            username = username.replace(/@lumina\.local$/, '');
+            const { data: newProfile } = await _supabase
                 .from('profiles')
-                .select('*')
-                .eq('id', currentUser.id)
+                .insert({
+                    id: currentUser.id,
+                    username: username,
+                    full_name: username,
+                    last_seen: new Date().toISOString()
+                })
+                .select()
                 .maybeSingle();
-            
-            if (!p) {
-                const email = currentUser.email;
-                let username = email ? email.split('@')[0] : 'user';
-                username = username.replace(/@lumina\.local$/, '');
-                const { data: newProfile } = await _supabase
-                    .from('profiles')
-                    .insert({
-                        id: currentUser.id,
-                        username: username,
-                        full_name: username,
-                        last_seen: new Date().toISOString()
-                    })
-                    .select()
-                    .maybeSingle();
-                currentProfile = newProfile;
-            } else {
-                currentProfile = p;
-            }
-            
-            if (currentProfile) {
-                document.getElementById('current-user-badge').textContent = currentProfile.full_name;
-                updateProfileFooter();
-                initProfileFooter();
-            }
-            
-            await loadAllUsers();
-            await ensureBotChat();
-            
-            showScreen('chat');
-            await loadDialogs();
-            
-            document.getElementById('chat-title').textContent = 'Lumina Lite';
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) chatStatus.textContent = 'выберите диалог';
-            const inputZone = document.querySelector('.input-zone');
-            if (inputZone) inputZone.style.display = 'none';
-            
-            document.getElementById('messages').innerHTML = `
-                <div class="msg-stub">
-                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                    <p>Выберите диалог, чтобы начать общение</p>
-                </div>
-            `;
-            
-            currentChat = null;
-            
-            document.addEventListener('click', () => updateLastSeen());
-            document.addEventListener('keypress', () => updateLastSeen());
-            setInterval(() => updateLastSeen(), 30000);
-            updateLastSeen();
+            currentProfile = newProfile;
         } else {
-            showScreen('reg');
+            currentProfile = p;
         }
-    } catch (err) {
-        console.error('Ошибка запуска:', err);
+        
+        if (currentProfile) {
+            document.getElementById('current-user-badge').textContent = currentProfile.full_name;
+            updateProfileFooter();
+            initProfileFooter();
+        }
+        
+        await loadAllUsers();
+        await ensureBotChat();
+        
+        showScreen('chat');
+        await loadDialogs();
+        
+        document.getElementById('chat-title').textContent = 'Lumina Lite';
+        document.querySelector('.chat-status').textContent = 'выберите диалог';
+        document.querySelector('.input-zone').style.display = 'none';
+        
+        document.getElementById('messages').innerHTML = `
+            <div class="msg-stub">
+                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                <p>Выберите диалог, чтобы начать общение</p>
+            </div>
+        `;
+        
+        currentChat = null;
+        
+        document.addEventListener('click', () => updateLastSeen());
+        document.addEventListener('keypress', () => updateLastSeen());
+        setInterval(() => updateLastSeen(), 30000);
+        updateLastSeen();
+    } else {
         showScreen('reg');
     }
 })();
