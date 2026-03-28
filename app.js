@@ -91,47 +91,118 @@ if (regBtn) {
     };
 }
 
-// ─── Уведомление о непрочитанном сообщении ───────────────
-function showUnreadNotification() {
-    const chatTitle = document.getElementById('chat-title');
-    const chatStatus = document.querySelector('.chat-status');
+// ─── Обновление нижней панели профиля ────────────────────
+function updateProfileFooter() {
+    if (!currentProfile) return;
     
-    if (chatTitle && !chatTitle.innerHTML.includes('unread-badge')) {
-        chatTitle.innerHTML = 'Lumina Lite <span class="unread-badge">1</span>';
+    const footerAvatar = document.getElementById('footer-avatar');
+    const footerName = document.getElementById('footer-name');
+    const footerUsername = document.getElementById('footer-username');
+    
+    if (footerAvatar) {
+        footerAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
     }
-    if (chatStatus && !chatStatus.innerHTML.includes('новое сообщение')) {
-        chatStatus.innerHTML = 'новое сообщение от Lumina Bot';
+    if (footerName) {
+        footerName.textContent = currentProfile.full_name || currentProfile.username || 'Пользователь';
+    }
+    if (footerUsername) {
+        footerUsername.textContent = `@${currentProfile.username || 'username'}`;
     }
 }
 
-// ─── Отметить сообщения как прочитанные ──────────────────
-async function markMessagesAsRead(chatId) {
+// ─── Инициализация нижней панели ─────────────────────────
+function initProfileFooter() {
+    const footer = document.getElementById('profile-footer');
+    if (!footer) return;
+    
+    // Клик по панели профиля открывает настройки
+    const footerInfo = footer.querySelector('.profile-footer-info');
+    if (footerInfo) {
+        footerInfo.onclick = () => {
+            if (!currentProfile) return;
+            const letter = (currentProfile.full_name || '?')[0].toUpperCase();
+            const avatarLetter = document.getElementById('profile-avatar-letter');
+            const profileFullname = document.getElementById('profile-fullname');
+            const profileUsername = document.getElementById('profile-username');
+            const profileBio = document.getElementById('profile-bio');
+            
+            if (avatarLetter) avatarLetter.textContent = letter;
+            if (profileFullname) profileFullname.value = currentProfile.full_name || '';
+            if (profileUsername) profileUsername.value = currentProfile.username || '';
+            if (profileBio) profileBio.value = currentProfile.bio || '';
+            
+            showScreen('profile');
+        };
+    }
+    
+    // Кнопка настроек
+    const settingsBtn = document.getElementById('footer-settings');
+    if (settingsBtn) {
+        settingsBtn.onclick = () => {
+            if (!currentProfile) return;
+            const letter = (currentProfile.full_name || '?')[0].toUpperCase();
+            const avatarLetter = document.getElementById('profile-avatar-letter');
+            const profileFullname = document.getElementById('profile-fullname');
+            const profileUsername = document.getElementById('profile-username');
+            const profileBio = document.getElementById('profile-bio');
+            
+            if (avatarLetter) avatarLetter.textContent = letter;
+            if (profileFullname) profileFullname.value = currentProfile.full_name || '';
+            if (profileUsername) profileUsername.value = currentProfile.username || '';
+            if (profileBio) profileBio.value = currentProfile.bio || '';
+            
+            showScreen('profile');
+        };
+    }
+    
+    // Кнопка выхода
+    const logoutFooterBtn = document.getElementById('footer-logout');
+    if (logoutFooterBtn) {
+        logoutFooterBtn.onclick = async () => {
+            if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+            await _supabase.auth.signOut();
+            currentUser = null;
+            currentProfile = null;
+            currentChat = null;
+            showScreen('reg');
+        };
+    }
+}
+
+// ─── Подсчет непрочитанных сообщений для чата ────────────
+async function getUnreadCount(chatId) {
+    try {
+        const { count, error } = await _supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('chat_id', chatId)
+            .eq('is_read', false)
+            .neq('user_id', currentUser.id);
+        
+        if (error) throw error;
+        return count || 0;
+    } catch (err) {
+        console.error('Ошибка подсчета непрочитанных:', err);
+        return 0;
+    }
+}
+
+// ─── Отметить сообщения как прочитанные в конкретном чате ─
+async function markChatMessagesAsRead(chatId) {
     if (!chatId) return;
     
     try {
-        await _supabase
+        const { error } = await _supabase
             .from('messages')
             .update({ is_read: true })
             .eq('chat_id', chatId)
-            .eq('user_id', BOT_USER_ID)
+            .neq('user_id', currentUser.id)
             .eq('is_read', false);
         
-        // Убираем уведомление
-        const chatTitle = document.getElementById('chat-title');
-        const chatStatus = document.querySelector('.chat-status');
+        if (error) throw error;
         
-        if (chatTitle) {
-            chatTitle.innerHTML = chatTitle.innerHTML.replace('<span class="unread-badge">1</span>', '');
-        }
-        if (chatStatus && chatStatus.innerHTML.includes('новое сообщение')) {
-            const isBot = currentChat?.other_user?.id === BOT_USER_ID;
-            chatStatus.textContent = isBot ? 'бот' : 'онлайн';
-        }
-        
-        const dialogBot = document.querySelector('.dialog-item[data-other-user-id="00000000-0000-0000-0000-000000000000"]');
-        if (dialogBot) {
-            dialogBot.classList.remove('unread-dialog');
-        }
+        // Обновляем список диалогов, чтобы убрать счетчик
+        loadDialogs(document.getElementById('search-dialogs')?.value || '');
     } catch (err) {
         console.error('Ошибка отметки сообщений как прочитанных:', err);
     }
@@ -169,9 +240,6 @@ async function ensureBotChat() {
                     is_system: true,
                     is_read: false
                 });
-                setTimeout(() => showUnreadNotification(), 500);
-            } else if (welcomeMsg && !welcomeMsg.is_read) {
-                showUnreadNotification();
             }
             return;
         }
@@ -197,7 +265,6 @@ async function ensureBotChat() {
                 is_system: true,
                 is_read: false
             });
-            setTimeout(() => showUnreadNotification(), 500);
         }
     } catch (err) {
         console.error('Ошибка в ensureBotChat:', err);
@@ -237,7 +304,11 @@ async function searchUsersByUsername(username) {
             .neq('id', currentUser.id)
             .limit(10);
         
-        if (error) throw error;
+        if (error) {
+            console.error('Ошибка Supabase:', error);
+            return [];
+        }
+        
         return data || [];
     } catch (err) {
         console.error('Ошибка поиска пользователей:', err);
@@ -285,7 +356,7 @@ async function getOrCreatePrivateChat(otherUserId) {
     }
 }
 
-// ─── Загрузка диалогов с поиском пользователей ────────────
+// ─── Загрузка диалогов с поиском пользователей и счетчиками ─
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
     if (!container) return;
@@ -365,21 +436,6 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        let hasUnreadBotMessage = false;
-        if (chats) {
-            const botChat = chats.find(c => c.participants.includes(BOT_USER_ID));
-            if (botChat) {
-                const { data: unreadMsg } = await _supabase
-                    .from('messages')
-                    .select('id')
-                    .eq('chat_id', botChat.id)
-                    .eq('user_id', BOT_USER_ID)
-                    .eq('is_read', false)
-                    .maybeSingle();
-                hasUnreadBotMessage = !!unreadMsg;
-            }
-        }
-        
         container.innerHTML = '';
         
         if (!chats || chats.length === 0) {
@@ -398,15 +454,16 @@ async function loadDialogs(searchTerm = '') {
             if (filteredChats.length === 0) {
                 container.innerHTML = '<div class="dialogs-loading">Диалоги не найдены</div>';
             } else {
-                filteredChats.forEach(chat => {
+                // Для каждого чата получаем количество непрочитанных
+                for (const chat of filteredChats) {
                     const otherId = chat.participants.find(id => id !== currentUser.id);
                     const otherUser = profileMap.get(otherId);
                     const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
                     const isBot = otherId === BOT_USER_ID;
-                    const hasUnread = hasUnreadBotMessage && isBot;
+                    const unreadCount = await getUnreadCount(chat.id);
                     
                     const div = document.createElement('div');
-                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${hasUnread ? 'unread-dialog' : ''}`;
+                    div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${unreadCount > 0 ? 'unread-dialog' : ''}`;
                     div.dataset.chatId = chat.id;
                     div.dataset.otherUserId = otherId;
                     div.innerHTML = `
@@ -418,24 +475,20 @@ async function loadDialogs(searchTerm = '') {
                             <div class="dialog-name">
                                 ${escapeHtml(name)}
                                 ${isBot ? '<span class="bot-badge">Бот</span>' : ''}
-                                ${hasUnread ? '<span class="unread-dot"></span>' : ''}
+                                ${unreadCount > 0 ? `<span class="unread-badge-count">${unreadCount}</span>` : ''}
                             </div>
                             <div class="dialog-preview">${chat.last_message ? escapeHtml(chat.last_message) : 'Нет сообщений'}</div>
                         </div>
                     `;
                     div.onclick = async () => {
                         await openChat(chat.id, otherId, otherUser);
-                        if (hasUnread) {
-                            await markMessagesAsRead(chat.id);
+                        if (unreadCount > 0) {
+                            await markChatMessagesAsRead(chat.id);
                         }
                     };
                     container.appendChild(div);
-                });
+                }
             }
-        }
-        
-        if (hasUnreadBotMessage) {
-            showUnreadNotification();
         }
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
@@ -499,6 +552,8 @@ if (loginBtn) {
         if (currentProfile) {
             const badge = document.getElementById('current-user-badge');
             if (badge) badge.textContent = currentProfile.full_name;
+            updateProfileFooter();
+            initProfileFooter();
         }
         
         await loadAllUsers();
@@ -710,7 +765,6 @@ function renderMessage(msg) {
     `;
     
     container.appendChild(div);
-    // Плавная прокрутка
     setTimeout(() => {
         container.scrollTo({
             top: container.scrollHeight,
@@ -742,7 +796,8 @@ async function sendMsg() {
         .insert([{ 
             text, 
             user_id: currentUser.id,
-            chat_id: currentChat.id
+            chat_id: currentChat.id,
+            is_read: false
         }])
         .select()
         .single();
@@ -837,6 +892,8 @@ if (saveProfileBtn) {
         const avatarLetter = document.getElementById('profile-avatar-letter');
         if (avatarLetter) avatarLetter.textContent = full_name[0].toUpperCase();
         
+        updateProfileFooter();
+        
         showToast('Профиль сохранён ✓');
         setTimeout(() => showScreen('chat'), 800);
     };
@@ -909,6 +966,8 @@ updateDvh();
             if (currentProfile) {
                 const badge = document.getElementById('current-user-badge');
                 if (badge) badge.textContent = currentProfile.full_name;
+                updateProfileFooter();
+                initProfileFooter();
             }
             
             await loadAllUsers();
