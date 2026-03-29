@@ -1,231 +1,101 @@
-import { _supabase, BOT_USER_ID, BOT_PROFILE, getEmail } from './config.js';
+// api.js
+import { _supabase, getEmail, BOT_USER_ID } from './config.js';
 
 export const api = {
-    // ─── Auth ───────────────────────────────────────────
-    async signIn(username, password) {
-        return await _supabase.auth.signInWithPassword({ email: getEmail(username), password });
-    },
-
-    async signUp(username, password, fullName) {
-        const { data, error } = await _supabase.auth.signUp({ email: getEmail(username), password });
-        if (error) return { error };
-        if (data.user) {
-            await _supabase.from('profiles').upsert({
-                id: data.user.id,
-                username: username.replace(/^@/, ''),
-                full_name: fullName || username,
-                last_seen: new Date().toISOString()
-            });
-        }
-        return { data, error: null };
-    },
-
-    async signOut() {
-        return await _supabase.auth.signOut();
-    },
-
+    // --- Сессии ---
     async getSession() {
-        return await _supabase.auth.getSession();
+        return _supabase.auth.getSession();
+    },
+    async signUp(username, password, full_name) {
+        const email = getEmail(username);
+        const { data, error } = await _supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { username, full_name } }
+        });
+        return { data, error };
+    },
+    async signIn(username, password) {
+        const email = getEmail(username);
+        const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+        return { data, error };
+    },
+    async signOut() {
+        return _supabase.auth.signOut();
     },
 
-    // ─── Profiles ───────────────────────────────────────
-    async getProfile(userId) {
-        return await _supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    // --- Профили ---
+    async getProfile(user_id) {
+        const { data, error } = await _supabase.from('profiles').select('*').eq('id', user_id).single();
+        return { data, error };
     },
-
-    async createProfile(userId, username) {
-        return await _supabase.from('profiles').insert({
-            id: userId,
-            username,
-            full_name: username,
-            last_seen: new Date().toISOString()
-        }).select().maybeSingle();
+    async createProfile(user_id, username) {
+        const { data, error } = await _supabase.from('profiles').insert([{ id: user_id, username }]).select().single();
+        return { data, error };
     },
-
-    async updateProfile(userId, updates) {
-        return await _supabase.from('profiles').update(updates).eq('id', userId);
+    async updateProfile(user_id, updates) {
+        const { data, error } = await _supabase.from('profiles').update(updates).eq('id', user_id).select().single();
+        return { data, error };
     },
-
-    async updateOnlineStatus(userId, isOnline) {
-        return await _supabase.from('profiles').update({
-            is_online: isOnline,
-            last_seen: new Date().toISOString()
-        }).eq('id', userId);
-    },
-
-    async loadAllUsers(excludeId) {
-        const { data, error } = await _supabase
-            .from('profiles')
-            .select('id, username, full_name')
-            .neq('id', excludeId);
-        return error ? [] : (data || []);
-    },
-
-    async searchUsers(query, excludeId) {
-        let clean = query.startsWith('@') ? query.substring(1) : query;
-        const { data } = await _supabase
-            .from('profiles')
-            .select('id, username, full_name')
-            .ilike('username', `%${clean}%`)
-            .neq('id', excludeId)
-            .limit(10);
-        return data || [];
-    },
-
     async getProfilesByIds(ids) {
-        if (!ids.length) return [];
-        const { data } = await _supabase
-            .from('profiles')
-            .select('id, full_name, username, last_seen, is_online')
-            .in('id', ids);
+        const { data, error } = await _supabase.from('profiles').select('*').in('id', ids);
+        return data || [];
+    },
+    async loadAllUsers(currentUserId) {
+        const { data, error } = await _supabase.from('profiles').select('id, username, full_name').neq('id', currentUserId);
         return data || [];
     },
 
-    // ─── Chats ──────────────────────────────────────────
-    async getChats(userId) {
-        return await _supabase
-            .from('chats')
+    // --- Чаты ---
+    async getChats(user_id) {
+        const { data: chats, error } = await _supabase.rpc('get_chats', { user_id });
+        return { data: chats, error };
+    },
+    async getOrCreateChat(user_id1, user_id2) {
+        const { data: [chat], error } = await _supabase.rpc('get_or_create_chat', { user_id1, user_id2 });
+        if (error && !chat) throw error;
+        return chat.id;
+    },
+
+    // --- Сообщения ---
+    async getMessages(chat_id) {
+        const { data: messages, error } = await _supabase.from('messages')
             .select('*')
-            .contains('participants', [userId])
-            .order('updated_at', { ascending: false });
+            .eq('chat_id', chat_id)
+            .order('created_at', { ascending: true });
+        return { data: messages || [], error };
+    },
+    async sendMessage(text, user_id, chat_id) {
+        if (!text.trim()) throw new Error('Сообщение не может быть пустым');
+        const { data: [msg], error } = await _supabase.from('messages').insert([{ text, user_id, chat_id }]).select().single();
+        if (error) throw error;
+        return { data: msg };
+    },
+    async editMessage(message_id, new_text) {
+        if (!new_text.trim()) throw new Error('Сообщение не может быть пустым');
+        const { data, error } = await _supabase.from('messages').update({ text: new_text }).eq('id', message_id).select();
+        return { data, error };
+    },
+    async deleteMessage(message_id) {
+        const { data, error } = await _supabase.from('messages').delete().eq('id', message_id);
+        return { data, error };
     },
 
-    async getOrCreateChat(userId, otherUserId) {
-        const { data: existing } = await _supabase
-            .from('chats')
-            .select('id')
-            .eq('type', 'private')
-            .contains('participants', [userId, otherUserId])
-            .maybeSingle();
-        if (existing) return existing.id;
-
-        const { data: newChat } = await _supabase
-            .from('chats')
-            .insert({
-                type: 'private',
-                participants: [userId, otherUserId],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-        return newChat.id;
+    // --- Статусы ---
+    async updateOnlineStatus(user_id, is_online) {
+        await _supabase.from('profiles').update({ is_online }).eq('id', user_id);
     },
 
-    async updateChatTimestamp(chatId, lastMessage) {
-        return await _supabase.from('chats').update({
-            updated_at: new Date().toISOString(),
-            last_message: lastMessage.slice(0, 50)
-        }).eq('id', chatId);
+    // --- Прочие ---
+    async markAsRead(chat_id, user_id) {
+        await _supabase.rpc('mark_as_read', { chat_id, user_id });
+    },
+    async updateChatTimestamp(chat_id, last_message_text) {
+        await _supabase.from('chats').update({ updated_at: 'now()' }).eq('id', chat_id);
     },
 
-    async ensureBotChat(userId) {
-        const { data: existing } = await _supabase
-            .from('chats')
-            .select('id')
-            .eq('type', 'private')
-            .contains('participants', [userId, BOT_USER_ID])
-            .maybeSingle();
-
-        let chatId;
-        if (existing) {
-            chatId = existing.id;
-        } else {
-            const { data: newChat } = await _supabase
-                .from('chats')
-                .insert({
-                    type: 'private',
-                    participants: [userId, BOT_USER_ID],
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    is_bot_chat: true
-                })
-                .select()
-                .single();
-            chatId = newChat?.id;
-        }
-
-        if (!chatId) return;
-
-        // Приветственное сообщение
-        const { data: welcomeMsg } = await _supabase
-            .from('messages')
-            .select('id')
-            .eq('chat_id', chatId)
-            .eq('is_welcome', true)
-            .maybeSingle();
-
-        if (!welcomeMsg) {
-            await _supabase.from('messages').insert({
-                text: 'Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
-                user_id: BOT_USER_ID,
-                chat_id: chatId,
-                is_welcome: true,
-                is_system: true,
-                is_read: false
-            });
-        }
+    // --- Бот ---
+    async ensureBotChat(user_id) {
+        await this.getOrCreateChat(user_id, BOT_USER_ID);
     },
-
-    // ─── Messages ───────────────────────────────────────
-    async getMessages(chatId) {
-        return await _supabase
-            .from('messages')
-            .select('*')
-            .eq('chat_id', chatId)
-            .order('created_at', { ascending: true })
-            .limit(200);
-    },
-
-    async sendMessage(text, userId, chatId) {
-        return await _supabase
-            .from('messages')
-            .insert([{ text, user_id: userId, chat_id: chatId, is_read: false, created_at: new Date().toISOString() }])
-            .select()
-            .single();
-    },
-
-    async editMessage(messageId, newText) {
-        return await _supabase
-            .from('messages')
-            .update({ text: newText.trim(), is_edited: true })
-            .eq('id', messageId);
-    },
-
-    async deleteMessage(messageId) {
-        return await _supabase.from('messages').delete().eq('id', messageId);
-    },
-
-    async getUnreadCount(chatId, userId) {
-        const { count } = await _supabase
-            .from('messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('chat_id', chatId)
-            .eq('is_read', false)
-            .neq('user_id', userId);
-        return count || 0;
-    },
-
-    async getLastMessage(chatId, userId) {
-        const { data } = await _supabase
-            .from('messages')
-            .select('text, user_id')
-            .eq('chat_id', chatId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (!data) return null;
-        const prefix = data.user_id === userId ? 'Вы: ' : '';
-        const text = data.text.length > 50 ? data.text.slice(0, 47) + '...' : data.text;
-        return prefix + text;
-    },
-
-    async markAsRead(chatId, userId) {
-        return await _supabase
-            .from('messages')
-            .update({ is_read: true, read_at: new Date().toISOString() })
-            .eq('chat_id', chatId)
-            .neq('user_id', userId)
-            .eq('is_read', false);
-    }
 };
