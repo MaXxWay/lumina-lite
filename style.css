@@ -331,3 +331,35 @@ body {
     .dialog-avatar { width: 42px; height: 42px; font-size: 15px; }
     .avatar-letter { font-size: 15px; }
 }
+/* Индикатор непрочитанного сообщения */
+.message.unread-message .msg-bubble {
+    border-left: 3px solid var(--accent-blue);
+    position: relative;
+}
+
+.message.unread-message .msg-bubble::before {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    border-radius: 3px;
+    animation: pulse-blue 1s ease-in-out infinite;
+}
+
+@keyframes pulse-blue {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.unread-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-blue);
+    border-radius: 50%;
+    margin-left: 6px;
+    animation: pulse-blue 1s ease-in-out infinite;
+}
