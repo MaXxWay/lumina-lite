@@ -53,6 +53,24 @@ async function setUserOnlineStatus(isOnline) {
     } catch (err) {}
 }
 
+function setOfflineSync() {
+    // Синхронный вызов через fetch keepalive для beforeunload
+    if (!currentUser) return;
+    try {
+        fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${currentUser.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ is_online: false, last_seen: new Date().toISOString() }),
+            keepalive: true
+        });
+    } catch(e) {}
+}
+
 function startOnlineHeartbeat() {
     if (onlineInterval) clearInterval(onlineInterval);
     setUserOnlineStatus(true);
@@ -72,13 +90,14 @@ function stopOnlineHeartbeat() {
 }
 
 window.addEventListener('beforeunload', () => {
-    if (currentUser) setUserOnlineStatus(false);
+    if (currentUser) setOfflineSync();
 });
 
 document.addEventListener('visibilitychange', () => {
     if (!currentUser) return;
     if (document.hidden) {
-        setUserOnlineStatus(false);
+        setOfflineSync();
+        isUserOnline = false;
     } else {
         setUserOnlineStatus(true);
     }
@@ -262,65 +281,79 @@ async function getLastMessage(chatId) {
     }
 }
 
-// ─── Отметить сообщения как прочитанные (ФИКС) ───────────
+// ─── Кеш прочитанных чатов (localStorage) ────────────────
 let messagesCache = new Map();
+
+function getReadKey(chatId) {
+    return `lumina_read_${currentUser?.id}_${chatId}`;
+}
+
+function markChatAsReadLocally(chatId) {
+    try { localStorage.setItem(getReadKey(chatId), Date.now().toString()); } catch(e) {}
+}
+
+function isChatReadLocally(chatId) {
+    try { return !!localStorage.getItem(getReadKey(chatId)); } catch(e) { return false; }
+}
+
+function clearLocalReadMark(chatId) {
+    try { localStorage.removeItem(getReadKey(chatId)); } catch(e) {}
+}
 
 async function markChatMessagesAsRead(chatId) {
     if (!chatId || !currentUser) return;
     
     try {
-        // Сначала получаем ID сообщений, которые нужно отметить
-        const { data: unreadMessages, error: fetchError } = await _supabase
+        const { data: unreadMessages } = await _supabase
             .from('messages')
             .select('id')
             .eq('chat_id', chatId)
             .neq('user_id', currentUser.id)
             .eq('is_read', false);
         
-        if (fetchError) throw fetchError;
-        
         if (unreadMessages && unreadMessages.length > 0) {
-            // Обновляем статус в БД
-            const { error } = await _supabase
+            await _supabase
                 .from('messages')
                 .update({ is_read: true, read_at: new Date().toISOString() })
                 .eq('chat_id', chatId)
                 .neq('user_id', currentUser.id)
                 .eq('is_read', false);
             
-            if (error) throw error;
-            
-            // Обновляем кеш
             if (messagesCache.has(chatId)) {
                 const cachedMessages = messagesCache.get(chatId);
                 cachedMessages.forEach(msg => {
-                    if (msg.user_id !== currentUser.id) {
-                        msg.is_read = true;
-                    }
+                    if (msg.user_id !== currentUser.id) msg.is_read = true;
                 });
                 messagesCache.set(chatId, cachedMessages);
             }
             
-            // Обновляем интерфейс чата
-            const messagesContainer = document.getElementById('messages');
-            if (messagesContainer && currentChat?.id === chatId) {
-                const allMessages = messagesContainer.querySelectorAll('.message');
-                allMessages.forEach(msgDiv => {
-                    const isOwn = msgDiv.classList.contains('own');
-                    if (!isOwn) {
-                        msgDiv.classList.remove('unread-message');
-                        // Убираем индикатор непрочитанного если есть
-                        const unreadIndicator = msgDiv.querySelector('.unread-indicator');
-                        if (unreadIndicator) unreadIndicator.remove();
-                    }
-                });
-            }
-            
-            // Обновляем список диалогов
-            await loadDialogs();
+            markChatAsReadLocally(chatId);
+            updateDialogUnreadBadge(chatId, 0);
         }
     } catch (err) {
         console.error('Ошибка отметки прочитанных:', err);
+    }
+}
+
+function updateDialogUnreadBadge(chatId, count) {
+    const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
+    if (!dialogItem) return;
+    const badge = dialogItem.querySelector('.unread-badge-count');
+    if (count > 0) {
+        if (badge) badge.textContent = count;
+        else {
+            const nameDiv = dialogItem.querySelector('.dialog-name');
+            if (nameDiv) {
+                const newBadge = document.createElement('span');
+                newBadge.className = 'unread-badge-count';
+                newBadge.textContent = count;
+                nameDiv.appendChild(newBadge);
+            }
+        }
+        dialogItem.classList.add('unread-dialog');
+    } else {
+        if (badge) badge.remove();
+        dialogItem.classList.remove('unread-dialog');
     }
 }
 
@@ -478,43 +511,23 @@ async function updateLastSeen() {
     } catch (err) {}
 }
 
-function formatLastSeen(lastSeen) {
-    if (!lastSeen) return 'неизвестно';
-    
-    const lastSeenDate = new Date(lastSeen);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (lastSeenDate >= today) {
-        return `сегодня в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (lastSeenDate >= yesterday) {
-        return `вчера в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-        return lastSeenDate.toLocaleDateString('ru', { day: 'numeric', month: 'short' }) + 
-               ` в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    }
-}
 
 function getUserStatusFromProfile(profile) {
-    if (!profile) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
+    if (!profile) return { text: 'не в сети', class: 'status-offline', isOnline: false };
     
     if (profile.is_online === true) {
         return { text: 'онлайн', class: 'status-online', isOnline: true };
     }
     
-    if (!profile.last_seen) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
-    
-    const lastSeenDate = new Date(profile.last_seen);
-    const now = new Date();
-    const diffMins = (now - lastSeenDate) / 60000;
-    
-    if (diffMins < 5) {
-        return { text: 'онлайн', class: 'status-online', isOnline: true };
+    if (profile.last_seen) {
+        const lastSeenDate = new Date(profile.last_seen);
+        const diffMins = (Date.now() - lastSeenDate) / 60000;
+        if (diffMins < 2) {
+            return { text: 'онлайн', class: 'status-online', isOnline: true };
+        }
     }
     
-    return { text: formatLastSeen(profile.last_seen), class: 'status-offline', isOnline: false };
+    return { text: 'не в сети', class: 'status-offline', isOnline: false };
 }
 
 let statusSubscription = null;
@@ -831,96 +844,209 @@ if (emojiBtn && emojiPicker) {
     });
 }
 
-// ─── Контекстное меню сообщений ──────────────────────────
+// ─── Контекстное меню сообщений (Telegram-style) ─────────
 const messageMenu = document.getElementById('message-menu');
 let activeMessage = null;
+let replyTo = null;
 
-function showMessageMenu(e, messageId, messageText, isOwn) {
+function showMessageMenu(e, messageId, messageText, isOwn, isPinned) {
     e.preventDefault();
     e.stopPropagation();
     
-    if (messageMenu) {
-        messageMenu.style.display = 'block';
-        messageMenu.style.left = `${e.clientX}px`;
-        messageMenu.style.top = `${e.clientY}px`;
-        
-        const menuItems = messageMenu.querySelectorAll('.menu-item');
-        menuItems.forEach(item => {
-            const action = item.dataset.action;
-            item.onclick = () => handleMessageAction(action, messageId, messageText, isOwn);
-        });
-        
-        setTimeout(() => {
-            document.addEventListener('click', hideMessageMenu);
-        }, 0);
+    if (!messageMenu) return;
+    
+    // Обновляем пункт "Закрепить/Открепить"
+    const pinItem = messageMenu.querySelector('[data-action="pin"]');
+    if (pinItem) {
+        pinItem.querySelector('span').textContent = isPinned ? 'Открепить' : 'Закрепить';
     }
+    
+    // Показываем/скрываем пункты только для своих сообщений
+    const editItem = messageMenu.querySelector('[data-action="edit"]');
+    const deleteItem = messageMenu.querySelector('[data-action="delete"]');
+    if (editItem) editItem.style.display = isOwn ? 'flex' : 'none';
+    if (deleteItem) deleteItem.style.display = isOwn ? 'flex' : 'none';
+    
+    // Позиционирование — как в Telegram (над сообщением)
+    messageMenu.style.display = 'block';
+    const rect = messageMenu.getBoundingClientRect();
+    const menuW = 200, menuH = messageMenu.scrollHeight || 240;
+    
+    let x = e.clientX;
+    let y = e.clientY - menuH - 8;
+    
+    if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 8;
+    if (y < 8) y = e.clientY + 8;
+    if (x < 8) x = 8;
+    
+    messageMenu.style.left = `${x}px`;
+    messageMenu.style.top = `${y}px`;
+    
+    const menuItems = messageMenu.querySelectorAll('.menu-item');
+    menuItems.forEach(item => {
+        const action = item.dataset.action;
+        item.onclick = (ev) => {
+            ev.stopPropagation();
+            handleMessageAction(action, messageId, messageText, isOwn, isPinned);
+        };
+    });
+    
+    setTimeout(() => document.addEventListener('click', hideMessageMenu), 0);
 }
 
 function hideMessageMenu() {
-    if (messageMenu) {
-        messageMenu.style.display = 'none';
-    }
+    if (messageMenu) messageMenu.style.display = 'none';
     document.removeEventListener('click', hideMessageMenu);
 }
 
-async function handleMessageAction(action, messageId, messageText, isOwn) {
+// ─── Панель ответа ────────────────────────────────────────
+function showReplyBar(messageId, messageText) {
+    replyTo = { id: messageId, text: messageText };
+    
+    let bar = document.getElementById('reply-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'reply-bar';
+        bar.className = 'reply-bar';
+        bar.innerHTML = `
+            <div class="reply-bar-line"></div>
+            <div class="reply-bar-content">
+                <div class="reply-bar-label">Ответить на сообщение</div>
+                <div class="reply-bar-text" id="reply-bar-text"></div>
+            </div>
+            <button class="reply-bar-close" id="reply-bar-close">✕</button>
+        `;
+        const inputZone = document.querySelector('.input-zone');
+        inputZone.insertBefore(bar, inputZone.firstChild);
+        document.getElementById('reply-bar-close').onclick = clearReply;
+    }
+    
+    const textEl = document.getElementById('reply-bar-text');
+    if (textEl) textEl.textContent = messageText.length > 80 ? messageText.slice(0, 77) + '...' : messageText;
+    
+    document.getElementById('message-input')?.focus();
+}
+
+function clearReply() {
+    replyTo = null;
+    const bar = document.getElementById('reply-bar');
+    if (bar) bar.remove();
+}
+
+async function handleMessageAction(action, messageId, messageText, isOwn, isPinned) {
     hideMessageMenu();
     
     switch (action) {
         case 'reply':
-            const input = document.getElementById('message-input');
-            if (input) {
-                input.value = `> ${messageText}\n\n`;
-                input.focus();
-            }
+            showReplyBar(messageId, messageText);
             break;
+        
         case 'copy':
             await navigator.clipboard.writeText(messageText);
             showToast('Текст скопирован');
             break;
+        
         case 'edit':
-            if (isOwn) {
-                const newText = prompt('Изменить сообщение:', messageText);
-                if (newText && newText.trim()) {
-                    const { error } = await _supabase
-                        .from('messages')
-                        .update({ text: newText.trim(), is_edited: true })
-                        .eq('id', messageId);
-                    if (error) {
-                        showToast('Ошибка редактирования', true);
-                    } else {
-                        showToast('Сообщение изменено');
-                    }
+            if (!isOwn) { showToast('Только свои сообщения', true); return; }
+            const input = document.getElementById('message-input');
+            if (input) {
+                input.value = messageText;
+                input.dataset.editId = messageId;
+                input.focus();
+                // Визуальный индикатор редактирования
+                let editBar = document.getElementById('edit-bar');
+                if (!editBar) {
+                    editBar = document.createElement('div');
+                    editBar.id = 'edit-bar';
+                    editBar.className = 'reply-bar';
+                    editBar.innerHTML = `
+                        <div class="reply-bar-line" style="background: var(--accent-cyan);"></div>
+                        <div class="reply-bar-content">
+                            <div class="reply-bar-label" style="color: var(--accent-cyan);">✎ Редактирование</div>
+                            <div class="reply-bar-text">${escapeHtml(messageText.slice(0, 80))}</div>
+                        </div>
+                        <button class="reply-bar-close" id="edit-bar-close">✕</button>
+                    `;
+                    const inputZone = document.querySelector('.input-zone');
+                    inputZone.insertBefore(editBar, inputZone.firstChild);
+                    document.getElementById('edit-bar-close').onclick = () => {
+                        delete input.dataset.editId;
+                        input.value = '';
+                        editBar.remove();
+                    };
                 }
-            } else {
-                showToast('Можно редактировать только свои сообщения', true);
             }
             break;
+        
         case 'pin':
-            showToast('Функция закрепления в разработке');
+            try {
+                const newPinState = !isPinned;
+                const { error } = await _supabase
+                    .from('messages')
+                    .update({ is_pinned: newPinState })
+                    .eq('id', messageId);
+                if (error) throw error;
+                
+                const msgDiv = document.querySelector(`.message[data-id="${messageId}"]`);
+                if (msgDiv) {
+                    msgDiv.dataset.pinned = newPinState ? '1' : '0';
+                    const pinIcon = msgDiv.querySelector('.pin-indicator');
+                    if (newPinState) {
+                        if (!pinIcon) {
+                            const pi = document.createElement('div');
+                            pi.className = 'pin-indicator';
+                            pi.innerHTML = '📌';
+                            msgDiv.querySelector('.msg-bubble').appendChild(pi);
+                        }
+                    } else {
+                        if (pinIcon) pinIcon.remove();
+                    }
+                }
+                showToast(newPinState ? 'Сообщение закреплено' : 'Сообщение откреплено');
+            } catch(err) {
+                showToast('Ошибка', true);
+            }
             break;
+        
         case 'forward':
             showToast('Функция пересылки в разработке');
             break;
+        
         case 'delete':
-            if (isOwn) {
-                const confirm = window.confirm('Удалить сообщение?');
-                if (confirm) {
-                    const { error } = await _supabase
-                        .from('messages')
-                        .delete()
-                        .eq('id', messageId);
-                    if (error) {
-                        showToast('Ошибка удаления', true);
-                    } else {
-                        showToast('Сообщение удалено');
-                    }
-                }
-            } else {
-                showToast('Можно удалять только свои сообщения', true);
-            }
+            if (!isOwn) { showToast('Только свои сообщения', true); return; }
+            // Telegram-style: удаляем сразу без confirm
+            showDeleteConfirm(messageId);
             break;
     }
+}
+
+// ─── Confirm удаления (как в Telegram) ───────────────────
+function showDeleteConfirm(messageId) {
+    let overlay = document.getElementById('delete-overlay');
+    if (overlay) overlay.remove();
+    
+    overlay = document.createElement('div');
+    overlay.id = 'delete-overlay';
+    overlay.className = 'delete-overlay';
+    overlay.innerHTML = `
+        <div class="delete-dialog">
+            <div class="delete-title">Удалить сообщение?</div>
+            <div class="delete-subtitle">Это действие нельзя отменить</div>
+            <div class="delete-actions">
+                <button class="delete-btn-cancel" id="del-cancel">Отмена</button>
+                <button class="delete-btn-confirm" id="del-confirm">Удалить</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    
+    document.getElementById('del-cancel').onclick = () => overlay.remove();
+    document.getElementById('del-confirm').onclick = async () => {
+        overlay.remove();
+        const { error } = await _supabase.from('messages').delete().eq('id', messageId);
+        if (error) showToast('Ошибка удаления', true);
+    };
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
 // ─── Вход ────────────────────────────────────────────────
@@ -968,7 +1094,6 @@ if (loginBtn) {
         await ensureBotChat();
         
         showScreen('chat');
-        await loadDialogs();
         
         document.getElementById('chat-title').textContent = 'Lumina Lite';
         document.querySelector('.chat-status').textContent = 'выберите диалог';
@@ -986,6 +1111,9 @@ if (loginBtn) {
         }
         
         currentChat = null;
+        
+        // Параллельная загрузка диалогов
+        loadDialogs();
         
         document.addEventListener('click', () => updateLastSeen());
         document.addEventListener('keypress', () => updateLastSeen());
@@ -1184,11 +1312,7 @@ function subscribeToMessages(chatId) {
                     }
                 }
                 
-                const newMessage = { 
-                    ...payload.new, 
-                    profiles: profile,
-                    is_read: payload.new.user_id === currentUser?.id // Свои сообщения сразу прочитаны
-                };
+                const newMessage = { ...payload.new, profiles: profile };
                 
                 if (messagesCache.has(chatId)) {
                     const cached = messagesCache.get(chatId);
@@ -1199,9 +1323,16 @@ function subscribeToMessages(chatId) {
                 renderMessage(newMessage);
                 updateDialogLastMessage(chatId, payload.new.text, payload.new.user_id === currentUser.id);
                 
-                // Если это сообщение от другого пользователя и чат открыт - отмечаем как прочитанное
                 if (currentChat?.id === chatId && payload.new.user_id !== currentUser.id) {
                     await markChatMessagesAsRead(chatId);
+                } else if (currentChat?.id !== chatId && payload.new.user_id !== currentUser.id) {
+                    // Обновляем счётчик непрочитанных в диалоге
+                    const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
+                    if (dialogItem) {
+                        const badge = dialogItem.querySelector('.unread-badge-count');
+                        const cur = badge ? parseInt(badge.textContent) || 0 : 0;
+                        updateDialogUnreadBadge(chatId, cur + 1);
+                    }
                 }
             }
         )
@@ -1211,17 +1342,20 @@ function subscribeToMessages(chatId) {
                 const messageDiv = document.querySelector(`.message[data-id="${payload.new.id}"]`);
                 if (messageDiv) {
                     const textDiv = messageDiv.querySelector('.text');
-                    if (textDiv) textDiv.textContent = payload.new.text;
-                    const timeDiv = messageDiv.querySelector('.msg-time');
-                    if (timeDiv && !timeDiv.textContent.includes('(изм)')) {
-                        timeDiv.textContent = timeDiv.textContent + ' (изм)';
+                    if (textDiv && textDiv.textContent !== payload.new.text) {
+                        textDiv.textContent = payload.new.text;
+                        const timeDiv = messageDiv.querySelector('.msg-time');
+                        if (timeDiv && !timeDiv.textContent.includes('(изм)')) {
+                            timeDiv.textContent = timeDiv.textContent + ' (изм)';
+                        }
                     }
-                    
-                    // Обновляем статус прочитанного в интерфейсе
-                    if (payload.new.is_read && !messageDiv.classList.contains('own')) {
-                        messageDiv.classList.remove('unread-message');
-                        const unreadIndicator = messageDiv.querySelector('.unread-indicator');
-                        if (unreadIndicator) unreadIndicator.remove();
+                    // Обновляем закреп
+                    if (payload.new.is_pinned !== undefined) {
+                        messageDiv.dataset.pinned = payload.new.is_pinned ? '1' : '0';
+                    }
+                    // Обновляем реакции
+                    if (payload.new.reactions !== undefined) {
+                        renderReactions(messageDiv, payload.new.reactions, payload.new.id);
                     }
                 }
                 
@@ -1229,14 +1363,9 @@ function subscribeToMessages(chatId) {
                     const cached = messagesCache.get(chatId);
                     const idx = cached.findIndex(m => m.id === payload.new.id);
                     if (idx !== -1) {
-                        cached[idx].text = payload.new.text;
-                        cached[idx].is_read = payload.new.is_read;
+                        cached[idx] = { ...cached[idx], ...payload.new };
                     }
                     messagesCache.set(chatId, cached);
-                }
-                
-                if (currentChat?.id !== chatId) {
-                    updateDialogLastMessage(chatId, payload.new.text, false);
                 }
             }
         )
@@ -1244,12 +1373,14 @@ function subscribeToMessages(chatId) {
             { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
             (payload) => {
                 const messageDiv = document.querySelector(`.message[data-id="${payload.old.id}"]`);
-                if (messageDiv) messageDiv.remove();
+                if (messageDiv) {
+                    messageDiv.style.animation = 'messageDelete 0.2s ease forwards';
+                    setTimeout(() => messageDiv.remove(), 200);
+                }
                 
                 if (messagesCache.has(chatId)) {
                     const cached = messagesCache.get(chatId);
-                    const filtered = cached.filter(m => m.id !== payload.old.id);
-                    messagesCache.set(chatId, filtered);
+                    messagesCache.set(chatId, cached.filter(m => m.id !== payload.old.id));
                 }
             }
         )
@@ -1270,6 +1401,83 @@ function updateDialogLastMessage(chatId, text, isOwn) {
         parent.removeChild(dialogItem);
         parent.insertBefore(dialogItem, parent.firstChild);
     }
+}
+
+// ─── Реакции ─────────────────────────────────────────────
+const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
+
+function renderReactions(msgDiv, reactions, messageId) {
+    let reactBar = msgDiv.querySelector('.reactions-bar');
+    if (!reactions || Object.keys(reactions).length === 0) {
+        if (reactBar) reactBar.remove();
+        return;
+    }
+    if (!reactBar) {
+        reactBar = document.createElement('div');
+        reactBar.className = 'reactions-bar';
+        msgDiv.querySelector('.msg-bubble').appendChild(reactBar);
+    }
+    reactBar.innerHTML = '';
+    Object.entries(reactions).forEach(([emoji, users]) => {
+        if (!users || users.length === 0) return;
+        const btn = document.createElement('button');
+        btn.className = `reaction-btn ${users.includes(currentUser?.id) ? 'active' : ''}`;
+        btn.innerHTML = `${emoji}<span>${users.length}</span>`;
+        btn.onclick = (e) => { e.stopPropagation(); toggleReaction(messageId, emoji); };
+        reactBar.appendChild(btn);
+    });
+}
+
+async function toggleReaction(messageId, emoji) {
+    if (!currentUser) return;
+    
+    const { data: msg } = await _supabase
+        .from('messages')
+        .select('reactions')
+        .eq('id', messageId)
+        .single();
+    
+    const reactions = msg?.reactions || {};
+    const users = reactions[emoji] || [];
+    const idx = users.indexOf(currentUser.id);
+    
+    if (idx === -1) users.push(currentUser.id);
+    else users.splice(idx, 1);
+    
+    reactions[emoji] = users;
+    
+    await _supabase.from('messages').update({ reactions }).eq('id', messageId);
+}
+
+function showReactionPicker(e, messageId) {
+    e.stopPropagation();
+    
+    // Закрываем существующий пикер
+    document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+    
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+    
+    REACTION_EMOJIS.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'reaction-picker-btn';
+        btn.textContent = emoji;
+        btn.onclick = (ev) => {
+            ev.stopPropagation();
+            toggleReaction(messageId, emoji);
+            picker.remove();
+        };
+        picker.appendChild(btn);
+    });
+    
+    // Позиционирование
+    const rect = e.currentTarget.closest('.message').getBoundingClientRect();
+    picker.style.position = 'fixed';
+    picker.style.left = `${Math.min(rect.left, window.innerWidth - 260)}px`;
+    picker.style.top = `${rect.top - 60}px`;
+    document.body.appendChild(picker);
+    
+    setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 0);
 }
 
 // ─── Рендер сообщения ────────────────────────────────────
@@ -1293,16 +1501,25 @@ function renderMessage(msg) {
     const isBot = msg.user_id === BOT_USER_ID;
     let name = 'Пользователь';
     
-    if (msg.profiles && msg.profiles.full_name) name = msg.profiles.full_name;
-    else if (isOwn && currentProfile && currentProfile.full_name) name = currentProfile.full_name;
+    if (msg.profiles?.full_name) name = msg.profiles.full_name;
+    else if (isOwn && currentProfile?.full_name) name = currentProfile.full_name;
     else if (isBot) name = 'Lumina Bot';
     
     const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    const isPinned = msg.is_pinned || false;
+    const isEdited = msg.is_edited || false;
     
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''}`;
     div.dataset.id = msg.id;
     div.dataset.text = msg.text;
+    div.dataset.pinned = isPinned ? '1' : '0';
+    
+    // Reply preview
+    let replyHtml = '';
+    if (msg.reply_to_text) {
+        replyHtml = `<div class="reply-preview"><span class="reply-preview-text">${escapeHtml(msg.reply_to_text.slice(0, 60))}</span></div>`;
+    }
     
     div.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
@@ -1311,20 +1528,49 @@ function renderMessage(msg) {
         </div>
         <div class="msg-bubble">
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
+            ${replyHtml}
+            ${isPinned ? '<div class="pin-indicator">📌</div>' : ''}
             <div class="text">${escapeHtml(msg.text)}</div>
-            <div class="msg-time">${timeStr}</div>
+            <div class="msg-time">${timeStr}${isEdited ? ' (изм)' : ''}</div>
         </div>
+        <button class="react-btn" title="Реакция">😊</button>
     `;
     
-    div.oncontextmenu = (e) => {
-        showMessageMenu(e, msg.id, msg.text, isOwn);
+    // Реакции
+    if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+        renderReactions(div, msg.reactions, msg.id);
+    }
+    
+    // Контекстное меню — ПКМ
+    div.addEventListener('contextmenu', (e) => {
+        showMessageMenu(e, msg.id, msg.text, isOwn, isPinned);
         return false;
-    };
+    });
+    
+    // Long-press для мобильных
+    let pressTimer;
+    div.addEventListener('touchstart', (e) => {
+        pressTimer = setTimeout(() => {
+            const touch = e.touches[0];
+            showMessageMenu({ 
+                preventDefault: () => {}, 
+                stopPropagation: () => {},
+                clientX: touch.clientX, 
+                clientY: touch.clientY 
+            }, msg.id, msg.text, isOwn, isPinned);
+        }, 500);
+    }, { passive: true });
+    div.addEventListener('touchend', () => clearTimeout(pressTimer));
+    div.addEventListener('touchmove', () => clearTimeout(pressTimer));
+    
+    // Кнопка реакции
+    const reactBtn = div.querySelector('.react-btn');
+    if (reactBtn) {
+        reactBtn.addEventListener('click', (e) => showReactionPicker(e, msg.id));
+    }
     
     container.appendChild(div);
-    setTimeout(() => {
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-    }, 50);
+    setTimeout(() => container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' }), 50);
 }
 
 // ─── Отправка сообщения ─────────────────────────────────
@@ -1343,17 +1589,52 @@ async function sendMsg() {
         return;
     }
     
+    // Режим редактирования
+    if (input.dataset.editId) {
+        const editId = input.dataset.editId;
+        input.value = '';
+        delete input.dataset.editId;
+        const editBar = document.getElementById('edit-bar');
+        if (editBar) editBar.remove();
+        
+        const { error } = await _supabase
+            .from('messages')
+            .update({ text, is_edited: true })
+            .eq('id', editId);
+        if (error) showToast('Ошибка редактирования', true);
+        else {
+            const msgDiv = document.querySelector(`.message[data-id="${editId}"]`);
+            if (msgDiv) {
+                const textDiv = msgDiv.querySelector('.text');
+                if (textDiv) textDiv.textContent = text;
+                const timeDiv = msgDiv.querySelector('.msg-time');
+                if (timeDiv && !timeDiv.textContent.includes('(изм)')) {
+                    timeDiv.textContent = timeDiv.textContent + ' (изм)';
+                }
+            }
+        }
+        return;
+    }
+    
     input.value = '';
+    
+    const msgData = {
+        text,
+        user_id: currentUser.id,
+        chat_id: currentChat.id,
+        is_read: false,
+        created_at: new Date().toISOString()
+    };
+    
+    if (replyTo) {
+        msgData.reply_to_id = replyTo.id;
+        msgData.reply_to_text = replyTo.text;
+        clearReply();
+    }
     
     const { data, error } = await _supabase
         .from('messages')
-        .insert([{ 
-            text, 
-            user_id: currentUser.id,
-            chat_id: currentChat.id,
-            is_read: false,
-            created_at: new Date().toISOString()
-        }])
+        .insert([msgData])
         .select()
         .single();
     
@@ -1361,77 +1642,30 @@ async function sendMsg() {
         showToast('Ошибка отправки', true);
         input.value = text;
     } else {
-        renderMessage({ ...data, profiles: currentProfile });
+        // Realtime сам отрендерит, но на всякий случай добавляем если не появилось
+        setTimeout(() => {
+            if (!document.querySelector(`.message[data-id="${data.id}"]`)) {
+                renderMessage({ ...data, profiles: currentProfile });
+            }
+        }, 300);
         
         await _supabase
             .from('chats')
-            .update({ 
-                updated_at: new Date().toISOString(),
-                last_message: text.slice(0, 50)
-            })
+            .update({ updated_at: new Date().toISOString(), last_message: text.slice(0, 50) })
             .eq('id', currentChat.id);
         
-        const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${currentChat.id}"]`);
-        if (dialogItem) {
-            const previewSpan = dialogItem.querySelector('.dialog-preview');
-            if (previewSpan) {
-                let shortText = text.length > 50 ? text.slice(0, 47) + '...' : text;
-                previewSpan.textContent = 'Вы: ' + shortText;
-            }
-            const parent = dialogItem.parentNode;
-            parent.removeChild(dialogItem);
-            parent.insertBefore(dialogItem, parent.firstChild);
-        }
-        
+        updateDialogLastMessage(currentChat.id, text, true);
         input.focus();
     }
 }
 
-// ─── Выход ───────────────────────────────────────────────
-const logoutBtn = document.getElementById('btn-logout');
-if (logoutBtn) {
-    logoutBtn.onclick = async () => {
-        stopOnlineHeartbeat();
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-        if (typingChannel) await _supabase.removeChannel(typingChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        currentChat = null;
-        showScreen('reg');
-    };
-}
-
 // ─── Профиль ─────────────────────────────────────────────
-const profileBtn = document.getElementById('btn-profile');
-if (profileBtn) {
-    profileBtn.onclick = () => {
-        if (!currentProfile) return;
-        document.getElementById('profile-avatar-letter').textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-        document.getElementById('profile-fullname').value = currentProfile.full_name || '';
-        document.getElementById('profile-username').value = currentProfile.username || '';
-        document.getElementById('profile-bio').value = currentProfile.bio || '';
-        showScreen('profile');
-    };
-}
-
 const profileBackBtn = document.getElementById('btn-profile-back');
 if (profileBackBtn) profileBackBtn.onclick = () => showScreen('chat');
 
 const profileLogoutBtn = document.getElementById('btn-logout-profile');
 if (profileLogoutBtn) {
-    profileLogoutBtn.onclick = async () => {
-        stopOnlineHeartbeat();
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-        if (typingChannel) await _supabase.removeChannel(typingChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        currentChat = null;
-        showScreen('reg');
-    };
+    profileLogoutBtn.onclick = async () => logout();
 }
 
 const saveProfileBtn = document.getElementById('btn-save-profile');
@@ -1536,8 +1770,8 @@ window.addEventListener('resize', () => {
         await ensureBotChat();
         
         showScreen('chat');
-        await loadDialogs();
         
+        // Показываем экран сразу, диалоги грузятся параллельно
         document.getElementById('chat-title').textContent = 'Lumina Lite';
         document.querySelector('.chat-status').textContent = 'выберите диалог';
         const inputZone = document.querySelector('.input-zone');
@@ -1551,6 +1785,9 @@ window.addEventListener('resize', () => {
         `;
         
         currentChat = null;
+        
+        // Запускаем всё параллельно
+        loadDialogs();
         
         document.addEventListener('click', () => updateLastSeen());
         document.addEventListener('keypress', () => updateLastSeen());
