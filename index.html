@@ -14,6 +14,7 @@
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
 
+    <!-- Регистрация -->
     <div id="step-register" class="auth-container">
         <div class="background-logo">
             <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
@@ -29,6 +30,7 @@
         </div>
     </div>
 
+    <!-- Вход -->
     <div id="step-login" class="auth-container">
         <div class="background-logo">
             <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
@@ -42,6 +44,7 @@
         </div>
     </div>
 
+    <!-- Основной интерфейс чата -->
     <div id="chat" class="glass-main-container">
         <aside class="dialogs-sidebar">
             <div class="sidebar-header">
@@ -50,15 +53,14 @@
                     <span id="current-user-badge">Загрузка...</span>
                 </div>
             </div>
-            <div class="dialogs-list" id="dialogs-list">
-                </div>
+            <div class="dialogs-list" id="dialogs-list"></div>
         </aside>
 
         <main class="glass-chat-area">
             <header class="chat-header">
                 <div class="chat-info">
                     <h3 id="chat-title">Lumina Lite</h3>
-                    <span class="chat-status">выберите диалог</span>
+                    <span class="chat-status" id="chat-status">выберите диалог</span>
                 </div>
             </header>
 
@@ -68,39 +70,45 @@
                 </div>
             </div>
 
-            <div class="input-zone" style="display: none;">
-                <input type="text" id="message-input" class="message-input" placeholder="Напишите сообщение...">
-                <button id="btn-send" class="send-btn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                    </svg>
-                </button>
+            <div class="input-zone" id="input-zone" style="display: none;">
+                <div class="glass-input-wrapper">
+                    <input type="text" id="message-input" class="message-input" placeholder="Напишите сообщение...">
+                    <button id="btn-send" class="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </main>
     </div>
 
+    <!-- Модальное окно профиля -->
     <div id="profile-modal" class="profile-screen">
         <div class="profile-modal-content glass-card">
             <div class="profile-modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="margin:0">Профиль</h3>
-                <button id="btn-close-profile" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+                <button id="btn-close-profile" style="background:none; border:none; color:white; font-size:24px; cursor:pointer; line-height:1;">&times;</button>
             </div>
-            
-            <div class="profile-avatar-center" style="text-align:center; margin-bottom:20px;">
-                <div id="profile-avatar-letter" style="width:80px; height:80px; background:var(--accent-blue); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold;">?</div>
+
+            <div style="text-align:center; margin-bottom:20px;">
+                <div id="profile-avatar-letter" style="width:80px; height:80px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:32px; font-weight:bold;">?</div>
             </div>
 
             <label class="profile-label">Имя</label>
             <input type="text" id="profile-fullname" class="glass-input">
 
             <label class="profile-label">О себе</label>
-            <textarea id="profile-bio" class="glass-input" rows="3"></textarea>
+            <textarea id="profile-bio" class="glass-input" rows="3" style="resize:none;"></textarea>
 
-            <button id="btn-save-profile" class="glass-button primary">Сохранить</button>
-            <button id="btn-logout-profile" class="glass-button" style="margin-top: 10px; background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.3);">Выйти</button>
+            <button id="btn-save-profile" class="glass-button primary" style="margin-top:10px;">Сохранить</button>
+            <button id="btn-logout-profile" class="glass-button" style="width:100%; margin-top:10px; padding:14px; border-radius:var(--radius-input); background:rgba(255,71,87,0.15); color:#ff4757; border:1px solid rgba(255,71,87,0.3); font-weight:700; font-size:16px; cursor:pointer; transition:var(--transition);">Выйти</button>
         </div>
     </div>
 
-    <script type="module" src="js/main.js"></script>
+    <!-- Тост-уведомления -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module" src="main.js"></script>
 </body>
 </html>
