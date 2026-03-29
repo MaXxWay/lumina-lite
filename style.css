@@ -11,7 +11,7 @@
     --radius-card: 35px;
     --radius-input: 14px;
     --transition: 0.3s ease;
-    --dvh: 100vh;
+    --dvh: 100vh; /* ОБЯЗАТЕЛЬНО: резервное значение */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
@@ -21,6 +21,7 @@ html, body {
     position: fixed;
     width: 100%;
     height: 100%;
+    background: var(--bg-deep); /* Фон сразу, чтобы не было белой вспышки */
 }
 
 body {
@@ -30,11 +31,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-deep);
     font-family: 'Manrope', sans-serif;
     color: var(--text-main);
 }
-
 /* Орбы */
 .orb {
     position: absolute;
@@ -49,6 +48,17 @@ body {
 .orb-3 { width: 250px; height: 250px; background: #7b2fff; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
 /* ─── АВТОРИЗАЦИЯ ──────────────────────────────────────── */
+.auth-container, .glass-main-container {
+    display: none; /* Скрыты по умолчанию, включаются через .active / .visible */
+}
+
+.auth-container.active {
+    display: flex;
+}
+
+.glass-main-container.visible {
+    display: flex;
+}
 .auth-container {
     display: none;
     width: 100%;
