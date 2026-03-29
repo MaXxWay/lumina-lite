@@ -29,7 +29,3 @@ export async function markAsRead(myId, senderId) {
         .eq('sender_id', senderId)
         .eq('is_read', false);
 }
-
-export async function updateLastSeen(userId) {
-    return await _supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', userId);
-}
