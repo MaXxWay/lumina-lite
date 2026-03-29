@@ -1,12 +1,31 @@
 import { _supabase, getEmail } from './config.js';
 
 export const api = {
-    async signIn(u, p) { return await _supabase.auth.signInWithPassword({ email: getEmail(u), password: p }); },
-    
+    async signIn(u, p) {
+        return await _supabase.auth.signInWithPassword({ email: getEmail(u), password: p });
+    },
+
     async signUp(u, p, name) {
         const { data, error } = await _supabase.auth.signUp({ email: getEmail(u), password: p });
         if (error) return { error };
-        return await _supabase.from('profiles').insert([{ id: data.user.id, username: u, full_name: name }]);
+        if (!data.user) return { error: { message: 'Пользователь не создан' } };
+        return await _supabase.from('profiles').insert([{
+            id: data.user.id,
+            username: u.toLowerCase().trim(),
+            full_name: name.trim()
+        }]);
+    },
+
+    async signOut() {
+        return await _supabase.auth.signOut();
+    },
+
+    async getProfile(id) {
+        return await _supabase.from('profiles').select('*').eq('id', id).single();
+    },
+
+    async fetchProfiles() {
+        return await _supabase.from('profiles').select('*');
     },
 
     async fetchMessages(myId, otherId) {
@@ -16,7 +35,11 @@ export const api = {
     },
 
     async sendMessage(sId, rId, text) {
-        return await _supabase.from('messages').insert([{ sender_id: sId, receiver_id: rId, text }]);
+        return await _supabase.from('messages').insert([{
+            sender_id: sId,
+            receiver_id: rId,
+            text: text.trim()
+        }]);
     },
 
     async updateProfile(id, updates) {
