@@ -14,4 +14,12 @@ export const BOT_PROFILE = {
     is_bot: true
 };
 
-export const getEmail = (u) => `${u.toLowerCase()}@lumina.local`;
+export const SAVED_PROFILE = {
+    id: SAVED_MESSAGES_ID,
+    username: 'saved',
+    full_name: 'Избранное',
+    bio: 'Ваши сохранённые сообщения',
+    is_saved: true
+};
+
+export const getEmail = (u) => `${u.toLowerCase().trim()}@lumina.local`;
