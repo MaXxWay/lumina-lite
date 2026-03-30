@@ -1,4 +1,3 @@
-// Управление экранами
 const screens = {
     reg: document.getElementById('step-register'),
     login: document.getElementById('step-login'),
@@ -28,12 +27,10 @@ async function logout() {
     messagesCache.clear();
     dialogCache.clear();
     observedMessages.clear();
-    
     if (window.readStatusObservers) {
         window.readStatusObservers.observer?.disconnect();
         window.readStatusObservers.mutationObserver?.disconnect();
     }
-    
     await supabaseClient.auth.signOut();
     currentUser = null;
     currentProfile = null;
@@ -78,7 +75,6 @@ function initAuth() {
             const pass = document.getElementById('login-password').value.trim();
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email: getEmail(user), password: pass });
             if (error) return showToast('Ошибка входа: ' + error.message, true);
-            
             await handleSuccessfulLogin(data.user);
         };
     }
@@ -87,24 +83,15 @@ function initAuth() {
 async function handleSuccessfulLogin(user) {
     currentUser = user;
     
-    const { data: p } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-    
+    const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
     if (!p) {
         const username = user.email.split('@')[0].replace(/@lumina\.local$/, '');
-        const { data: newProfile } = await supabaseClient
-            .from('profiles')
-            .insert({
-                id: currentUser.id,
-                username: username,
-                full_name: username,
-                last_seen: new Date().toISOString()
-            })
-            .select()
-            .maybeSingle();
+        const { data: newProfile } = await supabaseClient.from('profiles').insert({
+            id: currentUser.id,
+            username: username,
+            full_name: username,
+            last_seen: new Date().toISOString()
+        }).select().maybeSingle();
         currentProfile = newProfile;
     } else {
         currentProfile = p;
@@ -140,16 +127,12 @@ async function handleSuccessfulLogin(user) {
     }
     
     currentChat = null;
-    
     document.addEventListener('click', () => updateLastSeen());
     document.addEventListener('keypress', () => updateLastSeen());
     setInterval(() => updateLastSeen(), 30000);
     updateLastSeen();
-    
     startOnlineHeartbeat();
-    if (window.deletionChannel) {
-        await supabaseClient.removeChannel(window.deletionChannel);
-    }
+    if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
     window.deletionChannel = subscribeToUserDeletion();
     await cleanupDeadChats();
 }
