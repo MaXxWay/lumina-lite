@@ -180,7 +180,7 @@ function resetUserActivity() {
             console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
             await setUserOnlineStatus(false);
         }
-    }, 15000);
+    }, 10000);
 }
 
 // Слушаем активность пользователя
