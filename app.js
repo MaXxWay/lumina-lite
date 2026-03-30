@@ -8,21 +8,6 @@ let currentChat = null;
 let realtimeChannel = null;
 let allUsers = [];
 
-document.addEventListener('visibilitychange', async () => {
-    if (!currentUser || !currentChat) return;
-    
-    if (!document.hidden) {
-        console.log('📱 Вкладка активна, отмечаем сообщения...');
-        await markChatMessagesAsRead(currentChat.id);
-        
-        if (window.readStatusObservers) {
-            window.readStatusObservers.observer?.disconnect();
-            window.readStatusObservers.mutationObserver?.disconnect();
-        }
-        window.readStatusObservers = setupReadStatusObserver();
-    }
-});
-
 // ID официального бота
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000000';
 const BOT_PROFILE = {
@@ -110,15 +95,6 @@ function stopOnlineHeartbeat() {
 
 window.addEventListener('beforeunload', () => {
     if (currentUser) setUserOnlineStatus(false);
-});
-
-document.addEventListener('visibilitychange', () => {
-    if (!currentUser) return;
-    if (document.hidden) {
-        setUserOnlineStatus(false);
-    } else {
-        setUserOnlineStatus(true);
-    }
 });
 
 // ─── Экраны ─────────────────────────────────────────────
@@ -635,43 +611,6 @@ function getUserStatusFromProfile(profile) {
 }
 
 let statusSubscription = null;
-
-function subscribeToUserDeletion() {
-    const deletionChannel = _supabase
-        .channel('user-deletions')
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'auth', table: 'users' },
-            async (payload) => {
-                console.log('🗑️ Пользователь удален:', payload.old.id);
-                
-                if (payload.old.id === currentUser?.id) {
-                    showToast('Ваш аккаунт был удален', true);
-                    setTimeout(() => logout(), 2000);
-                    return;
-                }
-                
-                await loadDialogs();
-                
-                if (currentChat?.other_user?.id === payload.old.id) {
-                    currentChat = null;
-                    const messagesContainer = document.getElementById('messages');
-                    if (messagesContainer) {
-                        messagesContainer.innerHTML = `
-                            <div class="msg-stub">
-                                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                                <p>Пользователь удален. Выберите другой диалог</p>
-                            </div>
-                        `;
-                    }
-                    const inputZone = document.querySelector('.input-zone');
-                    if (inputZone) inputZone.style.display = 'none';
-                }
-            }
-        )
-        .subscribe();
-    
-    return deletionChannel;
-}
 
 function subscribeToUserDeletion() {
     const deletionChannel = _supabase
@@ -1334,29 +1273,26 @@ async function openChat(chatId, otherUserId, otherUser) {
             setupTypingIndicator();
         }
         
-        await loadMessages(chatId);
-subscribeToMessages(chatId);
+  await loadMessages(chatId);
+        subscribeToMessages(chatId);
 
-// Отмечаем прочитанные после рендера
-setTimeout(async () => {
-    await markChatMessagesAsRead(chatId);
-    
-    if (window.readStatusObservers) {
-        window.readStatusObservers.observer?.disconnect();
-        window.readStatusObservers.mutationObserver?.disconnect();
-    }
-    window.readStatusObservers = setupReadStatusObserver();
-}, 500);
+        // Отмечаем прочитанные после рендера
+        setTimeout(async () => {
+            await markChatMessagesAsRead(chatId);
+            
+            if (window.readStatusObservers) {
+                window.readStatusObservers.observer?.disconnect();
+                window.readStatusObservers.mutationObserver?.disconnect();
+            }
+            window.readStatusObservers = setupReadStatusObserver();
+        }, 500);
         
         document.querySelectorAll('.dialog-item').forEach(el => {
             el.classList.remove('active');
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
         
-        await markChatMessagesAsRead(chatId);  // ← ЭТУ СТРОКУ УДАЛИТЬ
-        
-        await markChatMessagesAsRead(chatId);
-        
+
     } finally {
         isOpeningChat = false;
         if (pendingChatId && pendingChatId !== chatId) {
@@ -1821,6 +1757,28 @@ window.addEventListener('resize', () => {
     }
     originalHeight = newHeight;
     updateDvh();
+});
+
+// ─── Обработчик видимости вкладки ─────────────────────────
+document.addEventListener('visibilitychange', async () => {
+    if (!currentUser) return;
+    
+    if (document.hidden) {
+        setUserOnlineStatus(false);
+    } else {
+        setUserOnlineStatus(true);
+        
+        if (currentChat) {
+            console.log('📱 Вкладка активна, отмечаем сообщения...');
+            await markChatMessagesAsRead(currentChat.id);
+            
+            if (window.readStatusObservers) {
+                window.readStatusObservers.observer?.disconnect();
+                window.readStatusObservers.mutationObserver?.disconnect();
+            }
+            window.readStatusObservers = setupReadStatusObserver();
+        }
+    }
 });
 
 // ─── Запуск ──────────────────────────────────────────────
