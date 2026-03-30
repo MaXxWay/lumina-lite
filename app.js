@@ -100,41 +100,36 @@ async function logout() {
 }
 
 // ─── ОНЛАЙН / НЕ В СЕТИ (реальное время) ────────────────
-let onlineInterval = null;
-let isUserOnline = true;
+let userActivityTimeout = null;
+let lastActivityTime = Date.now();
 
-async function setUserOnlineStatus(isOnline) {
+function resetUserActivity() {
     if (!currentUser) return;
-    isUserOnline = isOnline;
-    try {
-        await _supabase
-            .from('profiles')
-            .update({ is_online: isOnline, last_seen: new Date().toISOString() })
-            .eq('id', currentUser.id);
-    } catch (err) {}
-}
-
-function startOnlineHeartbeat() {
-    if (onlineInterval) clearInterval(onlineInterval);
-    setUserOnlineStatus(true);
-    onlineInterval = setInterval(() => {
-        if (currentUser && isUserOnline) {
-            setUserOnlineStatus(true);
-        }
-    }, 30000);
-}
-
-function stopOnlineHeartbeat() {
-    if (onlineInterval) {
-        clearInterval(onlineInterval);
-        onlineInterval = null;
+    
+    lastActivityTime = Date.now();
+    
+    if (userActivityTimeout) clearTimeout(userActivityTimeout);
+    
+    // Если статус был false, ставим true
+    if (!isUserOnline) {
+        setUserOnlineStatus(true);
     }
-    if (currentUser) setUserOnlineStatus(false);
+    
+    // Через 2 минуты неактивности сбрасываем статус
+    userActivityTimeout = setTimeout(async () => {
+        const inactiveTime = Date.now() - lastActivityTime;
+        if (inactiveTime >= 120000 && isUserOnline) { // 2 минуты
+            console.log('⏰ Пользователь неактивен 2 минуты, статус: не в сети');
+            await setUserOnlineStatus(false);
+        }
+    }, 120000);
 }
 
-window.addEventListener('beforeunload', () => {
-    if (currentUser) setUserOnlineStatus(false);
-});
+// Слушаем активность пользователя
+window.addEventListener('mousemove', resetUserActivity);
+window.addEventListener('keydown', resetUserActivity);
+window.addEventListener('click', resetUserActivity);
+window.addEventListener('scroll', resetUserActivity);
 
 // ─── Экраны ─────────────────────────────────────────────
 const screens = {
@@ -1906,16 +1901,19 @@ window.addEventListener('resize', () => {
     }
 })();
 
-// ─── Обработчик видимости вкладки (мгновенный статус) ───
+// ─── Обработчик видимости вкладки ───
 document.addEventListener('visibilitychange', async () => {
     if (!currentUser) return;
     
     if (document.hidden) {
         console.log('💤 Вкладка скрыта, статус: не в сети');
         await setUserOnlineStatus(false);
+        if (userActivityTimeout) clearTimeout(userActivityTimeout);
     } else {
         console.log('🟢 Вкладка активна, статус: онлайн');
         await setUserOnlineStatus(true);
+        startOnlineHeartbeat();
+        resetUserActivity(); // Добавить эту строку
         
         if (currentChat) {
             await markChatMessagesAsRead(currentChat.id);
