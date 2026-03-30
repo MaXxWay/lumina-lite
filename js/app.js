@@ -1,9 +1,5 @@
-// Главный файл инициализации
 (async function init() {
-    // Инициализация Supabase клиента
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    
-    // Инициализация всех модулей
     initAuth();
     initProfileFooter();
     initEmojiPicker();
@@ -12,33 +8,15 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    
-    // DVH фикс
     window.addEventListener('resize', updateDvh);
     updateDvh();
-    
-    let originalHeight = window.innerHeight;
+    let origH = window.innerHeight;
     window.addEventListener('resize', () => {
-        const newHeight = window.innerHeight;
-        if (newHeight < originalHeight - 100) {
-            setTimeout(() => {
-                const inputZone = document.querySelector('.input-zone');
-                if (inputZone && inputZone.style.display !== 'none') {
-                    const input = document.getElementById('message-input');
-                    if (input) input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 100);
-        }
-        originalHeight = newHeight;
-        updateDvh();
+        const newH = window.innerHeight;
+        if (newH < origH - 100) setTimeout(() => { const zone = document.querySelector('.input-zone'); if (zone?.style.display !== 'none') document.getElementById('message-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+        origH = newH; updateDvh();
     });
-    
-    // Проверка существующей сессии
     const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        await handleSuccessfulLogin(session.user);
-    } else {
-        showScreen('reg');
-    }
+    if (session) await handleSuccessfulLogin(session.user);
+    else showScreen('reg');
 })();
