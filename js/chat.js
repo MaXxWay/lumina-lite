@@ -1,14 +1,4 @@
 // Логика чата и сообщений
-let messagesCache = new Map();
-let observedMessages = new Set();
-let readCheckTimeout = null;
-let typingChannel = null;
-let typingTimeout = null;
-let isTyping = false;
-let isLoadingMessages = false;
-let isOpeningChat = false;
-let pendingChatId = null;
-
 async function getOrCreatePrivateChat(otherUserId) {
     try {
         if (otherUserId === BOT_USER_ID) {
@@ -331,7 +321,9 @@ function renderMessage(msg, isNewMessage = false) {
     }
     
     div.oncontextmenu = (e) => {
-        showMessageMenu(e, msg.id, msg.text, isOwn);
+        if (typeof showMessageMenu === 'function') {
+            showMessageMenu(e, msg.id, msg.text, isOwn);
+        }
         return false;
     };
     
