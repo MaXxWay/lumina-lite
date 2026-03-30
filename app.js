@@ -18,6 +18,45 @@ const BOT_PROFILE = {
     is_bot: true
 };
 
+// Функция очистки мертвых чатов (ВЫНЕСТИ СЮДА)
+async function cleanupDeadChats() {
+    if (!currentUser) return;
+    
+    console.log('🧹 Запуск очистки мертвых чатов...');
+    
+    try {
+        const { data: chats, error } = await _supabase
+            .from('chats')
+            .select('*')
+            .contains('participants', [currentUser.id]);
+        
+        if (error) throw error;
+        
+        let deletedCount = 0;
+        
+        for (const chat of chats || []) {
+            const otherId = chat.participants.find(id => id !== currentUser.id);
+            
+            if (otherId && otherId !== BOT_USER_ID) {
+                const userExists = await checkUserExists(otherId);
+                if (!userExists) {
+                    console.log(`🗑️ Удаляем мертвый чат: ${chat.id}`);
+                    await _supabase.from('chats').delete().eq('id', chat.id);
+                    await _supabase.from('messages').delete().eq('chat_id', chat.id);
+                    deletedCount++;
+                }
+            }
+        }
+        
+        if (deletedCount > 0) {
+            console.log(`✅ Удалено ${deletedCount} мертвых чатов`);
+            await loadDialogs();
+        }
+    } catch (err) {
+        console.error('Ошибка очистки мертвых чатов:', err);
+    }
+}
+
 async function checkUserExists(userId) {
     if (userId === BOT_USER_ID) return true;
     
@@ -425,7 +464,7 @@ async function ensureBotChat() {
             
             if (!welcomeMsg) {
                 await _supabase.from('messages').insert({
-                    text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
+                    text: 'Добро пожаловать в мессенджер Lumina Lite! Начните общение прямо сейчас!',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_welcome: true,
@@ -798,10 +837,11 @@ async function loadDialogs(searchTerm = '') {
             if (userExists) {
                 validChats.push(chat);
             } else {
-                // Удаляем чат с несуществующим пользователем
+                console.log(`🗑️ Удаляем чат ${chat.id} - пользователь ${otherId} не существует`);
                 await _supabase.from('chats').delete().eq('id', chat.id);
+                await _supabase.from('messages').delete().eq('chat_id', chat.id);
             }
-        }
+        } // <-- ВАЖНО: закрывающая скобка for цикла
         
         // Получаем непрочитанные сообщения
         const { data: unreadData, error: unreadError } = await _supabase
@@ -1197,6 +1237,7 @@ if (window.deletionChannel) {
     await _supabase.removeChannel(window.deletionChannel);
 }
 window.deletionChannel = subscribeToUserDeletion();
+        await cleanupDeadChats();
     };
 }
 
@@ -1205,6 +1246,17 @@ let isOpeningChat = false;
 let pendingChatId = null;
 
 async function openChat(chatId, otherUserId, otherUser) {
+        // Проверяем, существует ли собеседник
+    if (otherUserId && otherUserId !== BOT_USER_ID) {
+        const userExists = await checkUserExists(otherUserId);
+        if (!userExists) {
+            showToast('Пользователь удален, чат будет закрыт', true);
+            await _supabase.from('chats').delete().eq('id', chatId);
+            await _supabase.from('messages').delete().eq('chat_id', chatId);
+            await loadDialogs();
+            return;
+        }
+    }
     if (isOpeningChat) {
         pendingChatId = chatId;
         return;
@@ -1757,28 +1809,6 @@ window.addEventListener('resize', () => {
     }
     originalHeight = newHeight;
     updateDvh();
-});
-
-// ─── Обработчик видимости вкладки ─────────────────────────
-document.addEventListener('visibilitychange', async () => {
-    if (!currentUser) return;
-    
-    if (document.hidden) {
-        setUserOnlineStatus(false);
-    } else {
-        setUserOnlineStatus(true);
-        
-        if (currentChat) {
-            console.log('📱 Вкладка активна, отмечаем сообщения...');
-            await markChatMessagesAsRead(currentChat.id);
-            
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }
-    }
 });
 
 // ─── Запуск ──────────────────────────────────────────────
