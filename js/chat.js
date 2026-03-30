@@ -104,11 +104,11 @@ async function loadMessages(chatId) {
         container.innerHTML = '';
         let lastDate = null;
         cached.forEach(msg => {
-            const currentDate = new Date(msg.created_at).toDateString();
-            if (!lastDate || lastDate !== currentDate) {
+            const currentDate = formatDateDivider(msg.created_at);
+            if (lastDate !== currentDate) {
                 const div = document.createElement('div');
                 div.className = 'date-divider';
-                div.innerHTML = `<div class="date-divider-line"></div><div class="date-divider-text">${formatDateDivider(msg.created_at)}</div><div class="date-divider-line"></div>`;
+                div.innerHTML = `<div class="date-divider-line"></div><div class="date-divider-text">${currentDate}</div><div class="date-divider-line"></div>`;
                 container.appendChild(div);
                 lastDate = currentDate;
             }
@@ -134,11 +134,11 @@ async function loadMessages(chatId) {
         if (messagesWithProfiles.length > 0) {
             let lastDate = null;
             messagesWithProfiles.forEach(msg => {
-                const currentDate = new Date(msg.created_at).toDateString();
-                if (!lastDate || lastDate !== currentDate) {
+                const currentDate = formatDateDivider(msg.created_at);
+                if (lastDate !== currentDate) {
                     const div = document.createElement('div');
                     div.className = 'date-divider';
-                    div.innerHTML = `<div class="date-divider-line"></div><div class="date-divider-text">${formatDateDivider(msg.created_at)}</div><div class="date-divider-line"></div>`;
+                    div.innerHTML = `<div class="date-divider-line"></div><div class="date-divider-text">${currentDate}</div><div class="date-divider-line"></div>`;
                     container.appendChild(div);
                     lastDate = currentDate;
                 }
@@ -156,35 +156,67 @@ async function loadMessages(chatId) {
 function renderMessage(msg, isNewMessage = false) {
     const container = document.getElementById('messages');
     if (!container) return;
+    
     const stub = container.querySelector('.msg-stub');
     if (stub) stub.remove();
+    
     const isOwn = currentUser && msg.user_id === currentUser.id;
     const isBot = msg.user_id === BOT_USER_ID;
     let name = 'Пользователь';
+    
     if (msg.profiles?.full_name) name = msg.profiles.full_name;
     else if (isOwn && currentProfile?.full_name) name = currentProfile.full_name;
     else if (isBot) name = 'Lumina Bot';
+    
     const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
     const isRead = msg.is_read === true;
-    const lastMsgDiv = container.querySelector('.message:last-child');
-    let lastDate = lastMsgDiv?.dataset?.date || null;
-    const currentDate = new Date(msg.created_at).toDateString();
-    if (!lastDate || lastDate !== currentDate) {
-        const div = document.createElement('div');
-        div.className = 'date-divider';
-        div.innerHTML = `<div class="date-divider-line"></div><div class="date-divider-text">${formatDateDivider(msg.created_at)}</div><div class="date-divider-line"></div>`;
-        container.appendChild(div);
+    
+    const lastChild = container.lastChild;
+    let lastDate = null;
+    
+    if (lastChild) {
+        if (lastChild.classList && lastChild.classList.contains('date-divider')) {
+            const dateText = lastChild.querySelector('.date-divider-text')?.textContent;
+            lastDate = dateText;
+        } else if (lastChild.dataset && lastChild.dataset.date) {
+            lastDate = lastChild.dataset.date;
+        }
     }
+    
+    const formattedCurrentDate = formatDateDivider(msg.created_at);
+    
+    if (lastDate && lastDate !== formattedCurrentDate && !(lastChild && lastChild.classList && lastChild.classList.contains('date-divider') && lastDate === formattedCurrentDate)) {
+        const dateDivider = document.createElement('div');
+        dateDivider.className = 'date-divider';
+        dateDivider.innerHTML = `
+            <div class="date-divider-line"></div>
+            <div class="date-divider-text">${formattedCurrentDate}</div>
+            <div class="date-divider-line"></div>
+        `;
+        container.appendChild(dateDivider);
+    }
+    
     const divMsg = document.createElement('div');
     divMsg.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead && currentChat?.id !== SAVED_CHAT_ID ? 'unread-message' : ''}`;
     divMsg.dataset.id = msg.id;
     divMsg.dataset.text = msg.text;
-    divMsg.dataset.date = currentDate;
-    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? `<span class="read-status ${isRead ? 'read' : 'unread'}">${isRead ? '✓✓' : '✓'}</span>` : '';
+    divMsg.dataset.date = formattedCurrentDate;
+    
+    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? 
+        `<span class="read-status ${isRead ? 'read' : 'unread'}">${isRead ? '✓✓' : '✓'}</span>` : '';
+    
+    const botVerifiedBadge = isBot ? `
+        <div class="verified-badge-small">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </div>
+    ` : '';
+    
     divMsg.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
             ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
-            ${isBot ? '<div class="verified-badge-small"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+            ${botVerifiedBadge}
         </div>
         <div class="msg-bubble">
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
@@ -192,12 +224,19 @@ function renderMessage(msg, isNewMessage = false) {
             <div class="msg-time">${timeStr} ${readStatusHtml}</div>
         </div>
     `;
+    
     divMsg.oncontextmenu = (e) => {
         if (typeof showMessageMenu === 'function') showMessageMenu(e, msg.id, msg.text, isOwn);
         return false;
     };
+    
     container.appendChild(divMsg);
-    setTimeout(() => container.scrollTo({ top: container.scrollHeight, behavior: isNewMessage ? 'smooth' : 'auto' }), 50);
+    
+    if (isNewMessage) {
+        setTimeout(() => container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' }), 50);
+    } else {
+        setTimeout(() => container.scrollTop = container.scrollHeight, 50);
+    }
 }
 
 function subscribeToMessages(chatId) {
@@ -315,7 +354,9 @@ function updateDialogLastMessage(chatId, text, isOwn) {
         if (preview) preview.textContent = (isOwn ? 'Вы: ' : '') + (text.length > 50 ? text.slice(0, 47) + '...' : text);
         item.parentNode.insertBefore(item, item.parentNode.firstChild);
     }
-    // Экспорт функций в глобальный объект
+}
+
+// Экспорт
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
@@ -327,6 +368,3 @@ window.sendTypingStatus = sendTypingStatus;
 window.subscribeToTyping = subscribeToTyping;
 window.sendMsg = sendMsg;
 window.updateDialogLastMessage = updateDialogLastMessage;
-window.openChatImpl = openChat;
-window.openSavedChatImpl = openSavedChat;
-}
