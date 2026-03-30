@@ -1,28 +1,4 @@
 async function loadDialogs(searchTerm = '') {
-    const container = document.getElementById('dialogs-list');
-    if (!container) return;
-    
-    const isUserSearch = searchTerm && searchTerm.startsWith('@');
-    
-    if (isUserSearch && searchTerm.length > 1) {
-        await loadUserSearchResults(searchTerm, container);
-        return;
-    }
-    
-    if (isUpdatingDialogs) return;
-    isUpdatingDialogs = true;
-    
-    try {
-        // ✅ Получаем все чаты и фильтруем на клиенте
-        const { data: allChats, error: chatsError } = await supabaseClient
-            .from('chats')
-            .select('*')
-            .order('updated_at', { ascending: false });
-        
-        if (chatsError) {
-            console.error('Ошибка загрузки чатов:', chatsError);
-            throw chatsError;
-        }
         
         // ✅ Фильтруем чаты, где есть текущий пользователь
         const chats = (allChats || []).filter(chat => 
