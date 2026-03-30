@@ -13,26 +13,21 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // Получаем ВСЕ чаты (простой запрос без фильтрации)
-        const { data: allChats, error: chatsError } = await supabaseClient
+        // ИСПРАВЛЕННЫЙ ЗАПРОС - убираем contains, используем filter
+        const { data: chats, error: chatsError } = await supabaseClient
             .from('chats')
-            .select('*');
+            .select('*')
+            .filter('participants', 'cs', `{${currentUser.id}}`)
+            .order('updated_at', { ascending: false });
         
         if (chatsError) {
             console.error('Ошибка загрузки чатов:', chatsError);
             throw chatsError;
         }
         
-        // Фильтруем чаты где есть текущий пользователь
-        const chats = (allChats || []).filter(chat => 
-            chat.participants && chat.participants.includes(currentUser.id)
-        );
-        
-        // Сортируем по дате обновления
-        chats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        
+        // Остальной код без изменений...
         const validChats = [];
-        for (const chat of chats) {
+        for (const chat of chats || []) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
             if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
@@ -89,7 +84,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
-        // Получаем профили всех участников
+        // Получаем профили
         const allParticipantIds = validChats.flatMap(c => c.participants || []);
         const uniqueIds = [...new Set(allParticipantIds)];
         
@@ -106,12 +101,11 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        // Формируем данные для отображения
+        // Формируем данные
         const chatData = [];
         for (const chat of validChats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
-            // Чат "Избранное"
             if (chat.id === SAVED_CHAT_ID) {
                 chatData.push({
                     id: chat.id,
@@ -149,7 +143,7 @@ async function loadDialogs(searchTerm = '') {
             });
         }
         
-        // Фильтрация по поиску
+        // Фильтрация
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
             filteredData = chatData.filter(chat => 
@@ -200,7 +194,7 @@ function renderDialogsList(container, filteredData) {
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
                 ${avatarHtml}
-                ${chat.isBot ? '<div class="verified-badge verified-badge-dialog"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+                ${chat.isBot ? '<div class="verified-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
                 ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
