@@ -13,13 +13,12 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // ИСПРАВЛЕННЫЙ ЗАПРОС - убираем contains, используем filter
-        const { data: chats, error: chatsError } = await supabaseClient
-            .from('chats')
-            .select('*')
-            .filter('participants', 'cs', `{${currentUser.id}}`)
-            .order('updated_at', { ascending: false });
-        
+    // Вместо старого запроса с contains, используем корректный синтаксис Supabase
+const { data: chats, error: chatsError } = await supabaseClient
+    .from('chats')
+    .select('*')
+    .filter('participants', 'cs', `{${currentUser.id}}`)  // ✅ Исправлено
+    .order('updated_at', { ascending: false });
         if (chatsError) {
             console.error('Ошибка загрузки чатов:', chatsError);
             throw chatsError;
