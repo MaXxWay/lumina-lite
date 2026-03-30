@@ -9,7 +9,11 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    initMobileOptimizations(); // ✅ РАЗКОММЕНТИРОВАНО
+    
+    // ✅ Проверяем существование функции перед вызовом
+    if (typeof initMobileOptimizations === 'function') {
+        initMobileOptimizations();
+    }
     
     window.addEventListener('resize', updateDvh);
     updateDvh();
