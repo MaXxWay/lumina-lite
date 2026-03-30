@@ -1230,10 +1230,7 @@ async function loadMessages(chatId) {
 }
 
 // ─── Подписка на новые сообщения (РЕАЛЬНОЕ ВРЕМЯ!) ──────
-
-  realtimeChannel = _supabase
-        .channel(`chat-${chatId}`)
-function subscribeToMessages(chatId) {
+  function subscribeToMessages(chatId) {
     if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
     
     realtimeChannel = _supabase
@@ -1274,7 +1271,6 @@ function subscribeToMessages(chatId) {
                 renderMessage(newMessage);
                 updateDialogLastMessage(chatId, payload.new.text, !isFromOther);
                 
-                // НОВЫЙ КОД: отмечаем прочитанные и обновляем диалоги
                 if (currentChat?.id === chatId && isFromOther) {
                     setTimeout(() => markChatMessagesAsRead(chatId), 100);
                 }
@@ -1331,6 +1327,7 @@ function subscribeToMessages(chatId) {
                     const filtered = cached.filter(m => m.id !== payload.old.id);
                     messagesCache.set(chatId, filtered);
                 }
+                // ✅ ИСПРАВЛЕНО: используем chatId из внешней функции
                 loadDialogs();
             }
         )
