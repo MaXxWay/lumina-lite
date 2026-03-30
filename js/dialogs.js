@@ -13,22 +13,30 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // Получаем ВСЕ чаты (простой запрос без фильтрации)
+        // ПРОСТЕЙШИЙ ЗАПРОС - никаких фильтров
         const { data: allChats, error: chatsError } = await supabaseClient
             .from('chats')
-            .select('*');
+            .select('id, type, participants, updated_at, created_at, last_message, is_bot_chat, is_saved_chat');
         
         if (chatsError) {
             console.error('Ошибка загрузки чатов:', chatsError);
-            throw chatsError;
+            // Показываем заглушку
+            container.innerHTML = '<div class="dialogs-loading">Ошибка подключения к базе данных. Проверьте консоль.</div>';
+            return;
         }
         
-        // Фильтруем чаты где есть текущий пользователь
-        const chats = (allChats || []).filter(chat => 
-            chat.participants && chat.participants.includes(currentUser.id)
-        );
+        console.log('Все чаты из БД:', allChats);
+        console.log('Текущий пользователь:', currentUser);
         
-        // Сортируем по дате обновления
+        // Фильтруем на клиенте
+        const chats = (allChats || []).filter(chat => {
+            if (!chat.participants || !Array.isArray(chat.participants)) return false;
+            return chat.participants.includes(currentUser.id);
+        });
+        
+        console.log('Отфильтрованные чаты:', chats);
+        
+        // Сортируем
         chats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
         
         const validChats = [];
@@ -52,21 +60,25 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
+        if (validChats.length === 0) {
+            container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Начните общение через поиск пользователей</div>';
+            isUpdatingDialogs = false;
+            return;
+        }
+        
         // Получаем непрочитанные сообщения
         let unreadCounts = new Map();
-        if (validChats.length > 0) {
-            const { data: unreadData } = await supabaseClient
-                .from('messages')
-                .select('chat_id')
-                .eq('is_read', false)
-                .neq('user_id', currentUser.id)
-                .in('chat_id', validChats.map(c => c.id));
-            
-            if (unreadData) {
-                unreadData.forEach(msg => {
-                    unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
-                });
-            }
+        const { data: unreadData } = await supabaseClient
+            .from('messages')
+            .select('chat_id')
+            .eq('is_read', false)
+            .neq('user_id', currentUser.id)
+            .in('chat_id', validChats.map(c => c.id));
+        
+        if (unreadData) {
+            unreadData.forEach(msg => {
+                unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
+            });
         }
         
         // Получаем последние сообщения
@@ -89,7 +101,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
-        // Получаем профили всех участников
+        // Получаем профили
         const allParticipantIds = validChats.flatMap(c => c.participants || []);
         const uniqueIds = [...new Set(allParticipantIds)];
         
@@ -106,12 +118,11 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        // Формируем данные для отображения
+        // Формируем данные
         const chatData = [];
         for (const chat of validChats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
-            // Чат "Избранное"
             if (chat.id === SAVED_CHAT_ID) {
                 chatData.push({
                     id: chat.id,
@@ -161,287 +172,8 @@ async function loadDialogs(searchTerm = '') {
         
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
-        if (container.children.length === 0) {
-            container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки диалогов</div>';
-        }
+        container.innerHTML = '<div class="dialogs-loading">Ошибка: ' + (err.message || 'Неизвестная ошибка') + '</div>';
     } finally {
         isUpdatingDialogs = false;
     }
 }
-
-function renderDialogsList(container, filteredData) {
-    container.innerHTML = '';
-    
-    if (filteredData.length === 0) {
-        container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска</div>';
-        return;
-    }
-    
-    filteredData.forEach(chat => {
-        const div = document.createElement('div');
-        div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''} ${chat.isSaved ? 'saved-dialog' : ''}`;
-        div.dataset.chatId = chat.id;
-        div.dataset.otherUserId = chat.otherId || '';
-        
-        const unreadBadge = chat.unreadCount > 0 ? 
-            `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
-        
-        const isOnline = chat.isOnline === true;
-        
-        let avatarHtml = '';
-        if (chat.isBot) {
-            avatarHtml = '<img src="lumina.svg" alt="Bot">';
-        } else if (chat.isSaved) {
-            avatarHtml = '<img src="favourite.svg" alt="Saved">';
-        } else {
-            avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
-        }
-        
-        div.innerHTML = `
-            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
-                ${avatarHtml}
-                ${chat.isBot ? '<div class="verified-badge verified-badge-dialog"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
-                ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
-            </div>
-            <div class="dialog-info">
-                <div class="dialog-name">
-                    ${escapeHtml(chat.name)}
-                    ${chat.isBot ? '<span class="bot-badge">Бот</span>' : ''}
-                    ${chat.isSaved ? '<span class="saved-badge">⭐</span>' : ''}
-                    ${unreadBadge}
-                </div>
-                <div class="dialog-preview">${escapeHtml(chat.lastMessage || '')}</div>
-            </div>
-        `;
-        
-        div.onclick = async () => {
-            if (chat.isSaved) {
-                await openSavedChat(chat.id);
-            } else {
-                await openChat(chat.id, chat.otherId, chat.otherUser);
-            }
-            if (chat.unreadCount > 0 && !chat.isSaved) {
-                await markChatMessagesAsRead(chat.id);
-            }
-        };
-        
-        container.appendChild(div);
-    });
-}
-
-async function loadUserSearchResults(searchTerm, container) {
-    const users = await searchUsersByUsername(searchTerm);
-    
-    container.innerHTML = `
-        <div class="search-header">
-            <span class="search-title">👥 Найдено пользователей: ${users.length}</span>
-        </div>
-    `;
-    
-    if (users.length === 0) {
-        container.innerHTML += '<div class="dialogs-loading">Пользователи не найдены</div>';
-        return;
-    }
-    
-    for (const user of users) {
-        const name = user.full_name || user.username;
-        const div = document.createElement('div');
-        div.className = 'dialog-item user-search-item';
-        div.dataset.userId = user.id;
-        div.innerHTML = `
-            <div class="dialog-avatar">
-                <div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>
-            </div>
-            <div class="dialog-info">
-                <div class="dialog-name">
-                    ${escapeHtml(name)}
-                    <span class="username-hint">@${escapeHtml(user.username)}</span>
-                </div>
-                <div class="dialog-preview">Нажмите, чтобы начать чат</div>
-            </div>
-        `;
-        div.onclick = async () => {
-            try {
-                const chatId = await getOrCreatePrivateChat(user.id);
-                await openChat(chatId, user.id, user);
-                const searchInputElem = document.getElementById('search-dialogs');
-                if (searchInputElem) searchInputElem.value = '';
-                loadDialogs();
-            } catch (err) {
-                showToast('Ошибка создания чата', true);
-            }
-        };
-        container.appendChild(div);
-    }
-}
-
-async function openChat(chatId, otherUserId, otherUser) {
-    if (otherUserId && otherUserId !== BOT_USER_ID) {
-        const userExists = await checkUserExists(otherUserId);
-        if (!userExists) {
-            showToast('Пользователь удален, чат будет закрыт', true);
-            await supabaseClient.from('chats').delete().eq('id', chatId);
-            await supabaseClient.from('messages').delete().eq('chat_id', chatId);
-            await loadDialogs();
-            return;
-        }
-    }
-    if (isOpeningChat) {
-        pendingChatId = chatId;
-        return;
-    }
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const isBot = otherUserId === BOT_USER_ID;
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'private',
-            other_user: otherUser || (isBot ? BOT_PROFILE : null)
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge">Бот</span>' : ''}`;
-        }
-        
-        if (!isBot && otherUserId) {
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('id', otherUserId)
-                .maybeSingle();
-            
-            if (profile) {
-                if (typeof updateChatStatusFromProfile === 'function') updateChatStatusFromProfile(profile);
-                subscribeToUserStatus(otherUserId);
-                subscribeToTyping(chatId);
-            }
-        } else if (isBot) {
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) {
-                chatStatus.textContent = 'бот';
-                chatStatus.className = 'chat-status status-bot';
-            }
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (isBot) {
-            if (inputZone) inputZone.style.display = 'none';
-            if (messageInput) messageInput.disabled = true;
-            if (sendButton) sendButton.disabled = true;
-        } else {
-            if (inputZone) inputZone.style.display = 'block';
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.placeholder = 'Написать сообщение...';
-                setTimeout(() => messageInput.focus(), 100);
-            }
-            if (sendButton) sendButton.disabled = false;
-            setupTypingIndicator();
-        }
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        setTimeout(async () => {
-            await markChatMessagesAsRead(chatId);
-            
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }, 500);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
-        if (pendingChatId && pendingChatId !== chatId) {
-            const pending = pendingChatId;
-            pendingChatId = null;
-            const pendingDialog = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
-            if (pendingDialog) {
-                const otherId = pendingDialog.dataset.otherUserId;
-                await openChat(pending, otherId, null);
-            }
-        }
-    }
-}
-
-async function openSavedChat(chatId) {
-    if (isOpeningChat) return;
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'saved',
-            other_user: SAVED_CHAT
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное <span class="saved-badge">⭐</span>';
-        }
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = 'личное';
-            chatStatus.className = 'chat-status status-offline';
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (inputZone) inputZone.style.display = 'block';
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Сохранить сообщение...';
-            setTimeout(() => messageInput.focus(), 100);
-        }
-        if (sendButton) sendButton.disabled = false;
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
-    }
-}
-
-// Экспорт
-window.loadDialogs = loadDialogs;
-window.renderDialogsList = renderDialogsList;
-window.loadUserSearchResults = loadUserSearchResults;
-window.openChat = openChat;
-window.openSavedChat = openSavedChat;
