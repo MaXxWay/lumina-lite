@@ -698,17 +698,34 @@ function subscribeToUserStatus(userId) {
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
             async (payload) => {
-                if (payload.new && currentChat?.other_user?.id === userId) {
-                    updateChatStatusFromProfile(payload.new);
-                }
-                // Обновляем диалог в списке
-                const dialogItem = document.querySelector(`.dialog-item[data-other-user-id="${userId}"]`);
-                if (dialogItem) {
-                    const statusDiv = dialogItem.querySelector('.dialog-status');
-                    if (statusDiv) {
-                        const status = getUserStatusFromProfile(payload.new);
-                        statusDiv.textContent = status.text;
-                        statusDiv.className = `dialog-status ${status.class === 'status-online' ? 'dialog-status-online' : 'dialog-status-offline'}`;
+                if (payload.new) {
+                    console.log('🔄 Статус обновлен:', payload.new.is_online ? 'онлайн' : 'не в сети');
+                    
+                    // Обновляем статус в текущем чате если открыт
+                    if (currentChat?.other_user?.id === userId) {
+                        updateChatStatusFromProfile(payload.new);
+                    }
+                    
+                    // Обновляем зеленую точку в списке диалогов
+                    const dialogItem = document.querySelector(`.dialog-item[data-other-user-id="${userId}"]`);
+                    if (dialogItem) {
+                        const onlineDot = dialogItem.querySelector('.online-dot');
+                        const isOnline = payload.new.is_online === true;
+                        
+                        if (onlineDot) {
+                            if (isOnline) {
+                                onlineDot.classList.remove('hidden');
+                            } else {
+                                onlineDot.classList.add('hidden');
+                            }
+                        }
+                        
+                        // Также обновляем класс диалога для стилей
+                        if (isOnline) {
+                            dialogItem.classList.add('user-online');
+                        } else {
+                            dialogItem.classList.remove('user-online');
+                        }
                     }
                 }
             }
@@ -902,8 +919,9 @@ async function loadDialogs(searchTerm = '') {
             const isBot = otherId === BOT_USER_ID;
             const unreadCount = unreadCounts.get(chat.id) || 0;
             const status = otherUser ? getUserStatusFromProfile(otherUser) : { text: '', class: '' };
+            const isOnline = status.class === 'status-online';
             
-            return {
+ return {
                 id: chat.id,
                 otherId,
                 otherUser,
@@ -913,7 +931,8 @@ async function loadDialogs(searchTerm = '') {
                 lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
                 updatedAt: chat.updated_at,
                 statusText: status.text,
-                statusClass: status.class
+                statusClass: status.class,
+                isOnline: isOnline  // <-- ДОБАВИТЬ ЭТУ СТРОКУ
             };
         }).filter(chat => chat !== null);
         
@@ -925,6 +944,12 @@ async function loadDialogs(searchTerm = '') {
             );
         }
         
+        console.log('📊 Диалоги для отображения:', chatData.map(c => ({
+            name: c.name,
+            isOnline: c.isOnline,
+            statusClass: c.statusClass
+        })));
+
         renderDialogsList(container, filteredData);
         
     } catch (err) {
@@ -936,6 +961,7 @@ async function loadDialogs(searchTerm = '') {
         isUpdatingDialogs = false;
     }
 }
+
 
 // Вынесенная функция рендеринга диалогов
 function renderDialogsList(container, filteredData) {
@@ -955,7 +981,7 @@ function renderDialogsList(container, filteredData) {
         const unreadBadge = chat.unreadCount > 0 ? 
             `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
         
-        const isOnline = chat.statusClass === 'status-online';
+        const isOnline = chat.isOnline === true;
         
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''}">
@@ -1874,9 +1900,30 @@ window.addEventListener('resize', () => {
         document.addEventListener('keypress', () => updateLastSeen());
         setInterval(() => updateLastSeen(), 30000);
         updateLastSeen();
-        
-        startOnlineHeartbeat();
+               startOnlineHeartbeat();
     } else {
         showScreen('reg');
     }
 })();
+
+// ─── Обработчик видимости вкладки (мгновенный статус) ───
+document.addEventListener('visibilitychange', async () => {
+    if (!currentUser) return;
+    
+    if (document.hidden) {
+        console.log('💤 Вкладка скрыта, статус: не в сети');
+        await setUserOnlineStatus(false);
+    } else {
+        console.log('🟢 Вкладка активна, статус: онлайн');
+        await setUserOnlineStatus(true);
+        
+        if (currentChat) {
+            await markChatMessagesAsRead(currentChat.id);
+            if (window.readStatusObservers) {
+                window.readStatusObservers.observer?.disconnect();
+                window.readStatusObservers.mutationObserver?.disconnect();
+            }
+            window.readStatusObservers = setupReadStatusObserver();
+        }
+    }
+});
