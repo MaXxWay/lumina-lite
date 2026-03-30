@@ -1,7 +1,10 @@
 // Главный файл инициализации
+let supabaseClient = null;
+
 (async function init() {
     // Инициализация Supabase
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabase = supabaseClient;
     
     // Инициализация всех модулей
     initAuth();
@@ -34,7 +37,7 @@
     });
     
     // Проверка существующей сессии
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (session) {
         await handleSuccessfulLogin(session.user);
