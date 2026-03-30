@@ -1,8 +1,8 @@
-// Управление авторизацией
+// Управление экранами
 const screens = {
-    reg:     document.getElementById('step-register'),
-    login:   document.getElementById('step-login'),
-    chat:    document.getElementById('chat-screen'),
+    reg: document.getElementById('step-register'),
+    login: document.getElementById('step-login'),
+    chat: document.getElementById('chat-screen'),
     profile: document.getElementById('profile-screen')
 };
 
@@ -19,14 +19,11 @@ function showScreen(key) {
 }
 
 async function logout() {
-    if (onlineInterval) {
-        clearInterval(onlineInterval);
-        onlineInterval = null;
-    }
-    if (realtimeChannel) await supabase.removeChannel(realtimeChannel);
-    if (statusSubscription) await supabase.removeChannel(statusSubscription);
-    if (typingChannel) await supabase.removeChannel(typingChannel);
-    if (window.deletionChannel) await supabase.removeChannel(window.deletionChannel);
+    if (onlineInterval) clearInterval(onlineInterval);
+    if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
+    if (statusSubscription) await supabaseClient.removeChannel(statusSubscription);
+    if (typingChannel) await supabaseClient.removeChannel(typingChannel);
+    if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
     
     messagesCache.clear();
     dialogCache.clear();
@@ -37,7 +34,7 @@ async function logout() {
         window.readStatusObservers.mutationObserver?.disconnect();
     }
     
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     currentUser = null;
     currentProfile = null;
     currentChat = null;
@@ -58,11 +55,11 @@ function initAuth() {
             const name = document.getElementById('reg-full-name').value.trim();
             if (!user || !pass) return showToast('Заполните все поля', true);
             
-            const { data, error } = await supabase.auth.signUp({ email: getEmail(user), password: pass });
+            const { data, error } = await supabaseClient.auth.signUp({ email: getEmail(user), password: pass });
             if (error) return showToast(error.message, true);
             
             if (data.user) {
-                await supabase.from('profiles').upsert({
+                await supabaseClient.from('profiles').upsert({
                     id: data.user.id,
                     username: user.replace(/^@/, ''),
                     full_name: name || user,
@@ -79,7 +76,7 @@ function initAuth() {
         loginBtn.onclick = async () => {
             const user = document.getElementById('login-username').value.trim();
             const pass = document.getElementById('login-password').value.trim();
-            const { data, error } = await supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email: getEmail(user), password: pass });
             if (error) return showToast('Ошибка входа: ' + error.message, true);
             
             await handleSuccessfulLogin(data.user);
@@ -90,7 +87,7 @@ function initAuth() {
 async function handleSuccessfulLogin(user) {
     currentUser = user;
     
-    const { data: p } = await supabase
+    const { data: p } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', currentUser.id)
@@ -98,7 +95,7 @@ async function handleSuccessfulLogin(user) {
     
     if (!p) {
         const username = user.email.split('@')[0].replace(/@lumina\.local$/, '');
-        const { data: newProfile } = await supabase
+        const { data: newProfile } = await supabaseClient
             .from('profiles')
             .insert({
                 id: currentUser.id,
@@ -151,7 +148,7 @@ async function handleSuccessfulLogin(user) {
     
     startOnlineHeartbeat();
     if (window.deletionChannel) {
-        await supabase.removeChannel(window.deletionChannel);
+        await supabaseClient.removeChannel(window.deletionChannel);
     }
     window.deletionChannel = subscribeToUserDeletion();
     await cleanupDeadChats();
