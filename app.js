@@ -1,3 +1,4 @@
+// Supabase конфигурация
 const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
 
@@ -7,10 +8,18 @@ let currentProfile = null;
 let currentChat = null;
 let realtimeChannel = null;
 let allUsers = [];
+let messagesCache = new Map();
+let dialogCache = new Map();
+let observedMessages = new Set();
+let isOnline = navigator.onLine;
 
-// ID официального бота
+// Константы
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000000';
 const SAVED_CHAT_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+const MAX_CACHED_CHATS = 20;
+const MESSAGES_PER_PAGE = 50;
+let currentOffset = 0;
+let hasMoreMessages = true;
 
 const BOT_PROFILE = {
     id: BOT_USER_ID,
@@ -28,10 +37,100 @@ const SAVED_CHAT = {
     is_saved: true
 };
 
-// Функция очистки мертвых чатов
+// --- Офлайн детектор ---
+window.addEventListener('online', () => {
+    isOnline = true;
+    document.getElementById('offline-indicator').style.display = 'none';
+    showToast('Соединение восстановлено');
+    if (currentChat) {
+        loadMessages(currentChat.id, true);
+    }
+    loadDialogs();
+});
+
+window.addEventListener('offline', () => {
+    isOnline = false;
+    document.getElementById('offline-indicator').style.display = 'flex';
+    showToast('Нет соединения с интернетом', true);
+});
+
+// --- Функции помощи ---
+function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function formatDateDivider(date) {
+    const msgDate = new Date(date);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+    const msgDateStart = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
+    
+    if (msgDateStart.getTime() === todayStart.getTime()) {
+        return 'Сегодня';
+    } else if (msgDateStart.getTime() === yesterdayStart.getTime()) {
+        return 'Вчера';
+    } else {
+        return msgDate.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+}
+
+function formatLastSeen(lastSeen) {
+    if (!lastSeen) return 'неизвестно';
+    
+    const lastSeenDate = new Date(lastSeen);
+    const now = new Date();
+    const diffMins = (now - lastSeenDate) / 60000;
+    
+    if (diffMins < 5) {
+        return 'онлайн';
+    }
+    
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (lastSeenDate >= today) {
+        return `сегодня в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (lastSeenDate >= yesterday) {
+        return `вчера в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        return lastSeenDate.toLocaleDateString('ru', { day: 'numeric', month: 'short' }) + 
+               ` в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+}
+
+// --- Очистка мертвых чатов ---
+async function checkUserExists(userId) {
+    if (userId === BOT_USER_ID || userId === SAVED_CHAT_ID) return true;
+    try {
+        const { data, error } = await _supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+        return !error && data !== null;
+    } catch (err) {
+        return false;
+    }
+}
+
 async function cleanupDeadChats() {
     if (!currentUser) return;
-    
     console.log('🧹 Запуск очистки мертвых чатов...');
     
     try {
@@ -67,27 +166,11 @@ async function cleanupDeadChats() {
     }
 }
 
-async function checkUserExists(userId) {
-    if (userId === BOT_USER_ID || userId === SAVED_CHAT_ID) return true;
-    
-    try {
-        const { data, error } = await _supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle();
-        
-        return !error && data !== null;
-    } catch (err) {
-        return false;
-    }
-}
-
-const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
-
-// ─── ОНЛАЙН / НЕ В СЕТИ (реальное время) ────────────────
+// --- Онлайн статус ---
 let onlineInterval = null;
 let isUserOnline = true;
+let userActivityTimeout = null;
+let lastActivityTime = Date.now();
 
 async function setUserOnlineStatus(isOnline) {
     if (!currentUser) return;
@@ -97,14 +180,24 @@ async function setUserOnlineStatus(isOnline) {
             .from('profiles')
             .update({ is_online: isOnline, last_seen: new Date().toISOString() })
             .eq('id', currentUser.id);
-        if (error) {
-            console.error('Ошибка обновления статуса:', error);
-        } else {
-            console.log(`✅ Статус изменен: ${isOnline ? 'онлайн 🟢' : 'не в сети ⚫'}`);
-        }
+        if (error) console.error('Ошибка обновления статуса:', error);
     } catch (err) {
         console.error('Ошибка:', err);
     }
+}
+
+function resetUserActivity() {
+    if (!currentUser) return;
+    lastActivityTime = Date.now();
+    if (userActivityTimeout) clearTimeout(userActivityTimeout);
+    if (!isUserOnline) setUserOnlineStatus(true);
+    
+    userActivityTimeout = setTimeout(async () => {
+        const inactiveTime = Date.now() - lastActivityTime;
+        if (inactiveTime >= 15000 && isUserOnline) {
+            await setUserOnlineStatus(false);
+        }
+    }, 1);
 }
 
 function startOnlineHeartbeat() {
@@ -127,103 +220,68 @@ function stopOnlineHeartbeat() {
 
 window.addEventListener('beforeunload', () => {
     if (currentUser) {
-        navigator.sendBeacon(
-            `${SUPABASE_URL}/rest/v1/rpc/force_set_offline`,
-            JSON.stringify({ user_id: currentUser.id })
-        );
+        setUserOnlineStatus(false);
     }
 });
 
 document.addEventListener('visibilitychange', async () => {
     if (!currentUser) return;
-    
     if (document.hidden) {
-        console.log('💤 Вкладка скрыта, статус: не в сети');
         await setUserOnlineStatus(false);
         if (userActivityTimeout) clearTimeout(userActivityTimeout);
     } else {
-        console.log('🟢 Вкладка активна, статус: онлайн');
         await setUserOnlineStatus(true);
         resetUserActivity();
-        
-        if (currentChat) {
+        if (currentChat && currentChat.id !== SAVED_CHAT_ID) {
             await markChatMessagesAsRead(currentChat.id);
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
         }
     }
 });
 
-window.addEventListener('pagehide', () => {
-    if (currentUser) {
-        navigator.sendBeacon(
-            `${SUPABASE_URL}/rest/v1/rpc/force_set_offline`,
-            JSON.stringify({ user_id: currentUser.id })
-        );
-    }
-});
-
-// ─── ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЯ ──────────────
-let userActivityTimeout = null;
-let lastActivityTime = Date.now();
-
-function resetUserActivity() {
-    if (!currentUser) return;
-    
-    lastActivityTime = Date.now();
-    
-    if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    
-    if (!isUserOnline) {
-        setUserOnlineStatus(true);
-    }
-    
-    userActivityTimeout = setTimeout(async () => {
-        const inactiveTime = Date.now() - lastActivityTime;
-        if (inactiveTime >= 15000 && isUserOnline) {
-            console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
-            await setUserOnlineStatus(false);
-        }
-    }, 1);
-}
-
+// Привязка событий активности
 window.addEventListener('mousemove', resetUserActivity);
 window.addEventListener('keydown', resetUserActivity);
 window.addEventListener('click', resetUserActivity);
 window.addEventListener('scroll', resetUserActivity);
 
-// ─── Выход ───────────────────────────────────────────────
-async function logout() {
-    stopOnlineHeartbeat();
-    if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-    if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-    if (typingChannel) await _supabase.removeChannel(typingChannel);
-    if (window.deletionChannel) await _supabase.removeChannel(window.deletionChannel);
+// --- Валидация пароля ---
+function checkPasswordStrength(password) {
+    const strengthDiv = document.getElementById('reg-password-strength');
+    if (!strengthDiv) return false;
     
-    messagesCache.clear();
-    dialogCache.clear();
-    observedMessages.clear();
-    
-    if (window.readStatusObservers) {
-        window.readStatusObservers.observer?.disconnect();
-        window.readStatusObservers.mutationObserver?.disconnect();
+    if (password.length === 0) {
+        strengthDiv.textContent = '';
+        strengthDiv.className = 'password-strength';
+        return false;
     }
     
-    await _supabase.auth.signOut();
-    currentUser = null;
-    currentProfile = null;
-    currentChat = null;
-    showScreen('reg');
+    let strength = 0;
+    if (password.length >= 6) strength++;
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    
+    if (strength <= 1) {
+        strengthDiv.textContent = 'Слабый пароль';
+        strengthDiv.className = 'password-strength weak';
+        return false;
+    } else if (strength <= 3) {
+        strengthDiv.textContent = 'Средний пароль';
+        strengthDiv.className = 'password-strength medium';
+        return true;
+    } else {
+        strengthDiv.textContent = 'Сильный пароль';
+        strengthDiv.className = 'password-strength strong';
+        return true;
+    }
 }
 
-// ─── Экраны ─────────────────────────────────────────────
+// --- Экраны ---
 const screens = {
-    reg:     document.getElementById('step-register'),
-    login:   document.getElementById('step-login'),
-    chat:    document.getElementById('chat-screen'),
+    reg: document.getElementById('step-register'),
+    login: document.getElementById('step-login'),
+    chat: document.getElementById('chat-screen'),
     profile: document.getElementById('profile-screen')
 };
 
@@ -239,38 +297,36 @@ function showScreen(key) {
     el.classList.add(key === 'chat' || key === 'profile' ? 'visible' : 'active');
 }
 
-function showToast(msg, isError = false) {
-    const t = document.getElementById('toast');
-    if (!t) return;
-    t.textContent = msg;
-    t.className = 'toast show' + (isError ? ' error' : '');
-    setTimeout(() => { t.className = 'toast'; }, 3000);
-}
-
-// ─── Навигация авторизации ───────────────────────────────
-const toLogin = document.getElementById('to-login');
-const toRegister = document.getElementById('to-register');
-if (toLogin) toLogin.onclick = () => showScreen('login');
-if (toRegister) toRegister.onclick = () => showScreen('reg');
-
-// ─── Регистрация ─────────────────────────────────────────
+// --- Регистрация ---
 const regBtn = document.getElementById('btn-do-reg');
 if (regBtn) {
     regBtn.onclick = async () => {
         const user = document.getElementById('reg-username').value.trim();
         const pass = document.getElementById('reg-password').value.trim();
         const name = document.getElementById('reg-full-name').value.trim();
-        if (!user || !pass) return showToast('Заполните все поля', true);
-
-        const { data, error } = await _supabase.auth.signUp({ email: getEmail(user), password: pass });
+        
+        if (!user || !pass || !name) {
+            showToast('Заполните все поля', true);
+            return;
+        }
+        
+        if (!checkPasswordStrength(pass)) {
+            showToast('Придумайте более надежный пароль', true);
+            return;
+        }
+        
+        const email = `${user.toLowerCase().replace(/^@/, '')}@lumina.local`;
+        
+        const { data, error } = await _supabase.auth.signUp({ email, password: pass });
         if (error) return showToast(error.message, true);
-
+        
         if (data.user) {
             await _supabase.from('profiles').upsert({
                 id: data.user.id,
                 username: user.replace(/^@/, ''),
-                full_name: name || user,
-                last_seen: new Date().toISOString()
+                full_name: name,
+                last_seen: new Date().toISOString(),
+                is_online: false
             });
             showToast('Аккаунт создан! Войдите.');
             setTimeout(() => showScreen('login'), 1000);
@@ -278,7 +334,90 @@ if (regBtn) {
     };
 }
 
-// ─── Обновление нижней панели профиля ────────────────────
+const regPassword = document.getElementById('reg-password');
+if (regPassword) {
+    regPassword.oninput = (e) => checkPasswordStrength(e.target.value);
+}
+
+// --- Вход ---
+const loginBtn = document.getElementById('btn-do-login');
+if (loginBtn) {
+    loginBtn.onclick = async () => {
+        const user = document.getElementById('login-username').value.trim();
+        const pass = document.getElementById('login-password').value.trim();
+        const email = `${user.toLowerCase().replace(/^@/, '')}@lumina.local`;
+        
+        const { data, error } = await _supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) return showToast('Ошибка входа: ' + error.message, true);
+        
+        currentUser = data.user;
+        
+        const { data: p } = await _supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+        
+        if (!p) {
+            const username = user.replace(/^@/, '');
+            const { data: newProfile } = await _supabase
+                .from('profiles')
+                .insert({
+                    id: currentUser.id,
+                    username: username,
+                    full_name: username,
+                    last_seen: new Date().toISOString(),
+                    is_online: true
+                })
+                .select()
+                .maybeSingle();
+            currentProfile = newProfile;
+        } else {
+            currentProfile = p;
+        }
+        
+        if (currentProfile) {
+            const badge = document.getElementById('current-user-badge');
+            if (badge) badge.textContent = currentProfile.full_name;
+            updateProfileFooter();
+            initProfileFooter();
+        }
+        
+        await loadAllUsers();
+        await ensureBotChat();
+        await ensureSavedChat();
+        
+        showScreen('chat');
+        await loadDialogs();
+        
+        document.getElementById('chat-title').textContent = 'Lumina Lite';
+        document.querySelector('.chat-status').textContent = 'выберите диалог';
+        const inputZone = document.querySelector('.input-zone');
+        if (inputZone) inputZone.style.display = 'none';
+        
+        const messagesContainer = document.getElementById('messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="msg-stub">
+                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                    <p>Выберите диалог, чтобы начать общение</p>
+                </div>
+            `;
+        }
+        
+        currentChat = null;
+        startOnlineHeartbeat();
+        await cleanupDeadChats();
+    };
+}
+
+// Навигация авторизации
+const toLogin = document.getElementById('to-login');
+const toRegister = document.getElementById('to-register');
+if (toLogin) toLogin.onclick = () => showScreen('login');
+if (toRegister) toRegister.onclick = () => showScreen('reg');
+
+// --- Нижняя панель профиля ---
 function updateProfileFooter() {
     if (!currentProfile) return;
     
@@ -286,18 +425,11 @@ function updateProfileFooter() {
     const footerName = document.getElementById('footer-name');
     const footerUsername = document.getElementById('footer-username');
     
-    if (footerAvatar) {
-        footerAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-    }
-    if (footerName) {
-        footerName.textContent = currentProfile.full_name || currentProfile.username || 'Пользователь';
-    }
-    if (footerUsername) {
-        footerUsername.textContent = `@${currentProfile.username || 'username'}`;
-    }
+    if (footerAvatar) footerAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
+    if (footerName) footerName.textContent = currentProfile.full_name || currentProfile.username || 'Пользователь';
+    if (footerUsername) footerUsername.textContent = `@${currentProfile.username || 'username'}`;
 }
 
-// ─── Инициализация нижней панели ─────────────────────────
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
@@ -354,177 +486,125 @@ function initProfileFooter() {
     }
 }
 
-// ─── Подсчет непрочитанных сообщений ─────────────────────
-async function getUnreadCount(chatId) {
-    try {
-        const { count, error } = await _supabase
-            .from('messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('chat_id', chatId)
-            .eq('is_read', false)
-            .neq('user_id', currentUser.id);
+// --- Профиль ---
+const saveProfileBtn = document.getElementById('btn-save-profile');
+if (saveProfileBtn) {
+    saveProfileBtn.onclick = async () => {
+        const full_name = document.getElementById('profile-fullname').value.trim();
+        const bio = document.getElementById('profile-bio').value.trim();
+        if (!full_name) return showToast('Имя не может быть пустым', true);
         
-        if (error) throw error;
-        return count || 0;
-    } catch (err) {
-        return 0;
-    }
+        const { error } = await _supabase.from('profiles')
+            .update({ full_name, bio })
+            .eq('id', currentUser.id);
+        
+        if (error) return showToast('Ошибка сохранения', true);
+        
+        currentProfile.full_name = full_name;
+        currentProfile.bio = bio;
+        document.getElementById('current-user-badge').textContent = full_name;
+        document.getElementById('profile-avatar-letter').textContent = full_name[0].toUpperCase();
+        updateProfileFooter();
+        showToast('Профиль сохранён ✓');
+        setTimeout(() => showScreen('chat'), 800);
+    };
 }
 
-// ─── Получение последнего сообщения ─────────────────────
-async function getLastMessage(chatId) {
+const profileBackBtn = document.getElementById('btn-profile-back');
+if (profileBackBtn) profileBackBtn.onclick = () => showScreen('chat');
+
+const profileLogoutBtn = document.getElementById('btn-logout-profile');
+if (profileLogoutBtn) {
+    profileLogoutBtn.onclick = async () => {
+        stopOnlineHeartbeat();
+        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+        await _supabase.auth.signOut();
+        currentUser = null;
+        currentProfile = null;
+        currentChat = null;
+        showScreen('reg');
+    };
+}
+
+// --- Загрузка пользователей ---
+async function loadAllUsers() {
     try {
         const { data, error } = await _supabase
-            .from('messages')
-            .select('text, user_id')
-            .eq('chat_id', chatId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .from('profiles')
+            .select('id, username, full_name')
+            .neq('id', currentUser.id)
+            .neq('id', BOT_USER_ID);
         
         if (error) throw error;
         
-        if (data) {
-            const isOwn = data.user_id === currentUser.id;
-            const prefix = isOwn ? 'Вы: ' : '';
-            let text = data.text;
-            if (text && text.length > 50) text = text.slice(0, 47) + '...';
-            return prefix + text;
+        const validUsers = [];
+        for (const user of data || []) {
+            const exists = await checkUserExists(user.id);
+            if (exists) validUsers.push(user);
         }
-        return null;
+        allUsers = validUsers;
     } catch (err) {
-        return null;
+        console.error('Ошибка загрузки пользователей:', err);
+        allUsers = [];
     }
 }
 
-// ─── Отметить сообщения как прочитанные ──────────────────
-let messagesCache = new Map();
-
-async function markChatMessagesAsRead(chatId) {
-    if (!chatId || !currentUser || chatId === SAVED_CHAT_ID) return;
+async function searchUsersByUsername(username) {
+    if (!username || username.length < 1) return [];
+    let cleanUsername = username;
+    if (cleanUsername.startsWith('@')) cleanUsername = cleanUsername.substring(1);
     
     try {
-        const { error } = await _supabase
-            .from('messages')
-            .update({ is_read: true, read_at: new Date().toISOString() })
-            .eq('chat_id', chatId)
-            .neq('user_id', currentUser.id)
-            .eq('is_read', false);
-        
-        if (error) throw error;
-        
-        if (messagesCache.has(chatId)) {
-            const cachedMessages = messagesCache.get(chatId);
-            cachedMessages.forEach(msg => {
-                if (msg.user_id !== currentUser.id) {
-                    msg.is_read = true;
-                }
-            });
-            messagesCache.set(chatId, cachedMessages);
-        }
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer && currentChat?.id === chatId) {
-            const allMessages = messagesContainer.querySelectorAll('.message:not(.own)');
-            allMessages.forEach(msgDiv => {
-                const readSpan = msgDiv.querySelector('.read-status');
-                if (readSpan && !msgDiv.classList.contains('bot-message')) {
-                    readSpan.className = 'read-status read';
-                    readSpan.innerHTML = '✓✓';
-                }
-                msgDiv.classList.remove('unread-message');
-            });
-        }
-        
-        await loadDialogs();
-        
-        console.log(`✅ Чат ${chatId} отмечен как прочитанный`);
-        
+        const { data, error } = await _supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .ilike('username', `%${cleanUsername}%`)
+            .neq('id', currentUser.id)
+            .limit(10);
+        if (error) return [];
+        return data || [];
     } catch (err) {
-        console.error('Ошибка отметки прочитанных:', err);
+        return [];
     }
 }
 
-let observedMessages = new Set();
-let readCheckTimeout = null;
-
-function setupReadStatusObserver() {
-    const container = document.getElementById('messages');
-    if (!container) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-        const visibleMessages = [];
-        
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const msgDiv = entry.target;
-                const msgId = msgDiv.dataset.id;
-                const isOwn = msgDiv.classList.contains('own');
-                const isBot = msgDiv.classList.contains('bot-message');
-                const isRead = msgDiv.querySelector('.read-status')?.classList.contains('read');
-                
-                if (!isOwn && !isBot && msgId && !isRead && !observedMessages.has(msgId)) {
-                    visibleMessages.push(msgId);
-                    observedMessages.add(msgId);
-                }
-            }
-        });
-        
-        if (visibleMessages.length > 0 && currentChat && currentChat.id !== SAVED_CHAT_ID) {
-            if (readCheckTimeout) clearTimeout(readCheckTimeout);
-            readCheckTimeout = setTimeout(async () => {
-                try {
-                    const { error } = await _supabase
-                        .from('messages')
-                        .update({ is_read: true, read_at: new Date().toISOString() })
-                        .in('id', visibleMessages);
-                    
-                    if (!error && currentChat) {
-                        visibleMessages.forEach(msgId => {
-                            const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
-                            if (msgDiv) {
-                                const readSpan = msgDiv.querySelector('.read-status');
-                                if (readSpan) {
-                                    readSpan.className = 'read-status read';
-                                    readSpan.innerHTML = '✓✓';
-                                }
-                                msgDiv.classList.remove('unread-message');
-                            }
-                        });
-                        
-                        if (messagesCache.has(currentChat.id)) {
-                            const cached = messagesCache.get(currentChat.id);
-                            cached.forEach(msg => {
-                                if (visibleMessages.includes(msg.id)) msg.is_read = true;
-                            });
-                            messagesCache.set(currentChat.id, cached);
-                        }
-                        
-                        await loadDialogs();
-                    }
-                } catch (err) {}
-                readCheckTimeout = null;
-            }, 500);
+async function getOrCreatePrivateChat(otherUserId) {
+    try {
+        if (otherUserId === BOT_USER_ID) {
+            const { data: existing } = await _supabase
+                .from('chats')
+                .select('id')
+                .eq('type', 'private')
+                .contains('participants', [currentUser.id, BOT_USER_ID])
+                .maybeSingle();
+            return existing?.id;
         }
-    }, { threshold: 0.5 });
-    
-    const observeNewMessages = () => {
-        const messages = container.querySelectorAll('.message:not(.own):not(.bot-message)');
-        messages.forEach(msg => observer.observe(msg));
-    };
-    
-    observeNewMessages();
-    
-    const mutationObserver = new MutationObserver(() => {
-        observeNewMessages();
-    });
-    
-    mutationObserver.observe(container, { childList: true, subtree: true });
-    
-    return { observer, mutationObserver };
+        
+        const { data: existing } = await _supabase
+            .from('chats')
+            .select('id')
+            .eq('type', 'private')
+            .contains('participants', [currentUser.id, otherUserId])
+            .maybeSingle();
+        if (existing) return existing.id;
+        
+        const { data: newChat } = await _supabase
+            .from('chats')
+            .insert({
+                type: 'private',
+                participants: [currentUser.id, otherUserId],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+        return newChat.id;
+    } catch (err) {
+        throw err;
+    }
 }
 
-// ─── Создание чата с ботом ───────────────────────────────
+// --- Бот и избранное ---
 async function ensureBotChat() {
     try {
         const { data: existing } = await _supabase
@@ -569,7 +649,7 @@ async function ensureBotChat() {
         
         if (newChat) {
             await _supabase.from('messages').insert({
-                text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
+                text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n• Сохранять важные сообщения в Избранное\n\nПриятного общения! 🚀',
                 user_id: BOT_USER_ID,
                 chat_id: newChat.id,
                 is_welcome: true,
@@ -582,7 +662,6 @@ async function ensureBotChat() {
     }
 }
 
-// ─── Создание чата "Избранное" ───────────────────────────
 async function ensureSavedChat() {
     try {
         const { data: existing } = await _supabase
@@ -620,140 +699,12 @@ async function ensureSavedChat() {
         console.error('Ошибка создания чата Избранное:', err);
     }
 }
-
-// ─── Загрузка всех пользователей ─────────────────────────
-async function loadAllUsers() {
-    try {
-        const { data, error } = await _supabase
-            .from('profiles')
-            .select('id, username, full_name')
-            .neq('id', currentUser.id)
-            .neq('id', BOT_USER_ID);
-        
-        if (error) throw error;
-        
-        const validUsers = [];
-        for (const user of data || []) {
-            const exists = await checkUserExists(user.id);
-            if (exists) {
-                validUsers.push(user);
-            }
-        }
-        
-        allUsers = validUsers;
-    } catch (err) {
-        console.error('Ошибка загрузки пользователей:', err);
-        allUsers = [];
-    }
-}
-
-// ─── Поиск пользователей ─────────────────────────────────
-async function searchUsersByUsername(username) {
-    if (!username || username.length < 1) return [];
-    
-    let cleanUsername = username;
-    if (cleanUsername.startsWith('@')) cleanUsername = cleanUsername.substring(1);
-    
-    try {
-        const { data, error } = await _supabase
-            .from('profiles')
-            .select('id, username, full_name')
-            .ilike('username', `%${cleanUsername}%`)
-            .neq('id', currentUser.id)
-            .limit(10);
-        
-        if (error) return [];
-        return data || [];
-    } catch (err) {
-        return [];
-    }
-}
-
-// ─── Получение или создание личного чата ─────────────────
-async function getOrCreatePrivateChat(otherUserId) {
-    try {
-        if (otherUserId === BOT_USER_ID) {
-            const { data: existing } = await _supabase
-                .from('chats')
-                .select('id')
-                .eq('type', 'private')
-                .contains('participants', [currentUser.id, BOT_USER_ID])
-                .maybeSingle();
-            return existing?.id;
-        }
-        
-        const { data: existing } = await _supabase
-            .from('chats')
-            .select('id')
-            .eq('type', 'private')
-            .contains('participants', [currentUser.id, otherUserId])
-            .maybeSingle();
-        
-        if (existing) return existing.id;
-        
-        const { data: newChat } = await _supabase
-            .from('chats')
-            .insert({
-                type: 'private',
-                participants: [currentUser.id, otherUserId],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-        
-        return newChat.id;
-    } catch (err) {
-        throw err;
-    }
-}
-
-// ─── Статус пользователя ─────────────────────────────────
-let lastActivityUpdate = 0;
-let typingTimeout = null;
-let isTyping = false;
-
-async function updateLastSeen() {
-    if (!currentUser) return;
-    
-    const now = Date.now();
-    if (now - lastActivityUpdate < 30000) return;
-    lastActivityUpdate = now;
-    
-    try {
-        await _supabase
-            .from('profiles')
-            .update({ last_seen: new Date().toISOString() })
-            .eq('id', currentUser.id);
-    } catch (err) {}
-}
-
-function formatLastSeen(lastSeen) {
-    if (!lastSeen) return 'неизвестно';
-    
-    const lastSeenDate = new Date(lastSeen);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (lastSeenDate >= today) {
-        return `сегодня в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    } else if (lastSeenDate >= yesterday) {
-        return `вчера в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-        return lastSeenDate.toLocaleDateString('ru', { day: 'numeric', month: 'short' }) + 
-               ` в ${lastSeenDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}`;
-    }
-}
-
+// --- Статус пользователя ---
 function getUserStatusFromProfile(profile) {
     if (!profile) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
-    
     if (profile.is_online === true) {
         return { text: 'онлайн', class: 'status-online', isOnline: true };
     }
-    
     if (!profile.last_seen) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
     
     const lastSeenDate = new Date(profile.last_seen);
@@ -763,84 +714,29 @@ function getUserStatusFromProfile(profile) {
     if (diffMins < 5) {
         return { text: 'онлайн', class: 'status-online', isOnline: true };
     }
-    
     return { text: formatLastSeen(profile.last_seen), class: 'status-offline', isOnline: false };
 }
 
 let statusSubscription = null;
 
-function subscribeToUserDeletion() {
-    const deletionChannel = _supabase
-        .channel('user-deletions')
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'auth', table: 'users' },
-            async (payload) => {
-                console.log('🗑️ Пользователь удален:', payload.old.id);
-                
-                if (payload.old.id === currentUser?.id) {
-                    showToast('Ваш аккаунт был удален', true);
-                    setTimeout(() => logout(), 2000);
-                    return;
-                }
-                
-                await loadDialogs();
-                
-                if (currentChat?.other_user?.id === payload.old.id) {
-                    currentChat = null;
-                    const messagesContainer = document.getElementById('messages');
-                    if (messagesContainer) {
-                        messagesContainer.innerHTML = `
-                            <div class="msg-stub">
-                                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                                <p>Пользователь удален. Выберите другой диалог</p>
-                            </div>
-                        `;
-                    }
-                    const inputZone = document.querySelector('.input-zone');
-                    if (inputZone) inputZone.style.display = 'none';
-                }
-            }
-        )
-        .subscribe();
-    
-    return deletionChannel;
-}
-
 function subscribeToUserStatus(userId) {
-    if (statusSubscription) {
-        _supabase.removeChannel(statusSubscription);
-    }
+    if (statusSubscription) _supabase.removeChannel(statusSubscription);
     
     statusSubscription = _supabase
         .channel(`status-${userId}`)
         .on('postgres_changes', 
             { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
             async (payload) => {
-                if (payload.new) {
-                    console.log('🔄 Статус обновлен:', payload.new.is_online ? 'онлайн' : 'не в сети');
-                    
-                    if (currentChat?.other_user?.id === userId) {
-                        updateChatStatusFromProfile(payload.new);
-                    }
-                    
-                    const dialogItem = document.querySelector(`.dialog-item[data-other-user-id="${userId}"]`);
-                    if (dialogItem) {
-                        const onlineDot = dialogItem.querySelector('.online-dot');
-                        const isOnline = payload.new.is_online === true;
-                        
-                        if (onlineDot) {
-                            if (isOnline) {
-                                onlineDot.classList.remove('hidden');
-                            } else {
-                                onlineDot.classList.add('hidden');
-                            }
-                        }
-                        
-                        if (isOnline) {
-                            dialogItem.classList.add('user-online');
-                        } else {
-                            dialogItem.classList.remove('user-online');
-                        }
+                if (payload.new && currentChat?.other_user?.id === userId) {
+                    updateChatStatusFromProfile(payload.new);
+                }
+                const dialogItem = document.querySelector(`.dialog-item[data-other-user-id="${userId}"]`);
+                if (dialogItem) {
+                    const onlineDot = dialogItem.querySelector('.online-dot');
+                    const isOnline = payload.new.is_online === true;
+                    if (onlineDot) {
+                        if (isOnline) onlineDot.classList.remove('hidden');
+                        else onlineDot.classList.add('hidden');
                     }
                 }
             }
@@ -860,7 +756,6 @@ function updateChatStatusFromProfile(profile) {
         chatStatus.className = 'chat-status status-bot';
         return;
     }
-    
     if (isSaved) {
         chatStatus.textContent = 'личное';
         chatStatus.className = 'chat-status status-offline';
@@ -872,33 +767,37 @@ function updateChatStatusFromProfile(profile) {
     chatStatus.className = `chat-status ${status.class}`;
 }
 
-// ─── Отслеживание печатания ──────────────────────────────
+// --- Индикатор печати ---
 let typingChannel = null;
+let typingTimeout = null;
+let isTyping = false;
 
 function setupTypingIndicator() {
     const messageInput = document.getElementById('message-input');
     if (!messageInput) return;
     
-    messageInput.addEventListener('input', () => {
-        if (!currentChat || currentChat.other_user?.id === BOT_USER_ID || currentChat.id === SAVED_CHAT_ID) return;
-        
-        if (typingTimeout) clearTimeout(typingTimeout);
-        
-        if (!isTyping) {
-            isTyping = true;
-            sendTypingStatus(true);
-        }
-        
-        typingTimeout = setTimeout(() => {
-            isTyping = false;
-            sendTypingStatus(false);
-        }, 1000);
-    });
+    messageInput.removeEventListener('input', handleTypingInput);
+    messageInput.addEventListener('input', handleTypingInput);
+}
+
+function handleTypingInput() {
+    if (!currentChat || currentChat.other_user?.id === BOT_USER_ID || currentChat.id === SAVED_CHAT_ID) return;
+    
+    if (typingTimeout) clearTimeout(typingTimeout);
+    
+    if (!isTyping) {
+        isTyping = true;
+        sendTypingStatus(true);
+    }
+    
+    typingTimeout = setTimeout(() => {
+        isTyping = false;
+        sendTypingStatus(false);
+    }, 2000);
 }
 
 async function sendTypingStatus(isTypingNow) {
     if (!currentChat || !typingChannel) return;
-    
     try {
         await typingChannel.send({
             type: 'broadcast',
@@ -909,15 +808,12 @@ async function sendTypingStatus(isTypingNow) {
 }
 
 function subscribeToTyping(chatId, otherUserId) {
-    if (typingChannel) {
-        _supabase.removeChannel(typingChannel);
-    }
+    if (typingChannel) _supabase.removeChannel(typingChannel);
     
     typingChannel = _supabase
         .channel(`typing-${chatId}`)
         .on('broadcast', { event: 'typing' }, (payload) => {
             if (payload.payload.userId === currentUser.id) return;
-            
             const typingStatus = document.querySelector('.typing-status');
             if (!typingStatus) return;
             
@@ -926,7 +822,7 @@ function subscribeToTyping(chatId, otherUserId) {
                 typingStatus.style.display = 'block';
                 setTimeout(() => {
                     if (typingStatus.textContent === 'печатает...') {
-                        typingStatus.style.display = 'none';
+                        typingStatus.style.display ='none';
                     }
                 }, 3000);
             } else {
@@ -936,29 +832,128 @@ function subscribeToTyping(chatId, otherUserId) {
         .subscribe();
 }
 
-// ─── Функция форматирования даты для разделителя ─────────
-function formatDateDivider(date) {
-    const msgDate = new Date(date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+// --- Отметить сообщения как прочитанные ---
+async function markChatMessagesAsRead(chatId) {
+    if (!chatId || !currentUser || chatId === SAVED_CHAT_ID) return;
     
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-    const msgDateStart = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
-    
-    if (msgDateStart.getTime() === todayStart.getTime()) {
-        return 'Сегодня';
-    } else if (msgDateStart.getTime() === yesterdayStart.getTime()) {
-        return 'Вчера';
-    } else {
-        return msgDate.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
+    try {
+        const { error } = await _supabase
+            .from('messages')
+            .update({ is_read: true, read_at: new Date().toISOString() })
+            .eq('chat_id', chatId)
+            .neq('user_id', currentUser.id)
+            .eq('is_read', false);
+        
+        if (error) throw error;
+        
+        if (messagesCache.has(chatId)) {
+            const cachedMessages = messagesCache.get(chatId);
+            cachedMessages.forEach(msg => {
+                if (msg.user_id !== currentUser.id) msg.is_read = true;
+            });
+            messagesCache.set(chatId, cachedMessages);
+        }
+        
+        const messagesContainer = document.getElementById('messages');
+        if (messagesContainer && currentChat?.id === chatId) {
+            const allMessages = messagesContainer.querySelectorAll('.message:not(.own)');
+            allMessages.forEach(msgDiv => {
+                const readSpan = msgDiv.querySelector('.read-status');
+                if (readSpan && !msgDiv.classList.contains('bot-message')) {
+                    readSpan.className = 'read-status read';
+                    readSpan.innerHTML = '<svg width="12" height="12"><use href="#icon-check-double"/></svg>';
+                }
+                msgDiv.classList.remove('unread-message');
+            });
+        }
+        
+        await loadDialogs();
+    } catch (err) {
+        console.error('Ошибка отметки прочитанных:', err);
     }
 }
 
-// ─── ОПТИМИЗИРОВАННАЯ ЗАГРУЗКА ДИАЛОГОВ ─────────────────
-let isUpdatingDialogs = false;
-let dialogCache = new Map();
+function setupReadStatusObserver() {
+    const container = document.getElementById('messages');
+    if (!container) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+        const visibleMessages = [];
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const msgDiv = entry.target;
+                const msgId = msgDiv.dataset.id;
+                const isOwn = msgDiv.classList.contains('own');
+                const isBot = msgDiv.classList.contains('bot-message');
+                const isRead = msgDiv.querySelector('.read-status')?.classList.contains('read');
+                
+                if (!isOwn && !isBot && msgId && !isRead && !observedMessages.has(msgId)) {
+                    visibleMessages.push(msgId);
+                    observedMessages.add(msgId);
+                }
+            }
+        });
+        
+        if (visibleMessages.length > 0 && currentChat && currentChat.id !== SAVED_CHAT_ID) {
+            setTimeout(async () => {
+                try {
+                    await _supabase
+                        .from('messages')
+                        .update({ is_read: true, read_at: new Date().toISOString() })
+                        .in('id', visibleMessages);
+                    
+                    visibleMessages.forEach(msgId => {
+                        const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
+                        if (msgDiv) {
+                            const readSpan = msgDiv.querySelector('.read-status');
+                            if (readSpan) {
+                                readSpan.className = 'read-status read';
+                                readSpan.innerHTML = '<svg width="12" height="12"><use href="#icon-check-double"/></svg>';
+                            }
+                            msgDiv.classList.remove('unread-message');
+                        }
+                    });
+                    
+                    if (messagesCache.has(currentChat.id)) {
+                        const cached = messagesCache.get(currentChat.id);
+                        cached.forEach(msg => {
+                            if (visibleMessages.includes(msg.id)) msg.is_read = true;
+                        });
+                        messagesCache.set(currentChat.id, cached);
+                    }
+                    await loadDialogs();
+                } catch (err) {}
+            }, 500);
+        }
+    }, { threshold: 0.5 });
+    
+    const observeNewMessages = () => {
+        const messages = container.querySelectorAll('.message:not(.own):not(.bot-message)');
+        messages.forEach(msg => observer.observe(msg));
+    };
+    
+    observeNewMessages();
+    const mutationObserver = new MutationObserver(() => observeNewMessages());
+    mutationObserver.observe(container, { childList: true, subtree: true });
+    
+    return { observer, mutationObserver };
+}
+
+// --- Загрузка диалогов ---
+async function getUnreadCount(chatId) {
+    try {
+        const { count, error } = await _supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('chat_id', chatId)
+            .eq('is_read', false)
+            .neq('user_id', currentUser.id);
+        if (error) throw error;
+        return count || 0;
+    } catch (err) {
+        return 0;
+    }
+}
 
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
@@ -970,9 +965,6 @@ async function loadDialogs(searchTerm = '') {
         await loadUserSearchResults(searchTerm, container);
         return;
     }
-    
-    if (isUpdatingDialogs) return;
-    isUpdatingDialogs = true;
     
     try {
         const { data: chats, error: chatsError } = await _supabase
@@ -986,54 +978,38 @@ async function loadDialogs(searchTerm = '') {
         const validChats = [];
         for (const chat of chats || []) {
             const otherId = chat.participants.find(id => id !== currentUser.id);
-            
             if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
                 validChats.push(chat);
                 continue;
             }
-            
             const userExists = await checkUserExists(otherId);
             if (userExists) {
                 validChats.push(chat);
             } else {
-                console.log(`🗑️ Удаляем чат ${chat.id} - пользователь ${otherId} не существует`);
                 await _supabase.from('chats').delete().eq('id', chat.id);
                 await _supabase.from('messages').delete().eq('chat_id', chat.id);
             }
         }
         
-        const { data: unreadData, error: unreadError } = await _supabase
-            .from('messages')
-            .select('chat_id')
-            .eq('is_read', false)
-            .neq('user_id', currentUser.id)
-            .in('chat_id', validChats.map(c => c.id) || []);
-        
-        if (unreadError) throw unreadError;
-        
-        const unreadCounts = new Map();
-        if (unreadData) {
-            unreadData.forEach(msg => {
-                unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
-            });
-        }
-        
-        const lastMessages = new Map();
-        for (const chat of validChats) {
-            const { data: lastMsg } = await _supabase
+        // Оптимизированный запрос последних сообщений
+        const lastMessagesMap = new Map();
+        if (validChats.length > 0) {
+            const { data: lastMsgs } = await _supabase
                 .from('messages')
-                .select('text, user_id')
-                .eq('chat_id', chat.id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+                .select('chat_id, text, user_id')
+                .in('chat_id', validChats.map(c => c.id))
+                .order('created_at', { ascending: false });
             
-            if (lastMsg) {
-                const isOwn = lastMsg.user_id === currentUser.id;
-                const prefix = isOwn ? 'Вы: ' : '';
-                let text = lastMsg.text;
-                if (text && text.length > 50) text = text.slice(0, 47) + '...';
-                lastMessages.set(chat.id, prefix + text);
+            const uniqueChats = new Set();
+            for (const msg of lastMsgs || []) {
+                if (!uniqueChats.has(msg.chat_id)) {
+                    uniqueChats.add(msg.chat_id);
+                    const isOwn = msg.user_id === currentUser.id;
+                    const prefix = isOwn ? 'Вы: ' : '';
+                    let text = msg.text;
+                    if (text && text.length > 50) text = text.slice(0, 47) + '...';
+                    lastMessagesMap.set(msg.chat_id, prefix + text);
+                }
             }
         }
         
@@ -1047,12 +1023,12 @@ async function loadDialogs(searchTerm = '') {
         if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        const chatData = validChats.map(chat => {
+        const chatData = [];
+        for (const chat of validChats) {
             const otherId = chat.participants.find(id => id !== currentUser.id);
             
-            // Для чата "Избранное"
             if (chat.id === SAVED_CHAT_ID) {
-                return {
+                chatData.push({
                     id: chat.id,
                     otherId: SAVED_CHAT_ID,
                     otherUser: SAVED_CHAT,
@@ -1060,25 +1036,25 @@ async function loadDialogs(searchTerm = '') {
                     isSaved: true,
                     isBot: false,
                     unreadCount: 0,
-                    lastMessage: lastMessages.get(chat.id) || 'Сохраненные сообщения',
+                    lastMessage: lastMessagesMap.get(chat.id) || 'Сохраненные сообщения',
                     updatedAt: chat.updated_at,
                     statusText: 'личное',
                     statusClass: 'status-offline',
                     isOnline: false
-                };
+                });
+                continue;
             }
             
             const otherUser = profileMap.get(otherId);
-            
-            if (!otherUser && otherId !== BOT_USER_ID) return null;
+            if (!otherUser && otherId !== BOT_USER_ID) continue;
             
             const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
             const isBot = otherId === BOT_USER_ID;
-            const unreadCount = unreadCounts.get(chat.id) || 0;
+            const unreadCount = await getUnreadCount(chat.id);
             const status = otherUser ? getUserStatusFromProfile(otherUser) : { text: '', class: '' };
             const isOnline = status.class === 'status-online';
             
-            return {
+            chatData.push({
                 id: chat.id,
                 otherId,
                 otherUser,
@@ -1086,13 +1062,13 @@ async function loadDialogs(searchTerm = '') {
                 isBot,
                 isSaved: false,
                 unreadCount,
-                lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
+                lastMessage: lastMessagesMap.get(chat.id) || 'Нет сообщений',
                 updatedAt: chat.updated_at,
                 statusText: status.text,
                 statusClass: status.class,
-                isOnline: isOnline
-            };
-        }).filter(chat => chat !== null);
+                isOnline
+            });
+        }
         
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
@@ -1102,14 +1078,11 @@ async function loadDialogs(searchTerm = '') {
         }
         
         renderDialogsList(container, filteredData);
-        
     } catch (err) {
         console.error('Ошибка загрузки диалогов:', err);
         if (container.children.length === 0) {
             container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки диалогов</div>';
         }
-    } finally {
-        isUpdatingDialogs = false;
     }
 }
 
@@ -1134,9 +1107,9 @@ function renderDialogsList(container, filteredData) {
         
         let avatarHtml = '';
         if (chat.isBot) {
-            avatarHtml = `<img src="lumina.svg" alt="Bot">`;
+            avatarHtml = `<svg width="28" height="28"><use href="#icon-bot"/></svg>`;
         } else if (chat.isSaved) {
-            avatarHtml = `<img src="favourite.svg" alt="Saved">`;
+            avatarHtml = `<svg width="24" height="24"><use href="#icon-saved"/></svg>`;
         } else {
             avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
         }
@@ -1144,7 +1117,7 @@ function renderDialogsList(container, filteredData) {
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
                 ${avatarHtml}
-                ${chat.isBot ? '<div class="verified-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+                ${chat.isBot ? '<div class="verified-badge"><svg width="14" height="14"><use href="#icon-check"/></svg></div>' : ''}
                 ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
@@ -1219,11 +1192,10 @@ async function loadUserSearchResults(searchTerm, container) {
     });
 }
 
-// ─── Поиск диалогов ──────────────────────────────────────
-const searchInputElem = document.getElementById('search-dialogs');
-if (searchInputElem) {
+const searchInputElemDialogs = document.getElementById('search-dialogs');
+if (searchInputElemDialogs) {
     let searchTimeout;
-    searchInputElem.oninput = (e) => {
+    searchInputElemDialogs.oninput = (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             loadDialogs(e.target.value);
@@ -1231,221 +1203,114 @@ if (searchInputElem) {
     };
 }
 
-// ─── Эмодзи панель ───────────────────────────────────────
-const emojiBtn = document.getElementById('btn-emoji');
-const emojiPicker = document.getElementById('emoji-picker');
-if (emojiBtn && emojiPicker) {
-    emojiBtn.onclick = (e) => {
-        e.stopPropagation();
-        const isVisible = emojiPicker.style.display === 'flex';
-        emojiPicker.style.display = isVisible ? 'none' : 'flex';
-    };
+// --- Загрузка сообщений с пагинацией ---
+async function loadMessages(chatId, reset = true) {
+    const container = document.getElementById('messages');
+    if (!container) return;
     
-    document.querySelectorAll('.emoji-item').forEach(emoji => {
-        emoji.onclick = () => {
-            const input = document.getElementById('message-input');
-            if (input) {
-                input.value += emoji.textContent;
-                input.focus();
-            }
-            emojiPicker.style.display = 'none';
-        };
-    });
-    
-    document.addEventListener('click', (e) => {
-        if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
-            emojiPicker.style.display = 'none';
-        }
-    });
-}
-
-// ─── Контекстное меню сообщений ──────────────────────────
-const messageMenu = document.getElementById('message-menu');
-let activeMessage = null;
-
-function showMessageMenu(e, messageId, messageText, isOwn) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (messageMenu) {
-        messageMenu.style.display = 'block';
-        messageMenu.style.left = `${e.clientX}px`;
-        messageMenu.style.top = `${e.clientY}px`;
-        
-        const menuItems = messageMenu.querySelectorAll('.menu-item');
-        menuItems.forEach(item => {
-            const action = item.dataset.action;
-            item.onclick = () => handleMessageAction(action, messageId, messageText, isOwn);
-        });
-        
-        setTimeout(() => {
-            document.addEventListener('click', hideMessageMenu);
-        }, 0);
+    if (reset) {
+        currentOffset = 0;
+        hasMoreMessages = true;
+        messagesCache.delete(chatId);
+        container.innerHTML = '';
     }
-}
-
-function hideMessageMenu() {
-    if (messageMenu) {
-        messageMenu.style.display = 'none';
-    }
-    document.removeEventListener('click', hideMessageMenu);
-}
-
-async function handleMessageAction(action, messageId, messageText, isOwn) {
-    hideMessageMenu();
     
-    switch (action) {
-        case 'reply':
-            const input = document.getElementById('message-input');
-            if (input && currentChat?.id !== SAVED_CHAT_ID) {
-                input.value = `> ${messageText}\n\n`;
-                input.focus();
-            }
-            break;
-        case 'copy':
-            await navigator.clipboard.writeText(messageText);
-            showToast('Текст скопирован');
-            break;
-        case 'edit':
-            if (isOwn && currentChat?.id !== SAVED_CHAT_ID) {
-                const newText = prompt('Изменить сообщение:', messageText);
-                if (newText && newText.trim()) {
-                    const { error } = await _supabase
-                        .from('messages')
-                        .update({ text: newText.trim(), is_edited: true })
-                        .eq('id', messageId);
-                    if (error) {
-                        showToast('Ошибка редактирования', true);
-                    } else {
-                        showToast('Сообщение изменено');
-                    }
-                }
-            } else {
-                showToast('Можно редактировать только свои сообщения', true);
-            }
-            break;
-        case 'pin':
-            showToast('Функция закрепления в разработке');
-            break;
-        case 'forward':
-            showToast('Функция пересылки в разработке');
-            break;
-        case 'delete':
-            if (isOwn) {
-                const confirm = window.confirm('Удалить сообщение?');
-                if (confirm) {
-                    const { error } = await _supabase
-                        .from('messages')
-                        .delete()
-                        .eq('id', messageId);
-                    if (error) {
-                        showToast('Ошибка удаления', true);
-                    } else {
-                        showToast('Сообщение удалено');
-                    }
-                }
-            } else {
-                showToast('Можно удалять только свои сообщения', true);
-            }
-            break;
+    if (messagesCache.has(chatId) && reset) {
+        const cachedMessages = messagesCache.get(chatId);
+        renderMessagesBatch(cachedMessages);
+        return;
     }
-}
-
-// ─── Вход ────────────────────────────────────────────────
-const loginBtn = document.getElementById('btn-do-login');
-if (loginBtn) {
-    loginBtn.onclick = async () => {
-        const user = document.getElementById('login-username').value.trim();
-        const pass = document.getElementById('login-password').value.trim();
-        const { data, error } = await _supabase.auth.signInWithPassword({ email: getEmail(user), password: pass });
-        if (error) return showToast('Ошибка входа: ' + error.message, true);
-
-        currentUser = data.user;
+    
+    try {
+        const { data: msgs, error, count } = await _supabase
+            .from('messages')
+            .select('*', { count: 'exact' })
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true })
+            .range(currentOffset, currentOffset + MESSAGES_PER_PAGE - 1);
         
-        const { data: p } = await _supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .maybeSingle();
+        if (error) throw error;
         
-        if (!p) {
-            const username = user.replace(/^@/, '');
-            const { data: newProfile } = await _supabase
+        hasMoreMessages = msgs.length === MESSAGES_PER_PAGE;
+        
+        const userIds = [...new Set(msgs?.map(m => m.user_id) || [])];
+        const profilesMap = new Map();
+        
+        if (userIds.length > 0) {
+            const { data: profiles } = await _supabase
                 .from('profiles')
-                .insert({
-                    id: currentUser.id,
-                    username: username,
-                    full_name: username,
-                    last_seen: new Date().toISOString()
-                })
-                .select()
-                .maybeSingle();
-            currentProfile = newProfile;
+                .select('id, full_name, username')
+                .in('id', userIds);
+            if (profiles) profiles.forEach(p => profilesMap.set(p.id, p));
+        }
+        profilesMap.set(BOT_USER_ID, BOT_PROFILE);
+        
+        const messagesWithProfiles = msgs.map(msg => ({
+            ...msg,
+            profiles: profilesMap.get(msg.user_id),
+            is_read: msg.is_read || false
+        }));
+        
+        if (reset) {
+            messagesCache.set(chatId, messagesWithProfiles);
+            renderMessagesBatch(messagesWithProfiles);
         } else {
-            currentProfile = p;
+            const existing = messagesCache.get(chatId) || [];
+            messagesCache.set(chatId, [...messagesWithProfiles, ...existing]);
+            renderMessagesBatch([...messagesWithProfiles, ...existing]);
         }
         
-        if (currentProfile) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = currentProfile.full_name;
-            updateProfileFooter();
-            initProfileFooter();
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        if (loadMoreBtn) {
+            loadMoreBtn.style.display = hasMoreMessages ? 'block' : 'none';
+            loadMoreBtn.onclick = () => {
+                currentOffset += MESSAGES_PER_PAGE;
+                loadMessages(chatId, false);
+            };
         }
         
-        await loadAllUsers();
-        await ensureBotChat();
-        await ensureSavedChat();
-        
-        showScreen('chat');
-        await loadDialogs();
-        
-        document.getElementById('chat-title').textContent = 'Lumina Lite';
-        document.querySelector('.chat-status').textContent = 'выберите диалог';
-        const inputZone = document.querySelector('.input-zone');
-        if (inputZone) inputZone.style.display = 'none';
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = `
-                <div class="msg-stub">
-                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                    <p>Выберите диалог, чтобы начать общение</p>
-                </div>
-            `;
+        if (reset) {
+            container.scrollTop = container.scrollHeight;
         }
-        
-        currentChat = null;
-        
-        document.addEventListener('click', () => updateLastSeen());
-        document.addEventListener('keypress', () => updateLastSeen());
-        setInterval(() => updateLastSeen(), 30000);
-        updateLastSeen();
-        
-        startOnlineHeartbeat();
-        if (window.deletionChannel) {
-            await _supabase.removeChannel(window.deletionChannel);
-        }
-        window.deletionChannel = subscribeToUserDeletion();
-        await cleanupDeadChats();
-    };
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<div class="loading-messages">Ошибка загрузки</div>';
+    }
 }
 
-// ─── Рендер сообщения ────────────────────────────────────
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-function renderMessage(msg, isNewMessage = false) {
+function renderMessagesBatch(messages) {
     const container = document.getElementById('messages');
     if (!container) return;
     
     const stub = container.querySelector('.msg-stub');
     if (stub) stub.remove();
+    
+    container.innerHTML = '';
+    let lastDate = null;
+    
+    messages.forEach(msg => {
+        const currentDate = new Date(msg.created_at).toDateString();
+        if (!lastDate || lastDate !== currentDate) {
+            const dateDivider = document.createElement('div');
+            dateDivider.className = 'date-divider';
+            dateDivider.innerHTML = `
+                <div class="date-divider-line"></div>
+                <div class="date-divider-text">${formatDateDivider(msg.created_at)}</div>
+                <div class="date-divider-line"></div>
+            `;
+            container.appendChild(dateDivider);
+            lastDate = currentDate;
+        }
+        renderMessage(msg, false);
+    });
+    
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
+    }
+}// --- Рендер сообщения ---
+function renderMessage(msg, isNewMessage = false) {
+    const container = document.getElementById('messages');
+    if (!container) return;
     
     const isOwn = currentUser && msg.user_id === currentUser.id;
     const isBot = msg.user_id === BOT_USER_ID;
@@ -1457,46 +1322,28 @@ function renderMessage(msg, isNewMessage = false) {
     
     const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
     const isRead = msg.is_read === true;
-    
-    // Проверяем, нужно ли добавить разделитель даты
-    const lastMessageDiv = container.querySelector('.message:last-child');
-    let lastDate = null;
-    
-    if (lastMessageDiv && lastMessageDiv.dataset.date) {
-        lastDate = lastMessageDiv.dataset.date;
-    }
-    
-    const currentDate = new Date(msg.created_at).toDateString();
-    
-    // Добавляем разделитель только если дата изменилась
-    if (!lastDate || lastDate !== currentDate) {
-        const dateDivider = document.createElement('div');
-        dateDivider.className = 'date-divider';
-        dateDivider.innerHTML = `
-            <div class="date-divider-line"></div>
-            <div class="date-divider-text">${formatDateDivider(msg.created_at)}</div>
-            <div class="date-divider-line"></div>
-        `;
-        container.appendChild(dateDivider);
-    }
+    const isSending = msg.is_sending === true;
     
     const div = document.createElement('div');
-    div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead && currentChat?.id !== SAVED_CHAT_ID ? 'unread-message' : ''}`; 
+    div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead && currentChat?.id !== SAVED_CHAT_ID ? 'unread-message' : ''}`;
     div.dataset.id = msg.id;
     div.dataset.text = msg.text;
-    div.dataset.date = currentDate;
     
-    // У бота нет галочки, у избранного тоже нет галочки
-    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? `
-        <span class="read-status ${isRead ? 'read' : 'unread'}">
-            ${isRead ? '✓✓' : '✓'}
-        </span>
-    ` : '';
+    let readStatusHtml = '';
+    if (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) {
+        if (isSending) {
+            readStatusHtml = `<span class="read-status sending"><svg width="12" height="12"><use href="#icon-clock"/></svg></span>`;
+        } else if (isRead) {
+            readStatusHtml = `<span class="read-status read"><svg width="12" height="12"><use href="#icon-check-double"/></svg></span>`;
+        } else {
+            readStatusHtml = `<span class="read-status delivered"><svg width="12" height="12"><use href="#icon-check"/></svg></span>`;
+        }
+    }
     
     div.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
-            ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
-            ${isBot ? '<div class="verified-badge-small"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+            ${isBot ? '<svg width="20" height="20"><use href="#icon-bot"/></svg>' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
+            ${isBot ? '<div class="verified-badge-small"><svg width="12" height="12"><use href="#icon-check"/></svg></div>' : ''}
         </div>
         <div class="msg-bubble">
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
@@ -1525,646 +1372,1079 @@ function renderMessage(msg, isNewMessage = false) {
         setTimeout(() => {
             container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
         }, 50);
-    } else {
-        setTimeout(() => {
-            container.scrollTop = container.scrollHeight;
-        }, 50);
     }
 }
 
-// ─── Загрузка сообщений ─────────────────────────────────
-let isLoadingMessages = false;
+// --- Контекстное меню ---
+const messageMenu = document.getElementById('message-menu');
+let activeMessage = null;
 
-async function loadMessages(chatId) {
-    const container = document.getElementById('messages');
-    if (!container) return;
+function showMessageMenu(e, messageId, messageText, isOwn) {
+    e.preventDefault();
+    e.stopPropagation();
     
-    if (messagesCache.has(chatId) && messagesCache.get(chatId).length > 0) {
-        const cachedMessages = messagesCache.get(chatId);
-        container.innerHTML = '';
-        let lastDate = null;
-        cachedMessages.forEach(msg => {
-            const currentDate = new Date(msg.created_at).toDateString();
-            if (!lastDate || lastDate !== currentDate) {
-                const dateDivider = document.createElement('div');
-                dateDivider.className = 'date-divider';
-                dateDivider.innerHTML = `
-                    <div class="date-divider-line"></div>
-                    <div class="date-divider-text">${formatDateDivider(msg.created_at)}</div>
-                    <div class="date-divider-line"></div>
-                `;
-                container.appendChild(dateDivider);
-                lastDate = currentDate;
+    if (messageMenu) {
+        messageMenu.style.display = 'block';
+        messageMenu.style.left = `${e.clientX}px`;
+        messageMenu.style.top = `${e.client.clientYY}px}px`;
+        
+`;
+        
+        const menuItems        const = message menuItems = messageMenu.querySelectorMenu.querySelectorAll('.All('.menu-itemmenu-item');
+       ');
+        menuItems.forEach(item menuItems.forEach(item => {
+ => {
+            const            const action = action = item.dat item.dataset.action;
+           aset.action;
+            item.on item.onclick =click = () => () => handleMessage handleMessageAction(actionAction(action, message, messageId,Id, messageText messageText, is, isOwn);
+        });
+Own);
+        });
+        
+               
+        setTimeout(() => document setTimeout(() => document.addEventListener('click', hideMessage.addEventListener('click', hideMessageMenu),Menu), 0);
+    0);
+    }
+}
+
+ }
+}
+
+function hideMessagefunction hideMenu() {
+MessageMenu()    if {
+    if (messageMenu (message) messageMenuMenu) messageMenu.style.display.style.display = 'none';
+    document.removeEventListener = 'none';
+    document.removeEventListener('click', hide('click', hideMessageMenuMessageMenu);
+}
+
+async function);
+}
+
+async function handleMessage handleMessageAction(action, messageAction(actionId,, messageId, messageText messageText, isOwn), isOwn) {
+    {
+    hideMessage hideMessageMenu();
+Menu();
+    
+       
+    switch ( switch (action) {
+action) {
+               case ' case 'reply':
+reply':
+            const input =            const input = document.getElementById('message document.getElementById('message-input');
+            if-input');
+            if (input && current (input && currentChat?.Chat?.id !== SAVid !== SAVED_CHED_CHAT_ID)AT_ID) {
+ {
+                input                input.value = `>.value = `> ${message ${messageText}\Text}\n\nn\n`;
+                input.f`;
+                input.focus();
+           ocus();
             }
-            renderMessage(msg, false);
-        });
-        container.scrollTop = container.scrollHeight;
-        return;
-    }
-    
-    if (isLoadingMessages) return;
-    isLoadingMessages = true;
-    
-    try {
-        const { data: msgs, error } = await _supabase
-            .from('messages')
-            .select('*')
-            .eq('chat_id', chatId)
-            .order('created_at', { ascending: true })
-            .limit(200);
-        
-        if (error) throw error;
-        
-        const userIds = [...new Set(msgs?.map(m => m.user_id) || [])];
-        const profilesMap = new Map();
-        
-        if (userIds.length > 0) {
-            const { data: profiles } = await _supabase
-                .from('profiles')
-                .select('id, full_name, username')
-                .in('id', userIds);
-            if (profiles) profiles.forEach(p => profilesMap.set(p.id, p));
-        }
-        profilesMap.set(BOT_USER_ID, BOT_PROFILE);
-        
-        const messagesWithProfiles = (msgs || []).map(msg => ({
-            ...msg,
-            profiles: profilesMap.get(msg.user_id),
-            is_read: msg.is_read || false
-        }));
-        
-        messagesCache.set(chatId, messagesWithProfiles);
-        container.innerHTML = '';
-        
-        if (messagesWithProfiles.length > 0) {
-            let lastDate = null;
-            messagesWithProfiles.forEach(msg => {
-                const currentDate = new Date(msg.created_at).toDateString();
-                if (!lastDate || lastDate !== currentDate) {
-                    const dateDivider = document.createElement('div');
-                    dateDivider.className = 'date-divider';
-                    dateDivider.innerHTML = `
-                        <div class="date-divider-line"></div>
-                        <div class="date-divider-text">${formatDateDivider(msg.created_at)}</div>
-                        <div class="date-divider-line"></div>
-                    `;
-                    container.appendChild(dateDivider);
-                    lastDate = currentDate;
+ }
+            break            break;
+       ;
+        case 'copy':
+ case 'copy':
+            await            await navigator navigator.clipboard.write.clipboard.writeText(messageText(messageText);
+            showText);
+            showToast('Toast('ТекстТекст скопирован');
+ скопирован');
+            break            break;
+        case ';
+        case 'edit':
+edit':
+            if            if (isOwn && (isOwn && currentChat currentChat?.id !== S?.id !== SAVEDAVED_CHAT_ID)_CHAT_ID) {
+                const newText = {
+                const newText = prompt('Изм prompt('Изменитьенить сообщение:', message сообщение:', messageText);
+Text);
+                if                if (newText && (newText && newText newText.trim()) {
+                   .trim()) {
+                    const { const { error } error } = await _sup = await _supabase
+abase
+                        .                        .from('messages')
+from('messages')
+                        .update({ text:                        .update({ text: newText newText.trim(),.trim(), is_edited: is_edited: true })
+ true })
+                        .eq                        .('id',eq('id', messageId messageId);
+                    if ();
+                    if (error)error) show showToast('ОшибToast('Ошибка редака редактирования', trueктирования', true);
+                   );
+                    else show else showToast('СообToast('Сообщение изменщение изменено');
+ено');
                 }
-                renderMessage(msg, false);
-            });
-        } else {
-            container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
-        }
-        
-        container.scrollTop = container.scrollHeight;
-    } catch (err) {
-        console.error(err);
-        container.innerHTML = '<div class="loading-messages">Ошибка загрузки</div>';
-    } finally {
-        isLoadingMessages = false;
+                }
+            }            } else {
+ else {
+                showToast('                showToast('МожноМожно редактировать только свои сооб редактировать толькощения', свои сооб true);
+            }
+щения',            break true);
+            }
+            break;
+        case ';
+        case 'saved':
+            if (currentsaved':
+            if (currentChat?.id !==Chat?.id !== SAV SAVED_CHED_CHAT_ID) {
+AT_ID) {
+                await                await saveToSavedMessages saveToSavedMessages(messageText(messageText);
+           );
+            }
+            break;
+ }
+            break;
+        case        case 'forward':
+            'forward':
+            showToast('Ф showToast('Функцияункция пересы пересылкилки в разработке');
+            в break;
+        case разработке');
+            break;
+        case 'delete 'delete':
+           ':
+            if (isOwn if (isOwn) {
+) {
+                if (confirm                if (confirm('У('Удалитьдалить сообщение?')) сообщение?')) {
+                    {
+                    const { error } const { = await error } = await _sup _supabase
+                        .abase
+                        .from('from('messages')
+messages')
+                        .                        .delete()
+delete()
+                        .                        .eq('id',eq('id', messageId messageId);
+                    if ();
+                   error) if (error) showToast showToast('Ошибка('Ошибка удаления', true);
+                    else showToast(' удаления', true);
+                    else showToast('Сообщение удаСообщение удалено');
+лено');
+                }
+                }
+            } else {
+            } else {
+                show                showToast('МожноToast('Можно удалять удалять только свои только свои сообщения', true сообщения', true);
+           );
+            }
+            break;
+ }
+            break;
+    }
     }
 }
 
-// ─── Открыть чат "Избранное" ─────────────────────────────
-async function openSavedChat(chatId) {
-    if (isOpeningChat) return;
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
+async}
+
+async function saveToSavedMessages function saveToSavedMessages(messageText) {
+   (messageText) {
     try {
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+ try {
+        const { data        const { data: saved: savedChat } = awaitChat } = await _sup _supabase
+            .abase
+            .from('from('chatschats')
+            .select')
+            .select('id('id')
+            .eq')
+            .eq('type('type', '', 'saved')
+           saved')
+            .contains .contains('participants',('participants', [current [currentUser.id])
+           User.id])
+            .single .single();
+        
+();
+        
+        if        if (savedChat (savedChat) {
+            await) {
+            await _sup _supabase.fromabase.from('messages').insert('messages').insert({
+               ({
+                text: ` text: `📌 Со📌 Сохранено из чахранено из чата:\та:\n\nn\n${messageText}`${messageText}`,
+               ,
+                user_id user_id: currentUser.id: currentUser.id,
+               ,
+                chat_id: saved chat_id: savedChat.id,
+                is_readChat.id,
+                is_read: true: true,
+               ,
+                created_at: new created_at: new Date(). Date().toISOString()
+            });
+toISOString()
+            show            });
+            showToast('Toast('СохраненоСохранено в из в избранное');
         }
-        
-        currentChat = {
-            id: chatId,
-            type: 'saved',
-            other_user: SAVED_CHAT
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное <span class="saved-badge">⭐</span>';
+    } catchбранное');
         }
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = 'личное';
-            chatStatus.className = 'chat-status status-offline';
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (inputZone) inputZone.style.display = 'block';
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Сохранить сообщение...';
-            setTimeout(() => messageInput.focus(), 100);
-        }
-        if (sendButton) sendButton.disabled = false;
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
+    } catch (err (err) {
+) {
+        show        showToast('Toast('Ошибка сохОшибка сохранения',ранения', true);
+ true);
     }
 }
 
-// ─── Подписка на новые сообщения (РЕАЛЬНОЕ ВРЕМЯ!) ──────
-function subscribeToMessages(chatId) {
-    if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
+//    }
+}
+
+// --- Под --- Подписка на сообписка на сообщения ---щения ---
+function subscribeTo
+function subscribeToMessages(Messages(chatId) {
+chatId) {
+    if    if (re (realtimeChannel) _altimeChannel) _supabasesupabase.removeChannel.removeChannel(realtimeChannel);
+(realtimeChannel);
     
-    realtimeChannel = _supabase
-        .channel(`chat-${chatId}`)
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, 
-            async (payload) => {
-                if (document.querySelector(`.message[data-id="${payload.new.id}"]`)) return;
+       
+    realtimeChannel = realtimeChannel = _supabase
+ _supabase
+        .        .channel(`chat-channel(`chat-${chat${chatId}`)
+       Id}`)
+        .on .on('post('postgres_changes',gres_changes', 
+            
+            { event: ' { event: 'INSERT',INSERT', schema: schema: 'public', table 'public', table: ': 'messages', filter:messages', filter `chat: `chat_id=_id=eq.${chateq.${chatId}`Id}` }, 
+ }, 
+            async (payload            async (payload) =>) => {
+                {
+                if (document.querySelector if (document.querySelector(`.(`.message[data-idmessage[data-id="${payload="${payload.new.id}"].new.id}"]`))`)) return;
                 
-                let profile = currentProfile;
-                if (payload.new.user_id !== currentUser?.id) {
-                    if (payload.new.user_id === BOT_USER_ID) {
-                        profile = BOT_PROFILE;
-                    } else {
-                        const { data: userProfile } = await _supabase
-                            .from('profiles')
-                            .select('full_name, username')
-                            .eq('id', payload.new.user_id)
+                return;
+                
+                let profile = current let profile = currentProfile;
+                ifProfile;
+                if (payload.new.user_id !== (payload.new.user_id !== currentUser currentUser?.id) {
+?.id) {
+                    if                    if (payload (payload.new.new.user.user_id === BOT_id === BOT_USER_ID_USER_ID) {
+                        profile) {
+                        profile = B = BOT_PROFILE;
+OT_PROFILE;
+                    }                    } else {
+ else {
+                        const { data                        const { data: user: userProfile }Profile } = await _sup = await _supabase
+abase
+                            .from('                            .from('profilesprofiles')
+                            .select')
+                            .('fullselect('full_name,_name, username')
+                            .eq(' username')
+                            .id',eq('id', payload.new payload.new.user_id.user_id)
+                           )
                             .single();
-                        if (userProfile) profile = userProfile;
+                        .single();
+                        if ( if (userProfileuserProfile) profile) profile = user = userProfile;
+Profile;
+                    }
+                }
                     }
                 }
                 
-                const isFromOther = payload.new.user_id !== currentUser?.id;
-                
-                const newMessage = { 
-                    ...payload.new, 
-                    profiles: profile,
-                    is_read: !isFromOther || chatId === SAVED_CHAT_ID
+                               
+                const is const isFromOtherFromOther = payload.new.user = payload_id !== currentUser.new.user_id !== currentUser?.id?.id;
+               ;
+                const newMessage = const newMessage = { 
+ { 
+                    ...payload                    ...payload.new, 
+.new, 
+                    profiles                    profiles: profile,
+                   : profile,
+                    is_read is_read: !is: !FromOther ||isFromOther || chatId chatId === SAVED_CH === SAVED_CHATAT_ID
                 };
+_ID
                 
-                if (messagesCache.has(chatId)) {
-                    const cached = messagesCache.get(chatId);
+                               };
+                
+                if ( if (messagesCache.has(messagesCache.has(chatIdchatId)) {
+)) {
+                    const cached =                    const cached = messagesCache messagesCache.get(chatId.get(chatId);
+                   );
                     cached.push(newMessage);
-                    messagesCache.set(chatId, cached);
+                    messagesCache cached.push(newMessage);
+                    messagesCache.set(.set(chatId, cached);
+               chatId, cached);
                 }
                 
-                renderMessage(newMessage, true);
-                updateDialogLastMessage(chatId, payload.new.text, !isFromOther);
+ }
                 
-                if (currentChat?.id === chatId && isFromOther && chatId !== SAVED_CHAT_ID) {
-                    setTimeout(() => markChatMessagesAsRead(chatId), 100);
+                render                renderMessage(newMessage,Message(newMessage, true);
+ true);
+                
+                if (                
+                if (currentChatcurrentChat?.id?.id === chatId && === chatId && isFrom isFromOther && chatIdOther && chat !== SId !== SAVEDAVED_CHAT_ID)_CHAT_ID) {
+                    {
+                    setTimeout(() setTimeout(() => mark => markChatMessagesAsReadChatMessagesAsRead(chatId),(chatId), 100 100);
+               );
                 }
-                
-                await loadDialogs();
+                }
+                await load await loadDialogsDialogs();
+            }
+       ();
             }
         )
-        .on('postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-            async (payload) => {
-                const messageDiv = document.querySelector(`.message[data-id="${payload.new.id}"]`);
-                if (messageDiv) {
-                    const textDiv = messageDiv.querySelector('.text');
-                    if (textDiv) textDiv.textContent = payload.new.text;
-                    const timeDiv = messageDiv.querySelector('.msg-time');
-                    if (timeDiv && !timeDiv.textContent.includes('(изм)')) {
-                        timeDiv.textContent = timeDiv.textContent + ' (изм)';
-                    }
+        )
+        .on .on('post('postgres_chgres_changes',
+anges',
+            { event: 'UPDATE', schema: 'public', table            { event: 'UPDATE', schema: 'public', table:: 'messages 'messages', filter', filter: `: `chat_id=eqchat_id=eq.${chatId.${chatId}` },
+}` },
+            async            async (payload (payload) => {
+                const message) => {
+                const messageDiv = document.querySelectorDiv = document.querySelector(`.(`.message[data-idmessage[data-id="${payload="${payload.new.id}"].new.id}"]`);
+               `);
+                if ( if (messageDivmessageDiv) {
+) {
+                    const                    const textDiv = message textDiv = messageDiv.querySelectorDiv.querySelector('.text('.text');
+                   ');
+                    if (textDiv) textDiv.textContent = if (textDiv) textDiv.textContent = payload.new payload.new.text;
                     
-                    if (payload.new.is_read && !messageDiv.classList.contains('own') && !messageDiv.classList.contains('bot-message')) {
-                        messageDiv.classList.remove('unread-message');
-                        const readSpan = messageDiv.querySelector('.read-status');
-                        if (readSpan) {
-                            readSpan.className = 'read-status read';
-                            readSpan.innerHTML = '✓✓';
+.text;
+                    
+                    if                    if (payload.new.is (payload.new.is_read && !message_read && !messageDiv.classListDiv.classList.contains('own')).contains('own')) {
+                        {
+                        messageDiv messageDiv.classList.remove.classList.remove('('ununread-mread-message');
+essage');
+                        const readSpan                        const readSpan = messageDiv.querySelector('.read-status');
+                        if (read = messageDiv.querySelector('.read-status');
+                        if (readSpan)Span) {
+                            {
+                            readSpan readSpan.className = '.className = 'read-statusread-status read';
+                            readSpan.innerHTML read';
+                            read = '<Span.innerHTMLsvg width=" = '<svg width="1212" height" height="12"><use href="#="12icon-check"><use href="#-double"/></icon-checksvg>';
+-double"/></svg>';
+                        }
                         }
                     }
                 }
-                
-                if (messagesCache.has(chatId)) {
-                    const cached = messagesCache.get(chatId);
-                    const idx = cached.findIndex(m => m.id === payload.new.id);
-                    if (idx !== -1) {
-                        cached[idx].text = payload.new.text;
-                        cached[idx].is_read = payload.new.is_read;
                     }
-                    messagesCache.set(chatId, cached);
                 }
-                
-                if (currentChat?.id !== chatId) {
-                    updateDialogLastMessage(chatId, payload.new.text, false);
-                }
-                await loadDialogs();
+                await                await loadDialogs loadDialogs();
+();
             }
         )
-        .on('postgres_changes',
-            { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
-            (payload) => {
-                const messageDiv = document.querySelector(`.message[data-id="${payload.old.id}"]`);
-                if (messageDiv) messageDiv.remove();
-                
-                if (messagesCache.has(chatId)) {
-                    const cached = messagesCache.get(chatId);
-                    const filtered = cached.filter(m => m.id !== payload.old.id);
-                    messagesCache.set(chatId, filtered);
+            }
+        )
+        .on('postgres        .on('postgres_changes_changes',
+            { event',
+            { event: ': 'DELETE', schema:DELETE', schema: 'public', table 'public', table: ': 'messages', filter: `chat_id=messages', filter: `chat_id=eq.eq.${chat${chatId}` },
+           Id}` },
+            (payload) => (payload) => {
+                {
+                const message const messageDiv = document.querySelectorDiv = document.querySelector(`.message(`.message[data-id[data-id="${payload="${payload.old.id}"]`);
+.old.id}                if"]`);
+ (messageDiv)                if (message messageDivDiv).remove();
+                if messageDiv (messages.remove();
+                ifCache.has(chat (messagesCache.has(chatId))Id)) {
+                    {
+                    const filtered const filtered = messagesCache.get = messagesCache.get(chatId).filter(m(chatId).filter(m => m => m.id !== payload..id !== payload.old.idold.id);
+                   );
+                    messages messagesCache.set(Cache.set(chatIdchatId, filtered);
+               , filtered);
                 }
-                loadDialogs();
+                }
+                loadDial loadDialogs();
+            }
+ogs();
             }
         )
         .subscribe();
 }
 
-function updateDialogLastMessage(chatId, text, isOwn) {
-    const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${chatId}"]`);
-    if (dialogItem) {
-        const previewSpan = dialogItem.querySelector('.dialog-preview');
-        if (previewSpan) {
-            let shortText = text.length > 50 ? text.slice(0, 47) + '...' : text;
-            const prefix = isOwn ? 'Вы: ' : '';
-            previewSpan.textContent = prefix + shortText;
-        }
-        const parent = dialogItem.parentNode;
-        parent.removeChild(dialogItem);
-        parent.insertBefore(dialogItem, parent.firstChild);
-    }
+// --- От        )
+        .subscribe();
 }
 
-// ─── Открыть чат (ПЛАВНОЕ ПЕРЕКЛЮЧЕНИЕ) ─────────────────
-let isOpeningChat = false;
-let pendingChatId = null;
+// --- Открытиекрытие чата ---
+ чата ---
+let islet isOpeningChat = falseOpeningChat;
 
-async function openChat(chatId, otherUserId, otherUser) {
-    if (otherUserId && otherUserId !== BOT_USER_ID) {
-        const userExists = await checkUserExists(otherUserId);
-        if (!userExists) {
-            showToast('Пользователь удален, чат будет закрыт', true);
-            await _supabase.from('chats').delete().eq('id', chatId);
-            await _supabase.from('messages').delete().eq('chat_id', chatId);
-            await loadDialogs();
+async = false;
+
+async function open function openChat(chatIdChat(chatId, other, otherUserId, otherUserUserId,) {
+ otherUser) {
+    if (otherUserId && otherUserId !== BOT_USER_ID)    if (otherUserId && otherUserId !== BOT_USER_ID) {
+        const user {
+        const userExists =Exists = await checkUserExists await checkUserExists(otherUserId);
+       (otherUserId);
+        if (!userExists if (!userExists) {
+) {
+            show            showToast('ПользоваToast('Пользователь удатель удален, чат будет закрылен, чатт', будет закрыт', true);
+            await true);
+            await _sup _supabaseabase.from('chats').delete()..from('chats').delete().eq('id',eq('id', chatId chatId);
+            await _);
+            await _supabasesupabase.from('messages')..from('delete().messages').delete().eq('chat_id', chateq('chat_id', chatId);
+Id);
+            await loadDial            await loadDialogs();
+            returnogs();
             return;
+       ;
         }
     }
-    if (isOpeningChat) {
-        pendingChatId = chatId;
-        return;
-    }
-    if (currentChat?.id === chatId) return;
     
-    isOpeningChat = true;
+ }
+    }
+    
+    if    if (isOpeningChat (isOpeningChat || current || currentChat?.Chat?.id === chatIdid === chatId) return) return;
+   ;
+    isOpeningChat = isOpeningChat = true;
+ true;
     
     try {
-        const isBot = otherUserId === BOT_USER_ID;
+    
+    try {
+        const isBot        const isBot = otherUserId === = otherUserId === BOT_USER_ID BOT_USER_ID;
+       ;
+        const messages const messagesContainer =Container = document.getElementById('messages document.getElementById('messages');
+       ');
+        if (messagesContainer) messages if (messagesContainerContainer.innerHTML) messagesContainer.innerHTML = '<div class="loading = '<div class="loading-messages-messages">Загрузка">Загрузка сообщений сообщений...</div>';
         
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
+...</div>';
         
-        currentChat = {
-            id: chatId,
-            type: 'private',
-            other_user: otherUser || (isBot ? BOT_PROFILE : null)
+        current        currentChat =Chat = {
+            {
+            id: chatId id: chatId,
+            type: 'private,
+            type: '',
+           private other_user:',
+            otherUser || other_user: otherUser || (is (isBot ?Bot ? BOT BOT_PROFILE_PROFILE : null)
+        : null)
         };
         
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge">Бот</span>' : ''}`;
+ };
+        
+        const        const chatTitle = document.getElementById(' chatTitle = document.getElementById('chat-title');
+       chat-title');
+        if ( if (chatTitlechatTitle) {
+) {
+            const name =            const name = otherUser otherUser?.full_name || otherUser?.username?.full_name || otherUser?.username || (isBot || (isBot ? ' ? 'LuminaLumina Bot' Bot' : ' : 'Чат');
+           Чат');
+            chatTitle chatTitle.innerHTML = `${.innerHTML = `${escapeescapeHtml(nameHtml(name)} ${)} ${isBot ? '<isBot ? '<span classspan class="bot="bot-badge">Б-badge">Бот</от</span>' :span>' : ''}`;
+ ''}`;
+        }
         }
         
-        if (!isBot && otherUserId) {
-            const { data: profile } = await _supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', otherUserId)
-                .maybeSingle();
-            
-            if (profile) {
-                updateChatStatusFromProfile(profile);
-                subscribeToUserStatus(otherUserId);
-                subscribeToTyping(chatId, otherUserId);
+        if (!        
+        if (!isBot && otherisBotUserId) && otherUserId) {
+            {
+            const { data: const { data: profile } profile } = await _sup = await _supabase
+abase
+                .                .from('profilesfrom('profiles')
+               ')
+                .select(' .select('**')
+               ')
+                .eq .eq('id('id', other', otherUserId)
+UserId)
+                .                .maybemaybeSingleSingle();
+           ();
+            if ( if (profile)profile) {
+                updateChat {
+               StatusFrom updateChatStatusFromProfile(profile);
+Profile(                subscribeprofile);
+                subscribeToUserStatus(otherToUserStatus(otherUserId);
+UserId);
+                subscribe                subscribeToTypToTyping(ing(chatIdchatId, other, otherUserId);
             }
-        } else if (isBot) {
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) {
-                chatStatus.textContent = 'бот';
-                chatStatus.className = 'chat-status status-bot';
+UserId);
+        }            }
+        } else if (is else if (isBot) {
+            constBot) {
+            chat const chatStatus = document.querySelectorStatus =('.chat-status');
+ document.querySelector('.chat-status');
+            if            if (chat (chatStatus) {
+               Status) {
+                chatStatus chatStatus.textContent = '.textContent = 'бот';
+бот';
+                chatStatus.className =                chat 'chatStatus.className =-status status 'chat-bot';
+           -status status-bot';
             }
         }
+        }
         
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
+        const messageInput }
         
-        if (isBot) {
-            if (inputZone) inputZone.style.display = 'none';
-            if (messageInput) messageInput.disabled = true;
-            if (sendButton) sendButton.disabled = true;
-        } else {
-            if (inputZone) inputZone.style.display = 'block';
+        const messageInput = document = document.getElementById('message-input');
+       .getElementById('message-input');
+        const sendButton = const sendButton = document.getElementById document.getElementById('btn('btn-send-msg-send-msg');
+       ');
+        const input const inputZone = document.querySelectorZone = document.querySelector('.input('.input-zone');
+        const clear-zone');
+       ChatBtn const clearChatBtn = document = document.getElementById('clear-ch.getElementById('clear-chat-btn');
+        
+at-btn');
+        
+        if        if (isBot (isBot)) {
+            {
+            if ( if (inputZone) inputinputZone) inputZone.style.displayZone.style.display = 'none';
+            if (messageInput) message = 'none';
+            if (messageInput)Input.disabled = true;
+            if (send messageInput.disabled = true;
+            if (sendButton) sendButtonButton).disabled sendButton.disabled = true = true;
+            if (;
+            if (clearChatclearChatBtn)Btn) clearChatBtn.style clearChatBtn.style.display = 'none';
+.display = 'none';
+        } else        } else {
+            {
+            if (inputZone if (inputZone) input) inputZone.styleZone.style.display =.display = 'block 'block';
+            if (messageInput) {
+                messageInput.disabled =';
             if (messageInput) {
                 messageInput.disabled = false;
-                messageInput.placeholder = 'Написать сообщение...';
-                setTimeout(() => messageInput.focus(), 100);
+ false;
+                messageInput.                messageInput.placeholder =placeholder = 'На 'Написать сообщениеписать сообщение...';
+...';
+                setTimeout(() =>                setTimeout(() => messageInput messageInput.focus.focus(), 100);
+(), 100);
             }
-            if (sendButton) sendButton.disabled = false;
-            setupTypingIndicator();
+            }
+            if (            if (sendsendButton)Button) sendButton sendButton.disabled.disabled = false = false;
+           ;
+            if (clearChat if (clearChatBtn)Btn) clear clearChatChatBtn.styleBtn.style.display =.display = 'block 'block';
+           ';
+            setupTypingIndicator setupTypingIndicator();
+       ();
         }
         
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-
-        setTimeout(async () => {
-            await markChatMessagesAsRead(chatId);
-            
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
+ }
+        
+        if        if (clear (clearChatBtnChatBtn) {
+            clear) {
+            clearChatBtn.onclick = ()ChatBtn.onclick = () => {
+ => {
+                document                document.getElementById('.getElementById('confirm-dialog').style.displayconfirm-dialog').style.display = ' = 'flex';
+flex';
+                               const const confirmYes confirmYes = document = document.getElementById('.getElementById('confirmconfirm-y-yes');
+es');
+                const                const confirm confirmNo = documentNo = document.getElementById('.getElementById('confirm-noconfirm-no');
+                
+                confirm');
+                
+                confirmYes.onclick = async () => {
+                    awaitYes.onclick = async () => {
+                    await _supabase.from _supabase.from('messages('messages').delete').delete().eq('chat().eq('chat_id',_id', chatId chatId);
+                    await);
+                    await loadMessages loadMessages(chatId,(chatId, true);
+ true);
+                    document                    document.getElementById('confirm-d.getElementById('confirm-dialog').style.display = 'ialog').style.display =none';
+ 'none';
+                    show                    showToast('Toast('История очищИстория очищена');
+                };
+ена');
+                };
+                confirm                confirmNo.onNo.onclick =click = () => () => {
+                    document {
+                    document.getElementById('confirm.getElementById('confirm-dialog').style-dialog').style.display = 'none';
+               .display = 'none';
+                };
+            };
+            };
+        }
+        
+ };
+        }
+        
+        await        await loadMessages loadMessages(chatId,(chatId, true);
+ true);
+        subscribe        subscribeToMessages(chatId);
+ToMessages(chatId);
+        
+        setTimeout(async        
+        setTimeout(async () => () => {
+            {
+            await markChatMessages await markChatMessagesAsReadAsRead(chat(chatId);
+            if (windowId);
+            if (window.readStatusObservers.readStatusObservers) {
+) {
+                window                window.readStatusObservers.readStatusObservers.observer.observer?.disconnect();
+?.disconnect();
+                window                window.readStatus.readStatusObservers.mutationObservers.mutationObserver?.Observer?.disconnect();
+           disconnect();
             }
-            window.readStatusObservers = setupReadStatusObserver();
+            }
+            window.read window.readStatusObservers =StatusObservers = setupReadStatusObserver();
+        setupReadStatusObserver }, ();
         }, 500);
+500);
         
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
+        document.querySelector        
+        document.querySelectorAll('.All('.dialog-item').forEach(el =>dialog-item').forEach(el => {
+            {
+            el.classList el.classList.remove('active');
+.remove('active');
+            if            if (el.dataset (el.dataset.chat.chatId === chatIdId === chatId) el) el.classList.add.classList.add('active');
         });
-        
-    } finally {
-        isOpeningChat = false;
-        if (pendingChatId && pendingChatId !== chatId) {
-            const pending = pendingChatId;
-            pendingChatId = null;
-            const pendingDialog = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
-            if (pendingDialog) {
-                const otherId = pendingDialog.dataset.otherUserId;
-                await openChat(pending, otherId, null);
-            }
-        }
+   ('active');
+        });
+    } finally } finally {
+        {
+        isOpeningChat = isOpeningChat = false;
+ false;
     }
 }
 
-// Отправка сообщения
-async function sendMsg() {
-    const input = document.getElementById('message-input');
-    if (!input) return;
+async    }
+}
+
+async function openSavedChat function openSavedChat(chat(chatId)Id) {
+    if (isOpening {
+    if (Chat || currentChatisOpening?.idChat || currentChat?.id === chat === chatId) return;
+Id) return;
+    is    isOpeningChatOpeningChat = true;
     
-    const text = input.value.trim();
-    if (!text || !currentUser || !currentChat) {
-        if (!currentChat) showToast('Выберите чат', true);
+ = true;
+    
+    try    try {
+        const messages {
+        const messagesContainer =Container = document.getElementById document.getElementById('messages');
+       ('messages');
+        if (messagesContainer) messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений if (messagesContainer) messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+        
+...</div>';
+        
+        current        currentChat =Chat = {
+            id: {
+            id: chatId chatId,
+            type:,
+            type: 's 'saved',
+aved',
+            other_user:            other_user: SAV SAVED_CHAT
+ED_CHAT
+        };
+        };
+        
+               
+        const chatTitle = const chatTitle = document.getElementById document.getElementById('chat('chat-title');
+-title');
+        if        if (chat (chatTitle) chatTitleTitle) chatTitle.innerHTML =.innerHTML = 'Избран 'Изное <spanбранное <span class=" class="saved-badgesaved-badge">⭐">⭐</span>';
+        
+        const chat</span>';
+        
+        const chatStatus = document.querySelector('.chat-statusStatus = document.querySelector('.chat-status');
+       ');
+        if (chatStatus if (chatStatus) {
+) {
+            chat            chatStatus.textContent =Status.textContent = 'лич 'личное';
+            chatное';
+            chatStatus.classStatus.className =Name = 'chat-status status 'chat-status status-offline-offline';
+       ';
+        }
+        
+ }
+        
+        const messageInput        const messageInput = document = document.getElementById('message-input.getElementById('message-input');
+       ');
+        const sendButton = const sendButton = document.getElementById('btn document.getElementById('btn-send-msg-send-msg');
+       ');
+        const input const inputZone = document.querySelectorZone = document.querySelector('.input-zone');
+        const clear('.input-zone');
+        const clearChatBtnChatBtn = document = document.getElementById('clear-ch.getElementById('clear-chat-btn');
+        
+        ifat-btn');
+        
+        if (input (inputZone)Zone) inputZone.style.display inputZone.style.display = ' = 'block';
+block';
+        if        if (message (messageInput)Input) {
+            messageInput {
+            messageInput.disabled = false;
+           .disabled messageInput = false;
+           .placeholder messageInput = 'Сохра.placeholderнить сооб = 'Сохращение...нить сообщение...';
+            setTimeout(()';
+            setTimeout(() => message => messageInput.focus(),Input.focus(), 100 100);
+       );
+        }
+        if ( }
+        if (sendButton) sendButton.dissendButton) sendButton.disabled =abled = false;
+ false;
+        if (clear        if (clearChatBtn) clearChatBtnChatBtn) clearChatBtn.style.display.style.display = ' = 'none';
+        
+       none';
+        
+        await load await loadMessages(chatIdMessages(chatId, true, true);
+       );
+        subscribeToMessages( subscribeToMessages(chatId);
+        
+        documentchatId);
+        
+        document.querySelectorAll.querySelectorAll('.dialog('.dialog-item').-item').forEach(elforEach(el => {
+ => {
+            el            el.classList.remove('active');
+            if (el.dataset.ch.classList.remove('active');
+            if (el.dataset.chatIdatId === chatId) === chatId) el.classList el.classList.add('.add('active');
+        });
+active');
+        });
+    } finally {
+        is    } finally {
+OpeningChat        is = false;
+   OpeningChat = false;
+    }
+}
+
+ }
+}
+
+// ---// --- Отправ Отправка сообка сообщения ---щения ---
+async
+async function send function sendMsg()Msg() {
+    {
+    const input const input = document = document.getElementById('.getElementById('message-inputmessage-input');
+   ');
+    if (!input) if (! return;
+    
+   input) return;
+ const text    
+    const text = input = input.value.trim.value.trim();
+   ();
+    if (!text || if (! !currenttext ||User || !currentUser || !current !currentChat)Chat) {
+ {
+        if        if (!current (!currentChat)Chat) showToast showToast('Вы('Выберитеберите чат чат', true', true);
         return;
     }
-    
-    if (currentChat.other_user?.id === BOT_USER_ID) {
-        showToast('Нельзя отправлять сообщения боту', true);
+);
         return;
+    
+       }
+ if (    
+    if (currentChat.othercurrentChat.other_user?._user?.id ===id === BOT BOT_USER_ID) {
+_USER_ID)        show {
+        showToast('Toast('Нельзя отправлятьНельзя отправлять сообщения сообщения боту', true боту', true);
+       );
+        return;
+ return;
     }
+    
+       }
     
     const originalText = text;
-    input.value = '';
+ const originalText = text;
+    input    input.value =.value = '';
     
-    const tempId = `temp-${Date.now()}-${Math.random()}`;
-    const tempMessage = {
+    const '';
+    
+    const tempId = `temp- tempId = `temp-${Date${Date.now()}-${.now()}-${Math.randomMath.random()}`;
+   ()}`;
+    const temp const tempMessage =Message = {
+        id: {
         id: tempId,
+        text: tempId,
         text: text,
-        user_id: currentUser.id,
-        chat_id: currentChat.id,
-        created_at: new Date().toISOString(),
-        is_read: currentChat.id === SAVED_CHAT_ID,
-        is_sending: true,
-        profiles: currentProfile
+        user text,
+        user_id: currentUser_id: currentUser.id,
+.id,
+        chat        chat_id: currentChat_id: currentChat.id,
+.id,
+        created_at:        created_at: new Date new Date().toISOString().to(),
+       ISOString(),
+        is_read: currentChat.id is_read: currentChat.id === S === SAVEDAVED_CHAT_ID,
+_CHAT_ID,
+        is        is_sending: true_sending: true,
+       ,
+        profiles: profiles: currentProfile
+    currentProfile
     };
     
-    renderMessage(tempMessage, true);
+ };
     
-    const sendButton = document.getElementById('btn-send-msg');
+    render    renderMessage(tempMessage, true);
+Message(tempMessage, true);
+    
+    const send    
+    const sendButton =Button = document.getElementById('btn document.getElementById('btn-send-send-msg-msg');
+    if (');
     if (sendButton) sendButton.disabled = true;
     
+   sendButton) sendButton.disabled = true;
+    
     try {
-        const { data, error } = await _supabase
-            .from('messages')
-            .insert([{ 
+        const try {
+        const { data { data, error, error } = } = await _ await _supabasesupabase
+           
+            .from .from('messages('messages')
+            .insert')
+            .insert([{([{ 
+                
                 text, 
-                user_id: currentUser.id,
-                chat_id: currentChat.id,
-                is_read: currentChat.id === SAVED_CHAT_ID,
-                created_at: new Date().toISOString()
+                text, 
+                user_id user_id: current: currentUserUser.id,
+               .id,
+                chat_id chat_id: current: currentChat.id,
+                is_readChat.id,
+                is_read: current: currentChat.idChat.id === S === SAVEDAVED_CHAT_CHAT_ID,
+_ID,
+                created                created_at: new Date_at:().to new Date().toISOStringISOString()
             }])
-            .select()
-            .single();
+()
+            }])
+            .            .select()
+select()
+            .            .single();
+single();
         
-        if (error) throw error;
+               
+        if ( if (error) throw error;
         
-        const tempMsgElement = document.querySelector(`.message[data-id="${tempId}"]`);
-        if (tempMsgElement) tempMsgElement.remove();
+error) throw error;
         
-        renderMessage({ ...data, profiles: currentProfile }, true);
+        const tempMsg        const tempMsgElement =Element = document.querySelector(`. document.querySelector(`.messagemessage[data-id[data-id="${tempId}="${tempId}"]`);
+"]`);
+        if        if (tempMsgElement (tempMsgElement) temp) tempMsgElementMsgElement.remove();
+.remove();
         
-        await _supabase
-            .from('chats')
-            .update({ 
-                updated_at: new Date().toISOString(),
-                last_message: text.slice(0, 50)
-            })
-            .eq('id', currentChat.id);
+               
+        renderMessage renderMessage({ ...data, profiles:({ ...data, profiles: currentProfile currentProfile }, true }, true);
         
-        loadDialogs();
+        await);
         
-    } catch (error) {
-        input.value = originalText;
-        showToast('Ошибка отправки: ' + (error.message || 'Неизвестная ошибка'), true);
+        await _sup _supabase
+abase
+            .            .from('from('chatschats')
+            .update')
+            .update({ updated({ updated_at_at:: new Date().to new Date().toISOStringISOString() })
+            .() })
+            .eq('eq('id', currentChatid', currentChat.id);
+.id);
         
-        const tempMsgElement = document.querySelector(`.message[data-id="${tempId}"]`);
-        if (tempMsgElement) tempMsgElement.remove();
+        loadDial        
+       ogs();
+ loadDialogs();
+    }    } catch (error) catch (error {
+       ) {
+        input.value input.value = originalText;
+ = originalText;
+        show        showToast('ОToast('Ошибшибка отправка отправки:ки: ' + (error ' + (error.message ||.message || 'Не 'Неизвестная ошибка'),известная ошиб true);
+ка'), true);
+        const tempMsg        const tempMsgElement =Element = document.querySelector document.querySelector(`.message(`.message[data-id="${tempId}[data-id="${tempId}"]`);
+        if"]`);
+        if (tempMsgElement (tempMsgElement) temp) tempMsgElementMsgElement.remove.remove();
+();
     } finally {
-        if (sendButton) sendButton.disabled = false;
-        input.focus();
-    }
+    } finally {
+        if (send        if (sendButton)Button) sendButton.disabled sendButton.disabled = false;
+        = false input.focus();
+;
+           }
+ input.focus();
 }
 
-// ─── Выход ───────────────────────────────────────────────
-const logoutBtn = document.getElementById('btn-logout');
-if (logoutBtn) {
-    logoutBtn.onclick = async () => {
-        stopOnlineHeartbeat();
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-        if (typingChannel) await _supabase.removeChannel(typingChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        currentChat = null;
-        showScreen('reg');
+//    }
+}
+
+// --- Эмод --- Эмодзи пизи пикер ---
+кер ---
+const emconst emojiBtnojiBtn = document = document.getElementById('btn-.getElementById('btn-emojiemoji');
+const emoji');
+const emojiPicker =Picker = document.getElementById('emo document.getElementById('emoji-pji-picker');
+icker');
+if (if (emojiemojiBtn &&Btn && emoji emojiPicker) {
+   Picker) {
+    emojiBtn.on emojiBtn.onclick = (eclick = (e) =>) => {
+        e.stop {
+       Propagation e.stopPropagation();
+        const is();
+       Visible = const isVisible = emojiPicker.style emojiPicker.style.display ===.display === 'flex 'flex';
+       ';
+        emoji emojiPicker.style.display =Picker.style.display = isVisible ? 'none' isVisible : ' ? 'none'flex';
+ : 'flex';
     };
-}
-
-// ─── Профиль ─────────────────────────────────────────────
-const profileBtn = document.getElementById('btn-profile');
-if (profileBtn) {
-    profileBtn.onclick = () => {
-        if (!currentProfile) return;
-        document.getElementById('profile-avatar-letter').textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-        document.getElementById('profile-fullname').value = currentProfile.full_name || '';
-        document.getElementById('profile-username').value = currentProfile.username || '';
-        document.getElementById('profile-bio').value = currentProfile.bio || '';
-        showScreen('profile');
-    };
-}
-
-const profileBackBtn = document.getElementById('btn-profile-back');
-if (profileBackBtn) profileBackBtn.onclick = () => showScreen('chat');
-
-const profileLogoutBtn = document.getElementById('btn-logout-profile');
-if (profileLogoutBtn) {
-    profileLogoutBtn.onclick = async () => {
-        stopOnlineHeartbeat();
-        if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-        if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-        if (typingChannel) await _supabase.removeChannel(typingChannel);
-        await _supabase.auth.signOut();
-        currentUser = null;
-        currentProfile = null;
-        currentChat = null;
-        showScreen('reg');
-    };
-}
-
-const saveProfileBtn = document.getElementById('btn-save-profile');
-if (saveProfileBtn) {
-    saveProfileBtn.onclick = async () => {
-        const full_name = document.getElementById('profile-fullname').value.trim();
-        const bio = document.getElementById('profile-bio').value.trim();
-        if (!full_name) return showToast('Имя не может быть пустым', true);
-        
-        const { error } = await _supabase.from('profiles')
-            .update({ full_name, bio })
-            .eq('id', currentUser.id);
-        
-        if (error) return showToast('Ошибка сохранения', true);
-        
-        currentProfile.full_name = full_name;
-        currentProfile.bio = bio;
-        document.getElementById('current-user-badge').textContent = full_name;
-        document.getElementById('profile-avatar-letter').textContent = full_name[0].toUpperCase();
-        updateProfileFooter();
-        showToast('Профиль сохранён ✓');
-        setTimeout(() => showScreen('chat'), 800);
-    };
-}
-
-// ─── Кнопка отправки и Enter ────────────────────────────
-const sendButton = document.getElementById('btn-send-msg');
-if (sendButton) sendButton.onclick = sendMsg;
-
-const messageInputField = document.getElementById('message-input');
-if (messageInputField) {
-    messageInputField.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMsg();
+    
+       };
+    
+    document.querySelector document.querySelectorAll('.emojiAll('.emoji-item').-item').forEach(forEach(emoji => {
+emoji => {
+        em        emoji.onoji.onclick =click = () => {
+            () => {
+            const input const input = document.getElementById = document.getElementById('('message-inputmessage-input');
+           ');
+            if (input) if (input) {
+                {
+                const start = input.selectionStart;
+ const start = input.selectionStart;
+                const end =                const end = input.se input.selectionEndlectionEnd;
+                const em;
+                const emojiTextojiText = em = emoji.textContent;
+                inputoji.textContent;
+.value =                input.value = input.value.slice( input.value.slice(0, start) + emojiText + input.value.slice0, start) + emojiText + input.value.slice(end);
+                input(end);
+                input.setSelection.setSelectionRange(startRange(start + em + emojiText.length, start +ojiText.length, start + emojiText.length emojiText.length);
+               );
+                input.focus();
+ input.focus();
+            }
+            }
+            em            emojiPicker.style.displayojiPicker.style.display = ' = 'none';
+none';
+        };
+        };
+    });
+    });
+    
+       
+    document.addEventListener('click document.addEventListener('click', (', (e)e) => {
+ => {
+        if (!emo        if (!emojiPicker.contains(ejiPicker.contains(e.target).target) && e && e.target !==.target !== emoji emojiBtn)Btn) {
+            em {
+            emojiojiPicker.stylePicker.style.display =.display = 'none';
+        'none';
         }
+    }
     });
 }
 
-// ─── DVH фикс и адаптация под клавиатуру ─────────────────
-function updateDvh() {
-    document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
+// --- });
 }
-window.addEventListener('resize', updateDvh);
+
+// --- От Отправкаправка по Enter по Enter ---
+ ---
+const sendButton =const sendButton = document.getElementById document.getElementById('btn-send('btn-send-msg-msg');
+if');
+if (sendButton) (sendButton) sendButton sendButton.onclick.onclick = sendMsg;
+
+ = sendMsg;
+
+const messageconst messageInputField = document.getElementById('InputField = document.getElementById('message-inputmessage-input');
+if (message');
+if (messageInputFieldInputField) {
+) {
+       messageInputField messageInputField.addEventListener('.addEventListener('keypress', (e)keypress', (e) => {
+ => {
+        if (e        if (e.key ===.key === 'Enter' && 'Enter !e' && !e.shiftKey).shift {
+           Key) {
+            e.preventDefault e.preventDefault();
+           ();
+            sendMsg sendMsg();
+       ();
+        }
+    }
+    });
+}
+
+// --- });
+}
+
+// --- DVH DVH фикс фикс ---
+ ---
+function updatefunction updateDvhDvh() {
+() {
+    document    document.documentElement.style.document.setProperty('--Element.styledvh.setProperty('--', `${window.innerdvhHeight}', `${window.innerpx`);
+}
+windowHeight}.addEventListener('px`);
+}
+window.addEventListener('resizeresize', update', updateDvh);
+updateDvh);
 updateDvh();
 
-let originalHeight = window.innerHeight;
-window.addEventListener('resize', () => {
-    const newHeight = window.innerHeight;
-    if (newHeight < originalHeight - 100) {
-        setTimeout(() => {
-            const inputZone = document.querySelector('.input-zone');
-            if (inputZone && inputZone.style.display !== 'none') {
-                const input = document.getElementById('message-input');
-                if (input) input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 100);
-    }
-    originalHeight = newHeight;
-    updateDvh();
-});
+//Dvh();
 
-// ─── Запуск ──────────────────────────────────────────────
+// --- Ав --- Автозатозапуск ---
 (async () => {
-    const { data: { session } } = await _supabase.auth.getSession();
+пуск ---
+(async () => {
+       const { data const { data: {: { session } } = session } } = await _ await _supabasesupabase.auth.getSession();
     
-    if (session) {
-        currentUser = session.user;
+   .auth.getSession();
+ if (session)    
+    {
+        if (session) currentUser {
+        currentUser = session = session.user.user;
+;
         
-        const { data: p } = await _supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .maybeSingle();
+        const {        
+        const { data: p } data: p } = await = await _supabase
+ _supabase
+            .from('            .from('profilesprofiles')
+            .select')
+            .select('*('*')
+            .eq')
+            .eq('id('id', currentUser.id', currentUser.id)
+           )
+            .maybe .maybeSingle();
+        
+       Single();
         
         if (!p) {
-            const email = currentUser.email;
-            let username = email ? email.split('@')[0] : 'user';
-            username = username.replace(/@lumina\.local$/, '');
-            const { data: newProfile } = await _supabase
-                .from('profiles')
+ if (!p) {
+                       const email const email = current = currentUser.email;
+            let usernameUser.email;
+            let username = email = email ? ? email.split(' email.split('@@')[0] : '')[0] : 'user';
+            usernameuser';
+ = username.replace(/            username = username.replace(/@l@lumina\.umina\.local$local$/, '');
+            const/, '');
+            const { { data: newProfile } = data: newProfile } = await _supabase await _supabase
+               
+                .from('prof .from('profiles')
+                .iles')
                 .insert({
+                    id:insert({
                     id: currentUser.id,
+ currentUser.id,
                     username: username,
+                    full_name:                    username: username,
                     full_name: username,
-                    last_seen: new Date().toISOString()
+ username,
+                    last                    last_seen: new_seen: new Date(). Date().toISOString(),
+toISOString(),
+                    is                    is_online_online: true: true
+               
+                })
                 })
                 .select()
-                .maybeSingle();
-            currentProfile = newProfile;
+                .select()
+                .maybe .maybeSingle();
+Single();
+            currentProfile =            currentProfile = newProfile newProfile;
+        } else;
         } else {
-            currentProfile = p;
+            {
+            currentProfile currentProfile = p;
+        = p;
         }
         
-        if (currentProfile) {
-            document.getElementById('current-user-badge').textContent = currentProfile.full_name;
+ }
+        
+        if (current        if (currentProfile)Profile) {
+            document.getElementById {
+            document.getElementById('current('current-user-b-user-badge').adge').textContenttext = currentContent = currentProfileProfile.full_name;
+            updateProfileFooter.full_name;
             updateProfileFooter();
             initProfileFooter();
-        }
+();
+            initProfile        }
+Footer();
         
-        await loadAllUsers();
-        await ensureBotChat();
-        await ensureSavedChat();
+        await load        }
+AllUsers        
+        await load();
+        await ensureAllUsers();
+        await ensureBotChatBotChat();
+        await ensure();
+        await ensureSavedChatSavedChat();
         
-        showScreen('chat');
-        await loadDialogs();
+();
         
-        document.getElementById('chat-title').textContent = 'Lumina Lite';
-        document.querySelector('.chat-status').textContent = 'выберите диалог';
-        const inputZone = document.querySelector('.input-zone');
-        if (inputZone) inputZone.style.display = 'none';
+        showScreen('        showScreen('chat');
+chat');
+        await        await loadDialogs();
         
-        document.getElementById('messages').innerHTML = `
-            <div class="msg-stub">
-                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                <p>Выберите диалог, чтобы начать общение</p>
+        loadDialogs();
+        
+        document.getElementById('chat-title'). document.getElementById('chat-title').textContenttextContent = 'Lumina = 'Lumina Lite';
+ Lite';
+        document        document.querySelector('.chat-status.querySelector('.chat-status').textContent = 'выберите').textContent = 'выберите диал диалог';
+ог';
+        const inputZone        const inputZone = document = document.querySelector('..querySelector('.input-zone');
+input-zone');
+        if        if (inputZone) (inputZone) inputZone inputZone.style.display.style.display = 'none';
+ = 'none';
+        
+               
+        document.getElementById('messages document.getElementById('messages').innerHTML =').inner `
+            <divHTML = class=" `
+            <div class="msg-stmsg-stubub">
+                <">
+                <svg widthsvg width="="48" height48" height="48" style="48" style="margin-bottom:="margin-bottom: 16px; 16px; opacity: 0 opacity: 0.3.3;"><use;"><use href="#icon-ch href="#icon-chat"/at"/></svg>
+               ></svg>
+                <p <p>Вы>Выберите диалберите диалог, чтобы начаог, чтобы начать общение</ть общение</p>
+p>
             </div>
-        `;
+            </div>
+        `        `;
         
-        currentChat = null;
+;
         
-        document.addEventListener('click', () => updateLastSeen());
-        document.addEventListener('keypress', () => updateLastSeen());
-        setInterval(() => updateLastSeen(), 30000);
-        updateLastSeen();
-        
+        currentChat =        currentChat = null;
+        start null;
         startOnlineHeartbeat();
-    } else {
-        showScreen('reg');
+OnlineHeartbeat();
+    }    } else {
+        show else {
+        showScreen('Screen('reg');
+reg');
+    }
+})();
     }
 })();
