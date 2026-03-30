@@ -224,8 +224,8 @@ function initProfileScreen() {
         profileLogoutBtn.onclick = async () => {
             stopOnlineHeartbeat();
             if (realtimeChannel) await supabase.removeChannel(realtimeChannel);
-            if (window.statusSubscription) await supabase.removeChannel(window.statusSubscription);
-            if (window.typingChannel) await supabase.removeChannel(window.typingChannel);
+            if (statusSubscription) await supabase.removeChannel(statusSubscription);
+            if (typingChannel) await supabase.removeChannel(typingChannel);
             await supabase.auth.signOut();
             currentUser = null;
             currentProfile = null;
