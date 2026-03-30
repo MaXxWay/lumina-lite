@@ -1,10 +1,7 @@
 // Главный файл инициализации
-let supabaseClient = null;
-
 (async function init() {
-    // Инициализация Supabase
+    // Инициализация Supabase клиента
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    window.supabase = supabaseClient;
     
     // Инициализация всех модулей
     initAuth();
