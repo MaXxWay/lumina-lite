@@ -9,7 +9,7 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    // initMobileOptimizations(); // УДАЛЕНО - больше нет ошибки
+    initMobileOptimizations(); // ✅ РАЗКОММЕНТИРОВАНО
     
     window.addEventListener('resize', updateDvh);
     updateDvh();
