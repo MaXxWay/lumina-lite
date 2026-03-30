@@ -15,49 +15,57 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
+        // Исправленный запрос - убираем select=* из URL, используем .select()
         const { data: chats, error: chatsError } = await supabaseClient
             .from('chats')
             .select('*')
             .contains('participants', [currentUser.id])
             .order('updated_at', { ascending: false });
         
-        if (chatsError) throw chatsError;
+        if (chatsError) {
+            console.error('Ошибка загрузки чатов:', chatsError);
+            throw chatsError;
+        }
         
         const validChats = [];
         for (const chat of chats || []) {
-            const otherId = chat.participants.find(id => id !== currentUser.id);
+            const otherId = chat.participants?.find(id => id !== currentUser.id);
             
             if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
                 validChats.push(chat);
                 continue;
             }
             
-            const userExists = await checkUserExists(otherId);
-            if (userExists) {
-                validChats.push(chat);
-            } else {
-                console.log(`🗑️ Удаляем чат ${chat.id} - пользователь ${otherId} не существует`);
-                await supabaseClient.from('chats').delete().eq('id', chat.id);
-                await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
+            if (otherId) {
+                const userExists = await checkUserExists(otherId);
+                if (userExists) {
+                    validChats.push(chat);
+                } else {
+                    console.log(`🗑️ Удаляем мертвый чат: ${chat.id}`);
+                    await supabaseClient.from('chats').delete().eq('id', chat.id);
+                    await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
+                }
             }
         }
         
-        const { data: unreadData, error: unreadError } = await supabaseClient
-            .from('messages')
-            .select('chat_id')
-            .eq('is_read', false)
-            .neq('user_id', currentUser.id)
-            .in('chat_id', validChats.map(c => c.id) || []);
-        
-        if (unreadError) throw unreadError;
-        
-        const unreadCounts = new Map();
-        if (unreadData) {
-            unreadData.forEach(msg => {
-                unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
-            });
+        // Получаем непрочитанные сообщения
+        let unreadCounts = new Map();
+        if (validChats.length > 0) {
+            const { data: unreadData } = await supabaseClient
+                .from('messages')
+                .select('chat_id')
+                .eq('is_read', false)
+                .neq('user_id', currentUser.id)
+                .in('chat_id', validChats.map(c => c.id));
+            
+            if (unreadData) {
+                unreadData.forEach(msg => {
+                    unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
+                });
+            }
         }
         
+        // Получаем последние сообщения
         const lastMessages = new Map();
         for (const chat of validChats) {
             const { data: lastMsg } = await supabaseClient
@@ -71,27 +79,37 @@ async function loadDialogs(searchTerm = '') {
             if (lastMsg) {
                 const isOwn = lastMsg.user_id === currentUser.id;
                 const prefix = isOwn ? 'Вы: ' : '';
-                let text = lastMsg.text;
+                let text = lastMsg.text || '';
                 if (text && text.length > 50) text = text.slice(0, 47) + '...';
                 lastMessages.set(chat.id, prefix + text);
             }
         }
         
-        const allParticipantIds = validChats.flatMap(c => c.participants);
-        const { data: profiles } = await supabaseClient
-            .from('profiles')
-            .select('id, full_name, username, last_seen, is_online')
-            .in('id', [...new Set(allParticipantIds)]);
+        // Получаем профили участников
+        const allParticipantIds = validChats.flatMap(c => c.participants || []);
+        const uniqueIds = [...new Set(allParticipantIds)];
         
         const profileMap = new Map();
-        if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
+        if (uniqueIds.length > 0) {
+            const { data: profiles } = await supabaseClient
+                .from('profiles')
+                .select('id, full_name, username, last_seen, is_online')
+                .in('id', uniqueIds);
+            
+            if (profiles) {
+                profiles.forEach(p => profileMap.set(p.id, p));
+            }
+        }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        const chatData = validChats.map(chat => {
-            const otherId = chat.participants.find(id => id !== currentUser.id);
+        // Формируем данные для отображения
+        const chatData = [];
+        for (const chat of validChats) {
+            const otherId = chat.participants?.find(id => id !== currentUser.id);
             
+            // Чат "Избранное"
             if (chat.id === SAVED_CHAT_ID) {
-                return {
+                chatData.push({
                     id: chat.id,
                     otherId: SAVED_CHAT_ID,
                     otherUser: SAVED_CHAT,
@@ -100,23 +118,22 @@ async function loadDialogs(searchTerm = '') {
                     isBot: false,
                     unreadCount: 0,
                     lastMessage: lastMessages.get(chat.id) || 'Сохраненные сообщения',
-                    updatedAt: chat.updated_at,
-                    statusText: 'личное',
-                    statusClass: 'status-offline',
                     isOnline: false
-                };
+                });
+                continue;
             }
             
+            // Обычный чат или чат с ботом
             const otherUser = profileMap.get(otherId);
-            if (!otherUser && otherId !== BOT_USER_ID) return null;
+            if (!otherUser && otherId !== BOT_USER_ID) continue;
             
             const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
             const isBot = otherId === BOT_USER_ID;
             const unreadCount = unreadCounts.get(chat.id) || 0;
-            const status = otherUser ? getUserStatusFromProfile(otherUser) : { text: '', class: '' };
+            const status = otherUser ? getUserStatusFromProfile(otherUser) : { class: '' };
             const isOnline = status.class === 'status-online';
             
-            return {
+            chatData.push({
                 id: chat.id,
                 otherId,
                 otherUser,
@@ -125,13 +142,11 @@ async function loadDialogs(searchTerm = '') {
                 isSaved: false,
                 unreadCount,
                 lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
-                updatedAt: chat.updated_at,
-                statusText: status.text,
-                statusClass: status.class,
                 isOnline: isOnline
-            };
-        }).filter(chat => chat !== null);
+            });
+        }
         
+        // Фильтрация по поиску
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
             filteredData = chatData.filter(chat => 
@@ -163,7 +178,7 @@ function renderDialogsList(container, filteredData) {
         const div = document.createElement('div');
         div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''} ${chat.isSaved ? 'saved-dialog' : ''}`;
         div.dataset.chatId = chat.id;
-        div.dataset.otherUserId = chat.otherId;
+        div.dataset.otherUserId = chat.otherId || '';
         
         const unreadBadge = chat.unreadCount > 0 ? 
             `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
@@ -192,7 +207,7 @@ function renderDialogsList(container, filteredData) {
                     ${chat.isSaved ? '<span class="saved-badge">⭐</span>' : ''}
                     ${unreadBadge}
                 </div>
-                <div class="dialog-preview">${escapeHtml(chat.lastMessage)}</div>
+                <div class="dialog-preview">${escapeHtml(chat.lastMessage || '')}</div>
             </div>
         `;
         
@@ -225,7 +240,7 @@ async function loadUserSearchResults(searchTerm, container) {
         return;
     }
     
-    users.forEach(user => {
+    for (const user of users) {
         const name = user.full_name || user.username;
         const div = document.createElement('div');
         div.className = 'dialog-item user-search-item';
@@ -254,169 +269,27 @@ async function loadUserSearchResults(searchTerm, container) {
             }
         };
         container.appendChild(div);
-    });
+    }
 }
 
+// Эти функции должны быть определены в других файлах, но для безопасности проверяем их наличие
 async function openChat(chatId, otherUserId, otherUser) {
-    if (otherUserId && otherUserId !== BOT_USER_ID) {
-        const userExists = await checkUserExists(otherUserId);
-        if (!userExists) {
-            showToast('Пользователь удален, чат будет закрыт', true);
-            await supabaseClient.from('chats').delete().eq('id', chatId);
-            await supabaseClient.from('messages').delete().eq('chat_id', chatId);
-            await loadDialogs();
-            return;
-        }
+    if (typeof window.openChatImpl === 'function') {
+        return window.openChatImpl(chatId, otherUserId, otherUser);
     }
-    if (isOpeningChat) {
-        pendingChatId = chatId;
-        return;
-    }
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const isBot = otherUserId === BOT_USER_ID;
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'private',
-            other_user: otherUser || (isBot ? BOT_PROFILE : null)
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge">Бот</span>' : ''}`;
-        }
-        
-        if (!isBot && otherUserId) {
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('id', otherUserId)
-                .maybeSingle();
-            
-            if (profile) {
-                updateChatStatusFromProfile(profile);
-                subscribeToUserStatus(otherUserId);
-                subscribeToTyping(chatId);
-            }
-        } else if (isBot) {
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) {
-                chatStatus.textContent = 'бот';
-                chatStatus.className = 'chat-status status-bot';
-            }
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (isBot) {
-            if (inputZone) inputZone.style.display = 'none';
-            if (messageInput) messageInput.disabled = true;
-            if (sendButton) sendButton.disabled = true;
-        } else {
-            if (inputZone) inputZone.style.display = 'block';
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.placeholder = 'Написать сообщение...';
-                setTimeout(() => messageInput.focus(), 100);
-            }
-            if (sendButton) sendButton.disabled = false;
-            setupTypingIndicator();
-        }
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        setTimeout(async () => {
-            await markChatMessagesAsRead(chatId);
-            
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }, 500);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
-        if (pendingChatId && pendingChatId !== chatId) {
-            const pending = pendingChatId;
-            pendingChatId = null;
-            const pendingDialog = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
-            if (pendingDialog) {
-                const otherId = pendingDialog.dataset.otherUserId;
-                await openChat(pending, otherId, null);
-            }
-        }
-    }
+    console.error('openChat не определена');
 }
 
 async function openSavedChat(chatId) {
-    if (isOpeningChat) return;
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'saved',
-            other_user: SAVED_CHAT
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное <span class="saved-badge">⭐</span>';
-        }
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = 'личное';
-            chatStatus.className = 'chat-status status-offline';
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (inputZone) inputZone.style.display = 'block';
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Сохранить сообщение...';
-            setTimeout(() => messageInput.focus(), 100);
-        }
-        if (sendButton) sendButton.disabled = false;
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
+    if (typeof window.openSavedChatImpl === 'function') {
+        return window.openSavedChatImpl(chatId);
     }
+    console.error('openSavedChat не определена');
 }
+
+// Экспортируем функции в глобальный объект
+window.loadDialogs = loadDialogs;
+window.renderDialogsList = renderDialogsList;
+window.loadUserSearchResults = loadUserSearchResults;
+window.openChat = openChat;
+window.openSavedChat = openSavedChat;
