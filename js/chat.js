@@ -315,4 +315,18 @@ function updateDialogLastMessage(chatId, text, isOwn) {
         if (preview) preview.textContent = (isOwn ? 'Вы: ' : '') + (text.length > 50 ? text.slice(0, 47) + '...' : text);
         item.parentNode.insertBefore(item, item.parentNode.firstChild);
     }
+    // Экспорт функций в глобальный объект
+window.getOrCreatePrivateChat = getOrCreatePrivateChat;
+window.markChatMessagesAsRead = markChatMessagesAsRead;
+window.setupReadStatusObserver = setupReadStatusObserver;
+window.loadMessages = loadMessages;
+window.renderMessage = renderMessage;
+window.subscribeToMessages = subscribeToMessages;
+window.setupTypingIndicator = setupTypingIndicator;
+window.sendTypingStatus = sendTypingStatus;
+window.subscribeToTyping = subscribeToTyping;
+window.sendMsg = sendMsg;
+window.updateDialogLastMessage = updateDialogLastMessage;
+window.openChatImpl = openChat;
+window.openSavedChatImpl = openSavedChat;
 }
