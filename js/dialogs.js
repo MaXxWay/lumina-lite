@@ -13,14 +13,19 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
+        // ИСПРАВЛЕННЫЙ ЗАПРОС - убираем contains, используем filter
         const { data: chats, error: chatsError } = await supabaseClient
             .from('chats')
             .select('*')
-            .contains('participants', [currentUser.id])
+            .filter('participants', 'cs', `{${currentUser.id}}`)
             .order('updated_at', { ascending: false });
         
-        if (chatsError) throw chatsError;
+        if (chatsError) {
+            console.error('Ошибка загрузки чатов:', chatsError);
+            throw chatsError;
+        }
         
+        // Остальной код без изменений...
         const validChats = [];
         for (const chat of chats || []) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
@@ -42,6 +47,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
+        // Получаем непрочитанные сообщения
         let unreadCounts = new Map();
         if (validChats.length > 0) {
             const { data: unreadData } = await supabaseClient
@@ -58,6 +64,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
+        // Получаем последние сообщения
         const lastMessages = new Map();
         for (const chat of validChats) {
             const { data: lastMsg } = await supabaseClient
@@ -77,6 +84,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
+        // Получаем профили
         const allParticipantIds = validChats.flatMap(c => c.participants || []);
         const uniqueIds = [...new Set(allParticipantIds)];
         
@@ -93,6 +101,7 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
+        // Формируем данные
         const chatData = [];
         for (const chat of validChats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
@@ -134,6 +143,7 @@ async function loadDialogs(searchTerm = '') {
             });
         }
         
+        // Фильтрация
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
             filteredData = chatData.filter(chat => 
