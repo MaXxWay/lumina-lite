@@ -13,17 +13,26 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // Используем RPC функцию
-        const { data: chats, error: chatsError } = await supabaseClient
-            .rpc('get_my_chats');
+        // Получаем ВСЕ чаты (простой запрос без фильтрации)
+        const { data: allChats, error: chatsError } = await supabaseClient
+            .from('chats')
+            .select('*');
         
         if (chatsError) {
             console.error('Ошибка загрузки чатов:', chatsError);
             throw chatsError;
         }
         
+        // Фильтруем чаты где есть текущий пользователь
+        const chats = (allChats || []).filter(chat => 
+            chat.participants && chat.participants.includes(currentUser.id)
+        );
+        
+        // Сортируем по дате обновления
+        chats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+        
         const validChats = [];
-        for (const chat of chats || []) {
+        for (const chat of chats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
             if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
@@ -80,7 +89,7 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
-        // Получаем профили
+        // Получаем профили всех участников
         const allParticipantIds = validChats.flatMap(c => c.participants || []);
         const uniqueIds = [...new Set(allParticipantIds)];
         
@@ -97,11 +106,12 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        // Формируем данные
+        // Формируем данные для отображения
         const chatData = [];
         for (const chat of validChats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
+            // Чат "Избранное"
             if (chat.id === SAVED_CHAT_ID) {
                 chatData.push({
                     id: chat.id,
@@ -139,7 +149,7 @@ async function loadDialogs(searchTerm = '') {
             });
         }
         
-        // Фильтрация
+        // Фильтрация по поиску
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
             filteredData = chatData.filter(chat => 
