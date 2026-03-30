@@ -9,7 +9,7 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    initMobileOptimizations(); // ← УДАЛИТЕ ЭТУ СТРОКУ
+    if (typeof initMobileOptimizations === 'function') initMobileOptimizations();
     
     window.addEventListener('resize', updateDvh);
     updateDvh();
