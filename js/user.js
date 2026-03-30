@@ -1,9 +1,4 @@
 // Управление пользователями и статусами
-let onlineInterval = null;
-let isUserOnline = true;
-let lastActivityUpdate = 0;
-let statusSubscription = null;
-
 async function setUserOnlineStatus(isOnline) {
     if (!currentUser) return;
     isUserOnline = isOnline;
