@@ -115,48 +115,8 @@ function stopOnlineHeartbeat() {
     if (currentUser) setUserOnlineStatus(false);
 }
 
-// При закрытии страницы/вкладки (синхронный запрос)
 window.addEventListener('beforeunload', () => {
-    if (currentUser) {
-        navigator.sendBeacon(
-            `${SUPABASE_URL}/rest/v1/rpc/force_set_offline`,
-            JSON.stringify({ user_id: currentUser.id })
-        );
-    }
-});
-
-// При скрытии вкладки (переключение на другую вкладку)
-document.addEventListener('visibilitychange', async () => {
-    if (!currentUser) return;
-    
-    if (document.hidden) {
-        console.log('💤 Вкладка скрыта, статус: не в сети');
-        await setUserOnlineStatus(false);
-        if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    } else {
-        console.log('🟢 Вкладка активна, статус: онлайн');
-        await setUserOnlineStatus(true);
-        resetUserActivity();
-        
-        if (currentChat) {
-            await markChatMessagesAsRead(currentChat.id);
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }
-    }
-});
-
-// При закрытии самого браузера или вкладки (дополнительная страховка)
-window.addEventListener('pagehide', () => {
-    if (currentUser) {
-        navigator.sendBeacon(
-            `${SUPABASE_URL}/rest/v1/rpc/force_set_offline`,
-            JSON.stringify({ user_id: currentUser.id })
-        );
-    }
+    if (currentUser) setUserOnlineStatus(false);
 });
 
 // ─── ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЯ ──────────────
@@ -180,7 +140,7 @@ function resetUserActivity() {
             console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
             await setUserOnlineStatus(false);
         }
-    }, 1);
+    }, 15000);
 }
 
 // Слушаем активность пользователя
