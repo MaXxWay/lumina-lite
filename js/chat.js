@@ -40,7 +40,7 @@ async function markChatMessagesAsRead(chatId) {
                 msgDiv.classList.remove('unread-message');
             });
         }
-        await loadDialogs();
+        if (typeof loadDialogs === 'function') await loadDialogs();
     } catch (err) { console.error('Ошибка отметки прочитанных:', err); }
 }
 
@@ -80,7 +80,7 @@ function setupReadStatusObserver() {
                         cached.forEach(msg => { if (visibleMessages.includes(msg.id)) msg.is_read = true; });
                         messagesCache.set(currentChat.id, cached);
                     }
-                    await loadDialogs();
+                    if (typeof loadDialogs === 'function') await loadDialogs();
                 } catch (err) {}
                 readCheckTimeout = null;
             }, 500);
@@ -256,9 +256,9 @@ function subscribeToMessages(chatId) {
             const newMsg = { ...payload.new, profiles: profile, is_read: !isFromOther || chatId === SAVED_CHAT_ID };
             if (messagesCache.has(chatId)) messagesCache.get(chatId).push(newMsg);
             renderMessage(newMsg, true);
-            updateDialogLastMessage(chatId, payload.new.text, !isFromOther);
+            if (typeof updateDialogLastMessage === 'function') updateDialogLastMessage(chatId, payload.new.text, !isFromOther);
             if (currentChat?.id === chatId && isFromOther && chatId !== SAVED_CHAT_ID) setTimeout(() => markChatMessagesAsRead(chatId), 100);
-            await loadDialogs();
+            if (typeof loadDialogs === 'function') await loadDialogs();
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, async (payload) => {
             const msgDiv = document.querySelector(`.message[data-id="${payload.new.id}"]`);
@@ -274,13 +274,13 @@ function subscribeToMessages(chatId) {
                 const idx = messagesCache.get(chatId).findIndex(m => m.id === payload.new.id);
                 if (idx !== -1) { messagesCache.get(chatId)[idx].text = payload.new.text; messagesCache.get(chatId)[idx].is_read = payload.new.is_read; }
             }
-            if (currentChat?.id !== chatId) updateDialogLastMessage(chatId, payload.new.text, false);
-            await loadDialogs();
+            if (currentChat?.id !== chatId && typeof updateDialogLastMessage === 'function') updateDialogLastMessage(chatId, payload.new.text, false);
+            if (typeof loadDialogs === 'function') await loadDialogs();
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, (payload) => {
             document.querySelector(`.message[data-id="${payload.old.id}"]`)?.remove();
             if (messagesCache.has(chatId)) messagesCache.set(chatId, messagesCache.get(chatId).filter(m => m.id !== payload.old.id));
-            loadDialogs();
+            if (typeof loadDialogs === 'function') loadDialogs();
         })
         .subscribe();
 }
@@ -339,7 +339,7 @@ async function sendMsg() {
         document.querySelector(`.message[data-id="${tempId}"]`)?.remove();
         renderMessage({ ...data, profiles: currentProfile }, true);
         await supabaseClient.from('chats').update({ updated_at: new Date().toISOString(), last_message: text.slice(0, 50) }).eq('id', currentChat.id);
-        loadDialogs();
+        if (typeof loadDialogs === 'function') loadDialogs();
     } catch (error) {
         input.value = original;
         showToast('Ошибка отправки: ' + (error.message || 'Неизвестная ошибка'), true);
