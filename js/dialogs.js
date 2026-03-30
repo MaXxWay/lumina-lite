@@ -1,4 +1,4 @@
-// ========== ФУНКЦИЯ ОТРИСОВКИ (ДОЛЖНА БЫТЬ ПЕРВОЙ) ==========
+// ========== ФУНКЦИЯ ОТРИСОВКИ (ОБЪЯВЛЕНА ПЕРВОЙ) ==========
 function renderDialogsList(container, filteredData) {
     container.innerHTML = '';
     
@@ -75,7 +75,6 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // Простой запрос без лишних полей
         const { data: allChats, error: chatsError } = await supabaseClient
             .from('chats')
             .select('id, type, participants, updated_at, created_at, last_message');
@@ -86,17 +85,10 @@ async function loadDialogs(searchTerm = '') {
             return;
         }
         
-        console.log('Все чаты из БД:', allChats);
-        console.log('Текущий пользователь:', currentUser);
-        
-        // Фильтруем чаты где есть текущий пользователь
         const chats = (allChats || []).filter(chat => 
             chat.participants && chat.participants.includes(currentUser.id)
         );
         
-        console.log('Отфильтрованные чаты:', chats);
-        
-        // Сортируем по дате обновления
         chats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
         
         const validChats = [];
@@ -113,7 +105,6 @@ async function loadDialogs(searchTerm = '') {
                 if (userExists) {
                     validChats.push(chat);
                 } else {
-                    console.log(`🗑️ Удаляем мертвый чат: ${chat.id}`);
                     await supabaseClient.from('chats').delete().eq('id', chat.id);
                     await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
                 }
@@ -126,7 +117,6 @@ async function loadDialogs(searchTerm = '') {
             return;
         }
         
-        // Получаем непрочитанные сообщения
         let unreadCounts = new Map();
         const { data: unreadData } = await supabaseClient
             .from('messages')
@@ -141,7 +131,6 @@ async function loadDialogs(searchTerm = '') {
             });
         }
         
-        // Получаем последние сообщения
         const lastMessages = new Map();
         for (const chat of validChats) {
             const { data: lastMsg } = await supabaseClient
@@ -161,7 +150,6 @@ async function loadDialogs(searchTerm = '') {
             }
         }
         
-        // Получаем профили
         const allParticipantIds = validChats.flatMap(c => c.participants || []);
         const uniqueIds = [...new Set(allParticipantIds)];
         
@@ -178,7 +166,6 @@ async function loadDialogs(searchTerm = '') {
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
-        // Формируем данные
         const chatData = [];
         for (const chat of validChats) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
@@ -220,7 +207,6 @@ async function loadDialogs(searchTerm = '') {
             });
         }
         
-        // Фильтрация по поиску
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
             filteredData = chatData.filter(chat => 
@@ -231,8 +217,8 @@ async function loadDialogs(searchTerm = '') {
         renderDialogsList(container, filteredData);
         
     } catch (err) {
-        console.error('Ошибка загрузки диалогов:', err);
-        container.innerHTML = '<div class="dialogs-loading">Ошибка: ' + (err.message || 'Неизвестная ошибка') + '</div>';
+        console.error('Ошибка:', err);
+        container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки</div>';
     } finally {
         isUpdatingDialogs = false;
     }
