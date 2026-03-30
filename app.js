@@ -18,7 +18,7 @@ const BOT_PROFILE = {
     is_bot: true
 };
 
-// Функция очистки мертвых чатов (ВЫНЕСТИ СЮДА)
+// Функция очистки мертвых чатов
 async function cleanupDeadChats() {
     if (!currentUser) return;
     
@@ -75,61 +75,6 @@ async function checkUserExists(userId) {
 
 const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
 
-// Добавьте в функцию logout (оба места)
-async function logout() {
-    stopOnlineHeartbeat();
-    if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
-    if (statusSubscription) await _supabase.removeChannel(statusSubscription);
-    if (typingChannel) await _supabase.removeChannel(typingChannel);
-    if (window.deletionChannel) await _supabase.removeChannel(window.deletionChannel);
-    
-    messagesCache.clear();
-    dialogCache.clear();
-    observedMessages.clear();
-    
-    if (window.readStatusObservers) {
-        window.readStatusObservers.observer?.disconnect();
-        window.readStatusObservers.mutationObserver?.disconnect();
-    }
-    
-    await _supabase.auth.signOut();
-    currentUser = null;
-    currentProfile = null;
-    currentChat = null;
-    showScreen('reg');
-}
-
-// ─── ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЯ ──────────────
-let userActivityTimeout = null;
-let lastActivityTime = Date.now();
-
-function resetUserActivity() {
-    if (!currentUser) return;
-    
-    lastActivityTime = Date.now();
-    
-    if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    
-    if (!isUserOnline) {
-        setUserOnlineStatus(true);
-    }
-    
-    userActivityTimeout = setTimeout(async () => {
-        const inactiveTime = Date.now() - lastActivityTime;
-        if (inactiveTime >= 15000 && isUserOnline) {
-            console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
-            await setUserOnlineStatus(false);
-        }
-    }, 15000);
-}
-
-// Слушаем активность пользователя
-window.addEventListener('mousemove', resetUserActivity);
-window.addEventListener('keydown', resetUserActivity);
-window.addEventListener('click', resetUserActivity);
-window.addEventListener('scroll', resetUserActivity);
-
-
 // ─── ОНЛАЙН / НЕ В СЕТИ (реальное время) ────────────────
 let onlineInterval = null;
 let isUserOnline = true;
@@ -174,11 +119,59 @@ window.addEventListener('beforeunload', () => {
     if (currentUser) setUserOnlineStatus(false);
 });
 
+// ─── ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЯ ──────────────
+let userActivityTimeout = null;
+let lastActivityTime = Date.now();
+
+function resetUserActivity() {
+    if (!currentUser) return;
+    
+    lastActivityTime = Date.now();
+    
+    if (userActivityTimeout) clearTimeout(userActivityTimeout);
+    
+    if (!isUserOnline) {
+        setUserOnlineStatus(true);
+    }
+    
+    userActivityTimeout = setTimeout(async () => {
+        const inactiveTime = Date.now() - lastActivityTime;
+        if (inactiveTime >= 15000 && isUserOnline) {
+            console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
+            await setUserOnlineStatus(false);
+        }
+    }, 15000);
+}
+
 // Слушаем активность пользователя
 window.addEventListener('mousemove', resetUserActivity);
 window.addEventListener('keydown', resetUserActivity);
 window.addEventListener('click', resetUserActivity);
 window.addEventListener('scroll', resetUserActivity);
+
+// ─── Выход ───────────────────────────────────────────────
+async function logout() {
+    stopOnlineHeartbeat();
+    if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
+    if (statusSubscription) await _supabase.removeChannel(statusSubscription);
+    if (typingChannel) await _supabase.removeChannel(typingChannel);
+    if (window.deletionChannel) await _supabase.removeChannel(window.deletionChannel);
+    
+    messagesCache.clear();
+    dialogCache.clear();
+    observedMessages.clear();
+    
+    if (window.readStatusObservers) {
+        window.readStatusObservers.observer?.disconnect();
+        window.readStatusObservers.mutationObserver?.disconnect();
+    }
+    
+    await _supabase.auth.signOut();
+    currentUser = null;
+    currentProfile = null;
+    currentChat = null;
+    showScreen('reg');
+}
 
 // ─── Экраны ─────────────────────────────────────────────
 const screens = {
@@ -902,7 +895,7 @@ async function loadDialogs(searchTerm = '') {
                 await _supabase.from('chats').delete().eq('id', chat.id);
                 await _supabase.from('messages').delete().eq('chat_id', chat.id);
             }
-        } // <-- ВАЖНО: закрывающая скобка for цикла
+        }
         
         // Получаем непрочитанные сообщения
         const { data: unreadData, error: unreadError } = await _supabase
@@ -965,7 +958,7 @@ async function loadDialogs(searchTerm = '') {
             const status = otherUser ? getUserStatusFromProfile(otherUser) : { text: '', class: '' };
             const isOnline = status.class === 'status-online';
             
- return {
+            return {
                 id: chat.id,
                 otherId,
                 otherUser,
@@ -976,7 +969,7 @@ async function loadDialogs(searchTerm = '') {
                 updatedAt: chat.updated_at,
                 statusText: status.text,
                 statusClass: status.class,
-                isOnline: isOnline  // <-- ДОБАВИТЬ ЭТУ СТРОКУ
+                isOnline: isOnline
             };
         }).filter(chat => chat !== null);
         
@@ -1005,7 +998,6 @@ async function loadDialogs(searchTerm = '') {
         isUpdatingDialogs = false;
     }
 }
-
 
 // Вынесенная функция рендеринга диалогов
 function renderDialogsList(container, filteredData) {
@@ -1304,10 +1296,10 @@ if (loginBtn) {
         
         startOnlineHeartbeat();
         // Подписываемся на удаление пользователей
-if (window.deletionChannel) {
-    await _supabase.removeChannel(window.deletionChannel);
-}
-window.deletionChannel = subscribeToUserDeletion();
+        if (window.deletionChannel) {
+            await _supabase.removeChannel(window.deletionChannel);
+        }
+        window.deletionChannel = subscribeToUserDeletion();
         await cleanupDeadChats();
     };
 }
@@ -1317,7 +1309,7 @@ let isOpeningChat = false;
 let pendingChatId = null;
 
 async function openChat(chatId, otherUserId, otherUser) {
-        // Проверяем, существует ли собеседник
+    // Проверяем, существует ли собеседник
     if (otherUserId && otherUserId !== BOT_USER_ID) {
         const userExists = await checkUserExists(otherUserId);
         if (!userExists) {
@@ -1396,7 +1388,7 @@ async function openChat(chatId, otherUserId, otherUser) {
             setupTypingIndicator();
         }
         
-  await loadMessages(chatId);
+        await loadMessages(chatId);
         subscribeToMessages(chatId);
 
         // Отмечаем прочитанные после рендера
@@ -1415,7 +1407,6 @@ async function openChat(chatId, otherUserId, otherUser) {
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
         
-
     } finally {
         isOpeningChat = false;
         if (pendingChatId && pendingChatId !== chatId) {
@@ -1475,7 +1466,6 @@ async function loadMessages(chatId) {
         const messagesWithProfiles = (msgs || []).map(msg => ({
             ...msg,
             profiles: profilesMap.get(msg.user_id),
-            // Сохраняем оригинальный статус прочитанного
             is_read: msg.is_read || false
         }));
         
@@ -1498,7 +1488,7 @@ async function loadMessages(chatId) {
 }
 
 // ─── Подписка на новые сообщения (РЕАЛЬНОЕ ВРЕМЯ!) ──────
-  function subscribeToMessages(chatId) {
+function subscribeToMessages(chatId) {
     if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
     
     realtimeChannel = _supabase
@@ -1595,7 +1585,6 @@ async function loadMessages(chatId) {
                     const filtered = cached.filter(m => m.id !== payload.old.id);
                     messagesCache.set(chatId, filtered);
                 }
-                // ✅ ИСПРАВЛЕНО: используем chatId из внешней функции
                 loadDialogs();
             }
         )
@@ -1645,12 +1634,12 @@ function renderMessage(msg) {
     
     const timeStr = new Date(msg.created_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
 
-const isRead = msg.is_read === true;
-const readStatusHtml = isOwn ? `
-    <span class="read-status ${isRead ? 'read' : 'unread'}">
-        ${isRead ? '✓✓' : '✓'}
-    </span>
-` : '';
+    const isRead = msg.is_read === true;
+    const readStatusHtml = isOwn ? `
+        <span class="read-status ${isRead ? 'read' : 'unread'}">
+            ${isRead ? '✓✓' : '✓'}
+        </span>
+    ` : '';
     
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead ? 'unread-message' : ''}`; 
@@ -1672,7 +1661,7 @@ const readStatusHtml = isOwn ? `
         </div>
     `;
     
-const textDiv = div.querySelector('.text');
+    const textDiv = div.querySelector('.text');
     if (textDiv && msg.text && msg.text.length > 100) {
         textDiv.title = msg.text;
         textDiv.style.cursor = 'help';
@@ -1688,7 +1677,8 @@ const textDiv = div.querySelector('.text');
         container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }, 50);
 }
-// Замените существующую функцию sendMsg
+
+// Отправка сообщения
 async function sendMsg() {
     const input = document.getElementById('message-input');
     if (!input) return;
@@ -1704,11 +1694,9 @@ async function sendMsg() {
         return;
     }
     
-    // Сохраняем текст на случай ошибки
     const originalText = text;
     input.value = '';
     
-    // Временный ID для оптимистичного обновления
     const tempId = `temp-${Date.now()}-${Math.random()}`;
     const tempMessage = {
         id: tempId,
@@ -1721,7 +1709,6 @@ async function sendMsg() {
         profiles: currentProfile
     };
     
-    // Оптимистичное добавление сообщения
     renderMessage(tempMessage);
     
     const sendButton = document.getElementById('btn-send-msg');
@@ -1742,14 +1729,11 @@ async function sendMsg() {
         
         if (error) throw error;
         
-        // Удаляем временное сообщение
         const tempMsgElement = document.querySelector(`.message[data-id="${tempId}"]`);
         if (tempMsgElement) tempMsgElement.remove();
         
-        // Добавляем реальное сообщение
         renderMessage({ ...data, profiles: currentProfile });
         
-        // Обновляем чат
         await _supabase
             .from('chats')
             .update({ 
@@ -1758,15 +1742,12 @@ async function sendMsg() {
             })
             .eq('id', currentChat.id);
         
-        // Обновляем список диалогов в фоне
         loadDialogs();
         
     } catch (error) {
-        // Восстанавливаем текст при ошибке
         input.value = originalText;
         showToast('Ошибка отправки: ' + (error.message || 'Неизвестная ошибка'), true);
         
-        // Удаляем временное сообщение
         const tempMsgElement = document.querySelector(`.message[data-id="${tempId}"]`);
         if (tempMsgElement) tempMsgElement.remove();
     } finally {
@@ -1882,6 +1863,30 @@ window.addEventListener('resize', () => {
     updateDvh();
 });
 
+// ─── Обработчик видимости вкладки ───
+document.addEventListener('visibilitychange', async () => {
+    if (!currentUser) return;
+    
+    if (document.hidden) {
+        console.log('💤 Вкладка скрыта, статус: не в сети');
+        await setUserOnlineStatus(false);
+        if (userActivityTimeout) clearTimeout(userActivityTimeout);
+    } else {
+        console.log('🟢 Вкладка активна, статус: онлайн');
+        await setUserOnlineStatus(true);
+        resetUserActivity();
+        
+        if (currentChat) {
+            await markChatMessagesAsRead(currentChat.id);
+            if (window.readStatusObservers) {
+                window.readStatusObservers.observer?.disconnect();
+                window.readStatusObservers.mutationObserver?.disconnect();
+            }
+            window.readStatusObservers = setupReadStatusObserver();
+        }
+    }
+});
+
 // ─── Запуск ──────────────────────────────────────────────
 (async () => {
     const { data: { session } } = await _supabase.auth.getSession();
@@ -1944,33 +1949,9 @@ window.addEventListener('resize', () => {
         document.addEventListener('keypress', () => updateLastSeen());
         setInterval(() => updateLastSeen(), 30000);
         updateLastSeen();
-               startOnlineHeartbeat();
+        
+        startOnlineHeartbeat();
     } else {
         showScreen('reg');
     }
 })();
-
-// ─── Обработчик видимости вкладки ───
-document.addEventListener('visibilitychange', async () => {
-    if (!currentUser) return;
-    
-    if (document.hidden) {
-        console.log('💤 Вкладка скрыта, статус: не в сети');
-        await setUserOnlineStatus(false);
-        if (userActivityTimeout) clearTimeout(userActivityTimeout);
-    } else {
-        console.log('🟢 Вкладка активна, статус: онлайн');
-        await setUserOnlineStatus(true);
-        startOnlineHeartbeat();
-        resetUserActivity(); // Добавить эту строку
-        
-        if (currentChat) {
-            await markChatMessagesAsRead(currentChat.id);
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }
-    }
-});
