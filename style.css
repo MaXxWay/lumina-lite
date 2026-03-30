@@ -345,9 +345,9 @@ body {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
 }
 
-/* Аватар бота на всю ширину */
+/* Аватар бота - единый цвет #12141D */
 .dialog-avatar.bot-avatar {
-    background: linear-gradient(135deg, #2d3748, #1a202c);
+    background: #12141D;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -355,15 +355,15 @@ body {
 }
 
 .dialog-avatar.bot-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+    border-radius: 0;
 }
 
 /* Аватар бота в сообщениях */
 .msg-avatar.bot-avatar {
-    background: #2d3748;
+    background: #12141D;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -371,11 +371,18 @@ body {
 }
 
 .msg-avatar.bot-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+    border-radius: 0;
 }
 
+/* Убираем верификационный бейдж у бота в сообщениях */
+.msg-avatar.bot-avatar .verified-badge-small {
+    display: none;
+}
+
+/* Верификационный бейдж для бота в диалогах */
 .verified-badge {
     position: absolute;
     bottom: -2px;
@@ -389,19 +396,6 @@ body {
     justify-content: center;
 }
 .verified-badge svg { width: 10px; height: 10px; stroke: white; stroke-width: 3; }
-.verified-badge-small {
-    position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 14px;
-    height: 14px;
-    background: #3b82f6;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.verified-badge-small svg { width: 8px; height: 8px; stroke: white; stroke-width: 3; }
 
 .dialog-info { flex: 1; min-width: 0; }
 .dialog-name { font-weight: 600; margin-bottom: 4px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -412,7 +406,6 @@ body {
 .bot-badge-small { display: inline-block; background: #4a5568; color: white; font-size: 9px; padding: 1px 5px; border-radius: 8px; margin-left: 6px; font-weight: 600; vertical-align: middle; }
 .bot-message .msg-bubble { background: rgba(74, 85, 104, 0.3); border: 1px solid rgba(74, 85, 104, 0.5); }
 .bot-message .msg-sender { color: #a0aec0; }
-.msg-avatar.bot-avatar { background: #4a5568; }
 
 .loading-messages { text-align: center; color: var(--text-dim); padding: 40px; font-size: 13px; }
 .msg-stub { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
@@ -546,7 +539,7 @@ body {
 
 .hidden { display: none !important; }
 
-/* Статус онлайн - зеленая точка */
+/* Статус онлайн - зеленая точка (без мигания) */
 .online-dot {
     position: absolute;
     bottom: 2px;
@@ -556,28 +549,12 @@ body {
     background: #22c55e;
     border-radius: 50%;
     border: 2px solid #03081a;
-    box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+    box-shadow: 0 0 2px rgba(34, 197, 94, 0.5);
     z-index: 10;
-    transition: all 0.2s ease;
 }
 
 .online-dot.hidden {
     display: none;
-}
-
-.online-dot:not(.hidden) {
-    animation: pulse-online 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-online {
-    0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.6;
-        transform: scale(1.15);
-    }
 }
 
 /* Статус в шапке чата */
@@ -595,7 +572,6 @@ body {
     background: #22c55e;
     border-radius: 50%;
     display: inline-block;
-    animation: pulse-online 1.5s ease-in-out infinite;
 }
 
 .status-online {
@@ -613,11 +589,6 @@ body {
     height: 8px;
     background: #4ade80;
     border-radius: 50%;
-    animation: pulse-green 1.5s ease-in-out infinite;
-}
-@keyframes pulse-green {
-    0%, 100% { opacity: 1; transform: translateY(-50%) scale(1); }
-    50% { opacity: 0.6; transform: translateY(-50%) scale(1.2); }
 }
 .status-offline { color: var(--text-dim); opacity: 0.7; }
 .status-bot { color: #a0aec0; }
@@ -649,6 +620,34 @@ body {
 #btn-save-profile:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════
+   РАЗДЕЛИТЕЛЬ ДНЕЙ
+   ═══════════════════════════════════════════════════════ */
+.date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px 0;
+    position: relative;
+}
+
+.date-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--glass-border);
+}
+
+.date-divider-text {
+    padding: 0 16px;
+    font-size: 11px;
+    color: var(--text-dim);
+    background: rgba(3, 8, 26, 0.5);
+    border-radius: 20px;
+    padding: 4px 12px;
+    backdrop-filter: blur(4px);
+    letter-spacing: 0.5px;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -759,13 +758,13 @@ body {
    БОТ — ОБВОДКА АВАТАРКИ
    ═══════════════════════════════════════════════════════ */
 .msg-avatar.bot-avatar {
-    background: #1a1f2e;
-    outline: 2px solid #12141D;
+    background: #12141D;
+    outline: 2px solid #0a0e18;
     outline-offset: 1px;
 }
 .dialog-avatar.bot-avatar {
-    background: linear-gradient(135deg, #2d3748, #1a202c);
-    outline: 2px solid #12141D;
+    background: #12141D;
+    outline: 2px solid #0a0e18;
     outline-offset: 1px;
 }
 
@@ -902,6 +901,11 @@ body {
 .read-status.unread {
     color: var(--text-dim);
     opacity: 0.5;
+}
+
+/* Убираем галочку у сообщений бота */
+.bot-message .read-status {
+    display: none;
 }
 
 .message.unread-message .msg-bubble {
@@ -1111,7 +1115,7 @@ body {
     .dialogs-list { max-height: 150px; overflow-y: auto; }
     .dialog-item { padding: 8px 16px; }
     .dialog-avatar { width: 40px; height: 40px; font-size: 14px; }
-    .dialog-avatar img { width: 28px; height: 28px; }
+    .dialog-avatar img { width: 24px; height: 24px; }
     .dialog-name { font-size: 14px; }
     
     .glass-chat-area { height: calc(100% - 200px); }
@@ -1147,13 +1151,15 @@ body {
     }
     
     .send-btn, .emoji-btn { padding: 8px; min-width: 40px; min-height: 40px; }
+    
+    .date-divider-text { font-size: 10px; padding: 3px 10px; }
 }
 
 @media (max-width: 480px) {
     .dialogs-sidebar { max-height: 180px; }
     .dialogs-list { max-height: 130px; }
     .dialog-avatar { width: 36px; height: 36px; font-size: 12px; }
-    .dialog-avatar img { width: 24px; height: 24px; }
+    .dialog-avatar img { width: 20px; height: 20px; }
     .dialog-item { padding: 6px 12px; }
     .glass-chat-area { height: calc(100% - 180px); }
     .msg-bubble { padding: 8px 12px; }
@@ -1181,16 +1187,4 @@ html, body {
 .messages-container::-webkit-scrollbar-thumb {
     background: var(--accent-blue);
     border-radius: 4px;
-}
-
-/* Фикс для бота аватарки */
-.dialog-avatar.bot-avatar img {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-}
-.msg-avatar.bot-avatar img {
-    width: 24px;
-    height: 24px;
-    object-fit: contain;
 }
