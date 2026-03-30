@@ -43,3 +43,11 @@ let onlineInterval = null;
 let isUserOnline = true;
 let lastActivityUpdate = 0;
 let statusSubscription = null;
+
+// Экспорт
+window.SUPABASE_URL = SUPABASE_URL;
+window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+window.BOT_USER_ID = BOT_USER_ID;
+window.SAVED_CHAT_ID = SAVED_CHAT_ID;
+window.BOT_PROFILE = BOT_PROFILE;
+window.SAVED_CHAT = SAVED_CHAT;
