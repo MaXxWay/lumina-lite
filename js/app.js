@@ -9,7 +9,7 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    // initMobileOptimizations(); // УДАЛИТЬ ЭТУ СТРОКУ - функция не определена
+    initMobileOptimizations(); // УДАЛИТЬ ЭТУ СТРОКУ - функция не определена
     
     window.addEventListener('resize', updateDvh);
     updateDvh();
