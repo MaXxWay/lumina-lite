@@ -10,12 +10,22 @@ let allUsers = [];
 
 // ID официального бота
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000000';
+const SAVED_CHAT_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
 const BOT_PROFILE = {
     id: BOT_USER_ID,
     username: 'lumina_bot',
     full_name: 'Lumina Bot',
     bio: 'Официальный бот мессенджера Lumina Lite',
     is_bot: true
+};
+
+const SAVED_CHAT = {
+    id: SAVED_CHAT_ID,
+    username: 'saved',
+    full_name: 'Избранное',
+    bio: 'Сохраненные сообщения',
+    is_saved: true
 };
 
 // Функция очистки мертвых чатов
@@ -37,7 +47,7 @@ async function cleanupDeadChats() {
         for (const chat of chats || []) {
             const otherId = chat.participants.find(id => id !== currentUser.id);
             
-            if (otherId && otherId !== BOT_USER_ID) {
+            if (otherId && otherId !== BOT_USER_ID && otherId !== SAVED_CHAT_ID) {
                 const userExists = await checkUserExists(otherId);
                 if (!userExists) {
                     console.log(`🗑️ Удаляем мертвый чат: ${chat.id}`);
@@ -58,7 +68,7 @@ async function cleanupDeadChats() {
 }
 
 async function checkUserExists(userId) {
-    if (userId === BOT_USER_ID) return true;
+    if (userId === BOT_USER_ID || userId === SAVED_CHAT_ID) return true;
     
     try {
         const { data, error } = await _supabase
@@ -115,7 +125,6 @@ function stopOnlineHeartbeat() {
     if (currentUser) setUserOnlineStatus(false);
 }
 
-// При закрытии страницы/вкладки (синхронный запрос)
 window.addEventListener('beforeunload', () => {
     if (currentUser) {
         navigator.sendBeacon(
@@ -125,7 +134,6 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// При скрытии вкладки (переключение на другую вкладку)
 document.addEventListener('visibilitychange', async () => {
     if (!currentUser) return;
     
@@ -149,7 +157,6 @@ document.addEventListener('visibilitychange', async () => {
     }
 });
 
-// При закрытии самого браузера или вкладки (дополнительная страховка)
 window.addEventListener('pagehide', () => {
     if (currentUser) {
         navigator.sendBeacon(
@@ -183,7 +190,6 @@ function resetUserActivity() {
     }, 1);
 }
 
-// Слушаем активность пользователя
 window.addEventListener('mousemove', resetUserActivity);
 window.addEventListener('keydown', resetUserActivity);
 window.addEventListener('click', resetUserActivity);
@@ -382,7 +388,7 @@ async function getLastMessage(chatId) {
             const isOwn = data.user_id === currentUser.id;
             const prefix = isOwn ? 'Вы: ' : '';
             let text = data.text;
-            if (text.length > 50) text = text.slice(0, 47) + '...';
+            if (text && text.length > 50) text = text.slice(0, 47) + '...';
             return prefix + text;
         }
         return null;
@@ -391,11 +397,11 @@ async function getLastMessage(chatId) {
     }
 }
 
-// ─── Отметить сообщения как прочитанные (ФИКС) ───────────
+// ─── Отметить сообщения как прочитанные ──────────────────
 let messagesCache = new Map();
 
 async function markChatMessagesAsRead(chatId) {
-    if (!chatId || !currentUser) return;
+    if (!chatId || !currentUser || chatId === SAVED_CHAT_ID) return;
     
     try {
         const { error } = await _supabase
@@ -464,7 +470,7 @@ function setupReadStatusObserver() {
             }
         });
         
-        if (visibleMessages.length > 0 && currentChat) {
+        if (visibleMessages.length > 0 && currentChat && currentChat.id !== SAVED_CHAT_ID) {
             if (readCheckTimeout) clearTimeout(readCheckTimeout);
             readCheckTimeout = setTimeout(async () => {
                 try {
@@ -573,6 +579,45 @@ async function ensureBotChat() {
         }
     } catch (err) {
         console.error(err);
+    }
+}
+
+// ─── Создание чата "Избранное" ───────────────────────────
+async function ensureSavedChat() {
+    try {
+        const { data: existing } = await _supabase
+            .from('chats')
+            .select('id')
+            .eq('type', 'saved')
+            .contains('participants', [currentUser.id])
+            .maybeSingle();
+        
+        if (existing) return;
+        
+        const { data: newChat } = await _supabase
+            .from('chats')
+            .insert({
+                id: SAVED_CHAT_ID,
+                type: 'saved',
+                participants: [currentUser.id],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                is_saved_chat: true
+            })
+            .select()
+            .single();
+        
+        if (newChat) {
+            await _supabase.from('messages').insert({
+                text: '💾 Избранное\n\nЗдесь будут храниться ваши сохраненные сообщения. Чтобы сохранить сообщение, нажмите на него правой кнопкой мыши и выберите "Сохранить в избранное".',
+                user_id: currentUser.id,
+                chat_id: newChat.id,
+                is_system: true,
+                is_read: true
+            });
+        }
+    } catch (err) {
+        console.error('Ошибка создания чата Избранное:', err);
     }
 }
 
@@ -808,9 +853,17 @@ function updateChatStatusFromProfile(profile) {
     if (!chatStatus) return;
     
     const isBot = currentChat?.other_user?.id === BOT_USER_ID;
+    const isSaved = currentChat?.id === SAVED_CHAT_ID;
+    
     if (isBot) {
         chatStatus.textContent = 'бот';
         chatStatus.className = 'chat-status status-bot';
+        return;
+    }
+    
+    if (isSaved) {
+        chatStatus.textContent = 'личное';
+        chatStatus.className = 'chat-status status-offline';
         return;
     }
     
@@ -827,7 +880,7 @@ function setupTypingIndicator() {
     if (!messageInput) return;
     
     messageInput.addEventListener('input', () => {
-        if (!currentChat || currentChat.other_user?.id === BOT_USER_ID) return;
+        if (!currentChat || currentChat.other_user?.id === BOT_USER_ID || currentChat.id === SAVED_CHAT_ID) return;
         
         if (typingTimeout) clearTimeout(typingTimeout);
         
@@ -934,7 +987,7 @@ async function loadDialogs(searchTerm = '') {
         for (const chat of chats || []) {
             const otherId = chat.participants.find(id => id !== currentUser.id);
             
-            if (otherId === BOT_USER_ID) {
+            if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
                 validChats.push(chat);
                 continue;
             }
@@ -996,6 +1049,25 @@ async function loadDialogs(searchTerm = '') {
         
         const chatData = validChats.map(chat => {
             const otherId = chat.participants.find(id => id !== currentUser.id);
+            
+            // Для чата "Избранное"
+            if (chat.id === SAVED_CHAT_ID) {
+                return {
+                    id: chat.id,
+                    otherId: SAVED_CHAT_ID,
+                    otherUser: SAVED_CHAT,
+                    name: 'Избранное',
+                    isSaved: true,
+                    isBot: false,
+                    unreadCount: 0,
+                    lastMessage: lastMessages.get(chat.id) || 'Сохраненные сообщения',
+                    updatedAt: chat.updated_at,
+                    statusText: 'личное',
+                    statusClass: 'status-offline',
+                    isOnline: false
+                };
+            }
+            
             const otherUser = profileMap.get(otherId);
             
             if (!otherUser && otherId !== BOT_USER_ID) return null;
@@ -1012,6 +1084,7 @@ async function loadDialogs(searchTerm = '') {
                 otherUser,
                 name,
                 isBot,
+                isSaved: false,
                 unreadCount,
                 lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
                 updatedAt: chat.updated_at,
@@ -1028,12 +1101,6 @@ async function loadDialogs(searchTerm = '') {
             );
         }
         
-        console.log('📊 Диалоги для отображения:', chatData.map(c => ({
-            name: c.name,
-            isOnline: c.isOnline,
-            statusClass: c.statusClass
-        })));
-
         renderDialogsList(container, filteredData);
         
     } catch (err) {
@@ -1056,7 +1123,7 @@ function renderDialogsList(container, filteredData) {
     
     filteredData.forEach(chat => {
         const div = document.createElement('div');
-        div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''}`;
+        div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''} ${chat.isSaved ? 'saved-dialog' : ''}`;
         div.dataset.chatId = chat.id;
         div.dataset.otherUserId = chat.otherId;
         
@@ -1065,16 +1132,26 @@ function renderDialogsList(container, filteredData) {
         
         const isOnline = chat.isOnline === true;
         
+        let avatarHtml = '';
+        if (chat.isBot) {
+            avatarHtml = `<img src="lumina.svg" alt="Bot">`;
+        } else if (chat.isSaved) {
+            avatarHtml = `<img src="favourite.svg" alt="Saved">`;
+        } else {
+            avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
+        }
+        
         div.innerHTML = `
-            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''}">
-                ${chat.isBot ? '<img src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%230072ff\'%3E%3Cpath d=\'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5\'/%3E%3C/svg%3E" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`}
+            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
+                ${avatarHtml}
                 ${chat.isBot ? '<div class="verified-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
-                ${!chat.isBot ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
+                ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
                     ${escapeHtml(chat.name)}
                     ${chat.isBot ? '<span class="bot-badge">Бот</span>' : ''}
+                    ${chat.isSaved ? '<span class="saved-badge">⭐</span>' : ''}
                     ${unreadBadge}
                 </div>
                 <div class="dialog-preview">${escapeHtml(chat.lastMessage)}</div>
@@ -1082,8 +1159,12 @@ function renderDialogsList(container, filteredData) {
         `;
         
         div.onclick = async () => {
-            await openChat(chat.id, chat.otherId, chat.otherUser);
-            if (chat.unreadCount > 0) {
+            if (chat.isSaved) {
+                await openSavedChat(chat.id);
+            } else {
+                await openChat(chat.id, chat.otherId, chat.otherUser);
+            }
+            if (chat.unreadCount > 0 && !chat.isSaved) {
                 await markChatMessagesAsRead(chat.id);
             }
         };
@@ -1216,7 +1297,7 @@ async function handleMessageAction(action, messageId, messageText, isOwn) {
     switch (action) {
         case 'reply':
             const input = document.getElementById('message-input');
-            if (input) {
+            if (input && currentChat?.id !== SAVED_CHAT_ID) {
                 input.value = `> ${messageText}\n\n`;
                 input.focus();
             }
@@ -1226,7 +1307,7 @@ async function handleMessageAction(action, messageId, messageText, isOwn) {
             showToast('Текст скопирован');
             break;
         case 'edit':
-            if (isOwn) {
+            if (isOwn && currentChat?.id !== SAVED_CHAT_ID) {
                 const newText = prompt('Изменить сообщение:', messageText);
                 if (newText && newText.trim()) {
                     const { error } = await _supabase
@@ -1313,6 +1394,7 @@ if (loginBtn) {
         
         await loadAllUsers();
         await ensureBotChat();
+        await ensureSavedChat();
         
         showScreen('chat');
         await loadDialogs();
@@ -1386,6 +1468,7 @@ function renderMessage(msg, isNewMessage = false) {
     
     const currentDate = new Date(msg.created_at).toDateString();
     
+    // Добавляем разделитель только если дата изменилась
     if (!lastDate || lastDate !== currentDate) {
         const dateDivider = document.createElement('div');
         dateDivider.className = 'date-divider';
@@ -1398,13 +1481,13 @@ function renderMessage(msg, isNewMessage = false) {
     }
     
     const div = document.createElement('div');
-    div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead ? 'unread-message' : ''}`; 
+    div.className = `message ${isOwn ? 'own' : 'other'} ${isBot ? 'bot-message' : ''} ${!isOwn && !isRead && currentChat?.id !== SAVED_CHAT_ID ? 'unread-message' : ''}`; 
     div.dataset.id = msg.id;
     div.dataset.text = msg.text;
     div.dataset.date = currentDate;
     
-    // У бота нет галочки
-    const readStatusHtml = (isOwn && !isBot) ? `
+    // У бота нет галочки, у избранного тоже нет галочки
+    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? `
         <span class="read-status ${isRead ? 'read' : 'unread'}">
             ${isRead ? '✓✓' : '✓'}
         </span>
@@ -1412,7 +1495,8 @@ function renderMessage(msg, isNewMessage = false) {
     
     div.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
-            ${isBot ? '<img src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'%230072ff\'%3E%3Cpath d=\'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5\'/%3E%3C/svg%3E" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
+            ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
+            ${isBot ? '<div class="verified-badge-small"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
         </div>
         <div class="msg-bubble">
             ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
@@ -1542,6 +1626,61 @@ async function loadMessages(chatId) {
     }
 }
 
+// ─── Открыть чат "Избранное" ─────────────────────────────
+async function openSavedChat(chatId) {
+    if (isOpeningChat) return;
+    if (currentChat?.id === chatId) return;
+    
+    isOpeningChat = true;
+    
+    try {
+        const messagesContainer = document.getElementById('messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+        }
+        
+        currentChat = {
+            id: chatId,
+            type: 'saved',
+            other_user: SAVED_CHAT
+        };
+        
+        const chatTitle = document.getElementById('chat-title');
+        if (chatTitle) {
+            chatTitle.innerHTML = 'Избранное <span class="saved-badge">⭐</span>';
+        }
+        
+        const chatStatus = document.querySelector('.chat-status');
+        if (chatStatus) {
+            chatStatus.textContent = 'личное';
+            chatStatus.className = 'chat-status status-offline';
+        }
+        
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('btn-send-msg');
+        const inputZone = document.querySelector('.input-zone');
+        
+        if (inputZone) inputZone.style.display = 'block';
+        if (messageInput) {
+            messageInput.disabled = false;
+            messageInput.placeholder = 'Сохранить сообщение...';
+            setTimeout(() => messageInput.focus(), 100);
+        }
+        if (sendButton) sendButton.disabled = false;
+        
+        await loadMessages(chatId);
+        subscribeToMessages(chatId);
+        
+        document.querySelectorAll('.dialog-item').forEach(el => {
+            el.classList.remove('active');
+            if (el.dataset.chatId === chatId) el.classList.add('active');
+        });
+        
+    } finally {
+        isOpeningChat = false;
+    }
+}
+
 // ─── Подписка на новые сообщения (РЕАЛЬНОЕ ВРЕМЯ!) ──────
 function subscribeToMessages(chatId) {
     if (realtimeChannel) _supabase.removeChannel(realtimeChannel);
@@ -1572,7 +1711,7 @@ function subscribeToMessages(chatId) {
                 const newMessage = { 
                     ...payload.new, 
                     profiles: profile,
-                    is_read: !isFromOther
+                    is_read: !isFromOther || chatId === SAVED_CHAT_ID
                 };
                 
                 if (messagesCache.has(chatId)) {
@@ -1584,7 +1723,7 @@ function subscribeToMessages(chatId) {
                 renderMessage(newMessage, true);
                 updateDialogLastMessage(chatId, payload.new.text, !isFromOther);
                 
-                if (currentChat?.id === chatId && isFromOther) {
+                if (currentChat?.id === chatId && isFromOther && chatId !== SAVED_CHAT_ID) {
                     setTimeout(() => markChatMessagesAsRead(chatId), 100);
                 }
                 
@@ -1801,7 +1940,7 @@ async function sendMsg() {
         user_id: currentUser.id,
         chat_id: currentChat.id,
         created_at: new Date().toISOString(),
-        is_read: false,
+        is_read: currentChat.id === SAVED_CHAT_ID,
         is_sending: true,
         profiles: currentProfile
     };
@@ -1818,7 +1957,7 @@ async function sendMsg() {
                 text, 
                 user_id: currentUser.id,
                 chat_id: currentChat.id,
-                is_read: false,
+                is_read: currentChat.id === SAVED_CHAT_ID,
                 created_at: new Date().toISOString()
             }])
             .select()
@@ -2000,6 +2139,7 @@ window.addEventListener('resize', () => {
         
         await loadAllUsers();
         await ensureBotChat();
+        await ensureSavedChat();
         
         showScreen('chat');
         await loadDialogs();
