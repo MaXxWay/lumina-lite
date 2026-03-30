@@ -23,7 +23,8 @@ const SAVED_CHAT = {
     is_saved: true
 };
 
-// Глобальные переменные (без объявления supabase здесь)
+// Глобальные переменные (объявляем, но не инициализируем)
+let supabaseClient = null;
 let currentUser = null;
 let currentProfile = null;
 let currentChat = null;
