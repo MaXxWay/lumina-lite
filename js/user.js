@@ -1,0 +1,304 @@
+// Управление пользователями и статусами
+let onlineInterval = null;
+let isUserOnline = true;
+let lastActivityUpdate = 0;
+let statusSubscription = null;
+
+async function setUserOnlineStatus(isOnline) {
+    if (!currentUser) return;
+    isUserOnline = isOnline;
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .update({ is_online: isOnline, last_seen: new Date().toISOString() })
+            .eq('id', currentUser.id);
+        if (error) {
+            console.error('Ошибка обновления статуса:', error);
+        }
+    } catch (err) {
+        console.error('Ошибка:', err);
+    }
+}
+
+function startOnlineHeartbeat() {
+    if (onlineInterval) clearInterval(onlineInterval);
+    setUserOnlineStatus(true);
+    onlineInterval = setInterval(() => {
+        if (currentUser && isUserOnline) {
+            setUserOnlineStatus(true);
+        }
+    }, 30000);
+}
+
+function stopOnlineHeartbeat() {
+    if (onlineInterval) {
+        clearInterval(onlineInterval);
+        onlineInterval = null;
+    }
+    if (currentUser) setUserOnlineStatus(false);
+}
+
+async function updateLastSeen() {
+    if (!currentUser) return;
+    
+    const now = Date.now();
+    if (now - lastActivityUpdate < 30000) return;
+    lastActivityUpdate = now;
+    
+    try {
+        await supabase
+            .from('profiles')
+            .update({ last_seen: new Date().toISOString() })
+            .eq('id', currentUser.id);
+    } catch (err) {}
+}
+
+function subscribeToUserStatus(userId) {
+    if (statusSubscription) {
+        supabase.removeChannel(statusSubscription);
+    }
+    
+    statusSubscription = supabase
+        .channel(`status-${userId}`)
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+            async (payload) => {
+                if (payload.new && currentChat?.other_user?.id === userId) {
+                    updateChatStatusFromProfile(payload.new);
+                }
+            }
+        )
+        .subscribe();
+}
+
+function subscribeToUserDeletion() {
+    const deletionChannel = supabase
+        .channel('user-deletions')
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'auth', table: 'users' },
+            async (payload) => {
+                console.log('🗑️ Пользователь удален:', payload.old.id);
+                
+                if (payload.old.id === currentUser?.id) {
+                    showToast('Ваш аккаунт был удален', true);
+                    setTimeout(() => logout(), 2000);
+                    return;
+                }
+                
+                await loadDialogs();
+                
+                if (currentChat?.other_user?.id === payload.old.id) {
+                    currentChat = null;
+                    const messagesContainer = document.getElementById('messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = `
+                            <div class="msg-stub">
+                                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                                <p>Пользователь удален. Выберите другой диалог</p>
+                            </div>
+                        `;
+                    }
+                    const inputZone = document.querySelector('.input-zone');
+                    if (inputZone) inputZone.style.display = 'none';
+                }
+            }
+        )
+        .subscribe();
+    
+    return deletionChannel;
+}
+
+async function loadAllUsers() {
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .neq('id', currentUser.id)
+            .neq('id', BOT_USER_ID);
+        
+        if (error) throw error;
+        
+        const validUsers = [];
+        for (const user of data || []) {
+            const exists = await checkUserExists(user.id);
+            if (exists) {
+                validUsers.push(user);
+            }
+        }
+        
+        allUsers = validUsers;
+    } catch (err) {
+        console.error('Ошибка загрузки пользователей:', err);
+        allUsers = [];
+    }
+}
+
+async function checkUserExists(userId) {
+    if (userId === BOT_USER_ID || userId === SAVED_CHAT_ID) return true;
+    
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+        
+        return !error && data !== null;
+    } catch (err) {
+        return false;
+    }
+}
+
+async function searchUsersByUsername(username) {
+    if (!username || username.length < 1) return [];
+    
+    let cleanUsername = username;
+    if (cleanUsername.startsWith('@')) cleanUsername = cleanUsername.substring(1);
+    
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .ilike('username', `%${cleanUsername}%`)
+            .neq('id', currentUser.id)
+            .limit(10);
+        
+        if (error) return [];
+        return data || [];
+    } catch (err) {
+        return [];
+    }
+}
+
+async function ensureBotChat() {
+    try {
+        const { data: existing } = await supabase
+            .from('chats')
+            .select('id')
+            .eq('type', 'private')
+            .contains('participants', [currentUser.id, BOT_USER_ID])
+            .maybeSingle();
+        
+        if (existing) {
+            const { data: welcomeMsg } = await supabase
+                .from('messages')
+                .select('id')
+                .eq('chat_id', existing.id)
+                .eq('is_welcome', true)
+                .maybeSingle();
+            
+            if (!welcomeMsg) {
+                await supabase.from('messages').insert({
+                    text: 'Добро пожаловать в мессенджер Lumina Lite! Начните общение прямо сейчас!',
+                    user_id: BOT_USER_ID,
+                    chat_id: existing.id,
+                    is_welcome: true,
+                    is_system: true,
+                    is_read: false
+                });
+            }
+            return;
+        }
+        
+        const { data: newChat } = await supabase
+            .from('chats')
+            .insert({
+                type: 'private',
+                participants: [currentUser.id, BOT_USER_ID],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                is_bot_chat: true
+            })
+            .select()
+            .single();
+        
+        if (newChat) {
+            await supabase.from('messages').insert({
+                text: 'Добро пожаловать в мессенджер Lumina Lite!\n\nЭто бот-помощник. Здесь можно:\n• Найти друзей по @username\n• Общаться в реальном времени\n• Настраивать профиль\n\nПриятного общения! 🚀',
+                user_id: BOT_USER_ID,
+                chat_id: newChat.id,
+                is_welcome: true,
+                is_system: true,
+                is_read: false
+            });
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function ensureSavedChat() {
+    try {
+        const { data: existing } = await supabase
+            .from('chats')
+            .select('id')
+            .eq('type', 'saved')
+            .contains('participants', [currentUser.id])
+            .maybeSingle();
+        
+        if (existing) return;
+        
+        const { data: newChat } = await supabase
+            .from('chats')
+            .insert({
+                id: SAVED_CHAT_ID,
+                type: 'saved',
+                participants: [currentUser.id],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                is_saved_chat: true
+            })
+            .select()
+            .single();
+        
+        if (newChat) {
+            await supabase.from('messages').insert({
+                text: '💾 Избранное\n\nЗдесь будут храниться ваши сохраненные сообщения. Чтобы сохранить сообщение, нажмите на него правой кнопкой мыши и выберите "Сохранить в избранное".',
+                user_id: currentUser.id,
+                chat_id: newChat.id,
+                is_system: true,
+                is_read: true
+            });
+        }
+    } catch (err) {
+        console.error('Ошибка создания чата Избранное:', err);
+    }
+}
+
+async function cleanupDeadChats() {
+    if (!currentUser) return;
+    
+    console.log('🧹 Запуск очистки мертвых чатов...');
+    
+    try {
+        const { data: chats, error } = await supabase
+            .from('chats')
+            .select('*')
+            .contains('participants', [currentUser.id]);
+        
+        if (error) throw error;
+        
+        let deletedCount = 0;
+        
+        for (const chat of chats || []) {
+            const otherId = chat.participants.find(id => id !== currentUser.id);
+            
+            if (otherId && otherId !== BOT_USER_ID && otherId !== SAVED_CHAT_ID) {
+                const userExists = await checkUserExists(otherId);
+                if (!userExists) {
+                    console.log(`🗑️ Удаляем мертвый чат: ${chat.id}`);
+                    await supabase.from('chats').delete().eq('id', chat.id);
+                    await supabase.from('messages').delete().eq('chat_id', chat.id);
+                    deletedCount++;
+                }
+            }
+        }
+        
+        if (deletedCount > 0) {
+            console.log(`✅ Удалено ${deletedCount} мертвых чатов`);
+            await loadDialogs();
+        }
+    } catch (err) {
+        console.error('Ошибка очистки мертвых чатов:', err);
+    }
+}
