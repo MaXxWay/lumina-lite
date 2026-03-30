@@ -33,6 +33,22 @@ const BOT_PROFILE = {
     is_bot: true
 };
 
+async function checkUserExists(userId) {
+    if (userId === BOT_USER_ID) return true;
+    
+    try {
+        const { data, error } = await _supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+        
+        return !error && data !== null;
+    } catch (err) {
+        return false;
+    }
+}
+
 const getEmail = (u) => `${u.toLowerCase().trim().replace(/^@/, '')}@lumina.local`;
 
 // Добавьте в функцию logout (оба места)
@@ -41,6 +57,7 @@ async function logout() {
     if (realtimeChannel) await _supabase.removeChannel(realtimeChannel);
     if (statusSubscription) await _supabase.removeChannel(statusSubscription);
     if (typingChannel) await _supabase.removeChannel(typingChannel);
+    if (window.deletionChannel) await _supabase.removeChannel(window.deletionChannel);
     
     messagesCache.clear();
     dialogCache.clear();
@@ -334,6 +351,84 @@ async function markChatMessagesAsRead(chatId) {
     }
 }
 
+let observedMessages = new Set();
+let readCheckTimeout = null;
+
+function setupReadStatusObserver() {
+    const container = document.getElementById('messages');
+    if (!container) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+        const visibleMessages = [];
+        
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const msgDiv = entry.target;
+                const msgId = msgDiv.dataset.id;
+                const isOwn = msgDiv.classList.contains('own');
+                const isRead = msgDiv.querySelector('.read-status')?.classList.contains('read');
+                
+                if (!isOwn && msgId && !isRead && !observedMessages.has(msgId)) {
+                    visibleMessages.push(msgId);
+                    observedMessages.add(msgId);
+                }
+            }
+        });
+        
+        if (visibleMessages.length > 0 && currentChat) {
+            if (readCheckTimeout) clearTimeout(readCheckTimeout);
+            readCheckTimeout = setTimeout(async () => {
+                try {
+                    const { error } = await _supabase
+                        .from('messages')
+                        .update({ is_read: true, read_at: new Date().toISOString() })
+                        .in('id', visibleMessages);
+                    
+                    if (!error && currentChat) {
+                        visibleMessages.forEach(msgId => {
+                            const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
+                            if (msgDiv) {
+                                const readSpan = msgDiv.querySelector('.read-status');
+                                if (readSpan) {
+                                    readSpan.className = 'read-status read';
+                                    readSpan.innerHTML = '✓✓';
+                                }
+                                msgDiv.classList.remove('unread-message');
+                            }
+                        });
+                        
+                        if (messagesCache.has(currentChat.id)) {
+                            const cached = messagesCache.get(currentChat.id);
+                            cached.forEach(msg => {
+                                if (visibleMessages.includes(msg.id)) msg.is_read = true;
+                            });
+                            messagesCache.set(currentChat.id, cached);
+                        }
+                        
+                        await loadDialogs();
+                    }
+                } catch (err) {}
+                readCheckTimeout = null;
+            }, 500);
+        }
+    }, { threshold: 0.5 });
+    
+    const observeNewMessages = () => {
+        const messages = container.querySelectorAll('.message:not(.own)');
+        messages.forEach(msg => observer.observe(msg));
+    };
+    
+    observeNewMessages();
+    
+    const mutationObserver = new MutationObserver(() => {
+        observeNewMessages();
+    });
+    
+    mutationObserver.observe(container, { childList: true, subtree: true });
+    
+    return { observer, mutationObserver };
+}
+
 // ─── Создание чата с ботом ───────────────────────────────
 async function ensureBotChat() {
     try {
@@ -398,11 +493,23 @@ async function loadAllUsers() {
         const { data, error } = await _supabase
             .from('profiles')
             .select('id, username, full_name')
-            .neq('id', currentUser.id);
+            .neq('id', currentUser.id)
+            .neq('id', BOT_USER_ID);
         
         if (error) throw error;
-        allUsers = data || [];
+        
+        // Фильтруем существующих пользователей
+        const validUsers = [];
+        for (const user of data || []) {
+            const exists = await checkUserExists(user.id);
+            if (exists) {
+                validUsers.push(user);
+            }
+        }
+        
+        allUsers = validUsers;
     } catch (err) {
+        console.error('Ошибка загрузки пользователей:', err);
         allUsers = [];
     }
 }
@@ -528,6 +635,80 @@ function getUserStatusFromProfile(profile) {
 }
 
 let statusSubscription = null;
+
+function subscribeToUserDeletion() {
+    const deletionChannel = _supabase
+        .channel('user-deletions')
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'auth', table: 'users' },
+            async (payload) => {
+                console.log('🗑️ Пользователь удален:', payload.old.id);
+                
+                if (payload.old.id === currentUser?.id) {
+                    showToast('Ваш аккаунт был удален', true);
+                    setTimeout(() => logout(), 2000);
+                    return;
+                }
+                
+                await loadDialogs();
+                
+                if (currentChat?.other_user?.id === payload.old.id) {
+                    currentChat = null;
+                    const messagesContainer = document.getElementById('messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = `
+                            <div class="msg-stub">
+                                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                                <p>Пользователь удален. Выберите другой диалог</p>
+                            </div>
+                        `;
+                    }
+                    const inputZone = document.querySelector('.input-zone');
+                    if (inputZone) inputZone.style.display = 'none';
+                }
+            }
+        )
+        .subscribe();
+    
+    return deletionChannel;
+}
+
+function subscribeToUserDeletion() {
+    const deletionChannel = _supabase
+        .channel('user-deletions')
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'auth', table: 'users' },
+            async (payload) => {
+                console.log('🗑️ Пользователь удален:', payload.old.id);
+                
+                if (payload.old.id === currentUser?.id) {
+                    showToast('Ваш аккаунт был удален', true);
+                    setTimeout(() => logout(), 2000);
+                    return;
+                }
+                
+                await loadDialogs();
+                
+                if (currentChat?.other_user?.id === payload.old.id) {
+                    currentChat = null;
+                    const messagesContainer = document.getElementById('messages');
+                    if (messagesContainer) {
+                        messagesContainer.innerHTML = `
+                            <div class="msg-stub">
+                                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                                <p>Пользователь удален. Выберите другой диалог</p>
+                            </div>
+                        `;
+                    }
+                    const inputZone = document.querySelector('.input-zone');
+                    if (inputZone) inputZone.style.display = 'none';
+                }
+            }
+        )
+        .subscribe();
+    
+    return deletionChannel;
+}
 
 function subscribeToUserStatus(userId) {
     if (statusSubscription) {
@@ -656,7 +837,6 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
     
     try {
-        // Загружаем чаты
         const { data: chats, error: chatsError } = await _supabase
             .from('chats')
             .select('*')
@@ -665,17 +845,35 @@ async function loadDialogs(searchTerm = '') {
         
         if (chatsError) throw chatsError;
         
-        // Получаем ВСЕ непрочитанные сообщения одним запросом
+        // Фильтруем чаты с удаленными пользователями
+        const validChats = [];
+        for (const chat of chats || []) {
+            const otherId = chat.participants.find(id => id !== currentUser.id);
+            
+            if (otherId === BOT_USER_ID) {
+                validChats.push(chat);
+                continue;
+            }
+            
+            const userExists = await checkUserExists(otherId);
+            if (userExists) {
+                validChats.push(chat);
+            } else {
+                // Удаляем чат с несуществующим пользователем
+                await _supabase.from('chats').delete().eq('id', chat.id);
+            }
+        }
+        
+        // Получаем непрочитанные сообщения
         const { data: unreadData, error: unreadError } = await _supabase
             .from('messages')
             .select('chat_id')
             .eq('is_read', false)
             .neq('user_id', currentUser.id)
-            .in('chat_id', chats?.map(c => c.id) || []);
+            .in('chat_id', validChats.map(c => c.id) || []);
         
         if (unreadError) throw unreadError;
         
-        // Считаем непрочитанные по каждому чату
         const unreadCounts = new Map();
         if (unreadData) {
             unreadData.forEach(msg => {
@@ -685,7 +883,7 @@ async function loadDialogs(searchTerm = '') {
         
         // Получаем последние сообщения
         const lastMessages = new Map();
-        for (const chat of chats || []) {
+        for (const chat of validChats) {
             const { data: lastMsg } = await _supabase
                 .from('messages')
                 .select('text, user_id')
@@ -704,7 +902,7 @@ async function loadDialogs(searchTerm = '') {
         }
         
         // Получаем профили участников
-        const allParticipantIds = chats ? chats.flatMap(c => c.participants) : [];
+        const allParticipantIds = validChats.flatMap(c => c.participants);
         const { data: profiles } = await _supabase
             .from('profiles')
             .select('id, full_name, username, last_seen, is_online')
@@ -715,9 +913,12 @@ async function loadDialogs(searchTerm = '') {
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
         
         // Формируем данные для отображения
-        const chatData = (chats || []).map(chat => {
+        const chatData = validChats.map(chat => {
             const otherId = chat.participants.find(id => id !== currentUser.id);
             const otherUser = profileMap.get(otherId);
+            
+            if (!otherUser && otherId !== BOT_USER_ID) return null;
+            
             const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
             const isBot = otherId === BOT_USER_ID;
             const unreadCount = unreadCounts.get(chat.id) || 0;
@@ -729,13 +930,13 @@ async function loadDialogs(searchTerm = '') {
                 otherUser,
                 name,
                 isBot,
-                unreadCount, // ТОЧНОЕ количество непрочитанных!
+                unreadCount,
                 lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
                 updatedAt: chat.updated_at,
                 statusText: status.text,
                 statusClass: status.class
             };
-        });
+        }).filter(chat => chat !== null);
         
         // Фильтрация по поиску
         let filteredData = chatData;
@@ -1052,6 +1253,11 @@ if (loginBtn) {
         updateLastSeen();
         
         startOnlineHeartbeat();
+        // Подписываемся на удаление пользователей
+if (window.deletionChannel) {
+    await _supabase.removeChannel(window.deletionChannel);
+}
+window.deletionChannel = subscribeToUserDeletion();
     };
 }
 
@@ -1147,7 +1353,10 @@ setTimeout(async () => {
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
         
+        await markChatMessagesAsRead(chatId);  // ← ЭТУ СТРОКУ УДАЛИТЬ
+        
         await markChatMessagesAsRead(chatId);
+        
     } finally {
         isOpeningChat = false;
         if (pendingChatId && pendingChatId !== chatId) {
