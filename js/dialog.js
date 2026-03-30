@@ -1,7 +1,4 @@
 // Управление диалогами
-let isUpdatingDialogs = false;
-let dialogCache = new Map();
-
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
     if (!container) return;
