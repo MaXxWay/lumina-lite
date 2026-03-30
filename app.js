@@ -952,14 +952,16 @@ function renderDialogsList(container, filteredData) {
         div.dataset.chatId = chat.id;
         div.dataset.otherUserId = chat.otherId;
         
-        // ВАЖНО: отображаем бейдж ТОЛЬКО если unreadCount > 0
         const unreadBadge = chat.unreadCount > 0 ? 
             `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
+        
+        const isOnline = chat.statusClass === 'status-online';
         
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''}">
                 ${chat.isBot ? '<img src="lumina.svg" alt="Bot" width="32" height="32">' : `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`}
                 ${chat.isBot ? '<div class="verified-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+                ${!chat.isBot ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
@@ -968,7 +970,6 @@ function renderDialogsList(container, filteredData) {
                     ${unreadBadge}
                 </div>
                 <div class="dialog-preview">${escapeHtml(chat.lastMessage)}</div>
-                ${!chat.isBot && chat.statusText ? `<div class="dialog-status ${chat.statusClass === 'status-online' ? 'dialog-status-online' : 'dialog-status-offline'}">${chat.statusText}</div>` : ''}
             </div>
         `;
         
