@@ -25,10 +25,10 @@ function initMobileKeyboardHandler() {
             }
         } else if (currentHeight > originalHeight - 50) {
             isKeyboardOpen = false;
-            updateDvh();
+            if (typeof updateDvh === 'function') updateDvh();
         }
         originalHeight = currentHeight;
-        updateDvh();
+        if (typeof updateDvh === 'function') updateDvh();
     });
     
     messageInput.addEventListener('focus', () => {
@@ -48,14 +48,17 @@ function initMobileGestures() {
     
     if (!sidebar || !chatArea) return;
     
-    sidebar.style.transform = 'translateX(-100%)';
-    sidebar.style.transition = 'transform 0.3s ease';
-    sidebar.style.position = 'absolute';
-    sidebar.style.zIndex = '100';
-    sidebar.style.height = '100%';
-    sidebar.style.width = '280px';
-    sidebar.style.background = 'rgba(3, 8, 26, 0.95)';
-    sidebar.style.backdropFilter = 'blur(20px)';
+    // Проверяем, не применены ли уже стили
+    if (!sidebar.style.transform) {
+        sidebar.style.transform = 'translateX(-100%)';
+        sidebar.style.transition = 'transform 0.3s ease';
+        sidebar.style.position = 'absolute';
+        sidebar.style.zIndex = '100';
+        sidebar.style.height = '100%';
+        sidebar.style.width = '280px';
+        sidebar.style.background = 'rgba(3, 8, 26, 0.95)';
+        sidebar.style.backdropFilter = 'blur(20px)';
+    }
     
     chatArea.addEventListener('touchstart', (e) => {
         touchStartX = e.changedTouches[0].screenX;
@@ -109,13 +112,15 @@ function initMobilePerformance() {
     if (!isMobileDevice()) return;
     
     const MAX_CACHED_MESSAGES = 100;
-    const originalSet = messagesCache.set;
-    messagesCache.set = function(key, value) {
-        if (value && value.length > MAX_CACHED_MESSAGES) {
-            value = value.slice(-MAX_CACHED_MESSAGES);
-        }
-        return originalSet.call(this, key, value);
-    };
+    if (typeof messagesCache !== 'undefined' && messagesCache) {
+        const originalSet = messagesCache.set;
+        messagesCache.set = function(key, value) {
+            if (value && value.length > MAX_CACHED_MESSAGES) {
+                value = value.slice(-MAX_CACHED_MESSAGES);
+            }
+            return originalSet.call(this, key, value);
+        };
+    }
     
     if ('connection' in navigator && navigator.connection.saveData) {
         const style = document.createElement('style');
