@@ -136,3 +136,9 @@ async function handleSuccessfulLogin(user) {
     window.deletionChannel = subscribeToUserDeletion();
     await cleanupDeadChats();
 }
+
+// Экспорт
+window.showScreen = showScreen;
+window.logout = logout;
+window.initAuth = initAuth;
+window.handleSuccessfulLogin = handleSuccessfulLogin;
