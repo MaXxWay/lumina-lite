@@ -72,6 +72,23 @@ function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
         || window.innerWidth <= 768;
 }
+// Добавить в конец файла utils.js:
+
+function initMobileOptimizationsPlaceholder() {
+    // Пустая заглушка, если mobile.js не загружен
+    if (typeof window.initMobileOptimizations !== 'function') {
+        window.initMobileOptimizations = function() {
+            console.log('Мобильные оптимизации не загружены');
+        };
+    }
+}
+
+// Вызвать при загрузке
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileOptimizationsPlaceholder);
+} else {
+    initMobileOptimizationsPlaceholder();
+}
 
 // Экспорт
 window.escapeHtml = escapeHtml;
