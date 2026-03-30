@@ -81,3 +81,20 @@ function formatDateDivider(date) {
 function updateDvh() {
     document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
 }
+
+// Функции для работы с кэшем сообщений
+let messagesCache = new Map();
+let observedMessages = new Set();
+let readCheckTimeout = null;
+let typingChannel = null;
+let typingTimeout = null;
+let isTyping = false;
+let isLoadingMessages = false;
+let isOpeningChat = false;
+let pendingChatId = null;
+let isUpdatingDialogs = false;
+let dialogCache = new Map();
+let onlineInterval = null;
+let isUserOnline = true;
+let lastActivityUpdate = 0;
+let statusSubscription = null;
