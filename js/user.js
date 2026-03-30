@@ -174,3 +174,17 @@ async function cleanupDeadChats() {
         await loadDialogs();
     } catch (err) { console.error('Ошибка очистки мертвых чатов:', err); }
 }
+
+// Экспорт
+window.setUserOnlineStatus = setUserOnlineStatus;
+window.startOnlineHeartbeat = startOnlineHeartbeat;
+window.stopOnlineHeartbeat = stopOnlineHeartbeat;
+window.updateLastSeen = updateLastSeen;
+window.subscribeToUserStatus = subscribeToUserStatus;
+window.subscribeToUserDeletion = subscribeToUserDeletion;
+window.loadAllUsers = loadAllUsers;
+window.checkUserExists = checkUserExists;
+window.searchUsersByUsername = searchUsersByUsername;
+window.ensureBotChat = ensureBotChat;
+window.ensureSavedChat = ensureSavedChat;
+window.cleanupDeadChats = cleanupDeadChats;
