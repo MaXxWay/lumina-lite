@@ -1,3 +1,4 @@
+// Вспомогательные функции
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -66,3 +67,18 @@ function formatDateDivider(date) {
 function updateDvh() {
     document.documentElement.style.setProperty('--dvh', `${window.innerHeight}px`);
 }
+
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+        || window.innerWidth <= 768;
+}
+
+// Экспорт
+window.escapeHtml = escapeHtml;
+window.showToast = showToast;
+window.getEmail = getEmail;
+window.formatLastSeen = formatLastSeen;
+window.getUserStatusFromProfile = getUserStatusFromProfile;
+window.formatDateDivider = formatDateDivider;
+window.updateDvh = updateDvh;
+window.isMobileDevice = isMobileDevice;
