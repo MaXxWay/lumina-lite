@@ -150,7 +150,7 @@ body {
 }
 .msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 
-/* ✅ ИСПРАВЛЕНА ГАЛОЧКА БОТА - теперь снаружи аватарки */
+/* ✅ ГАЛОЧКА БОТА - ПРАВИЛЬНОЕ ПОЗИЦИОНИРОВАНИЕ СНАРУЖИ */
 .verified-badge {
     position: absolute;
     bottom: -2px;
@@ -163,11 +163,12 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 10;
-    border: 2px solid #03081a;
+    border: 2px solid var(--bg-deep);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 .verified-badge svg { width: 10px; height: 10px; stroke: white; stroke-width: 3; }
 
-/* Для диалогов */
+/* ✅ ГАЛОЧКА БОТА В СПИСКЕ ДИАЛОГОВ */
 .verified-badge-dialog {
     position: absolute;
     bottom: -2px;
@@ -180,7 +181,8 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 10;
-    border: 2px solid #03081a;
+    border: 2px solid var(--bg-deep);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 .verified-badge-dialog svg { width: 11px; height: 11px; stroke: white; stroke-width: 3; }
 
@@ -386,7 +388,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
 }
 .dialog-avatar.bot-avatar img {
     width: 60%;
@@ -412,7 +414,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
 }
 .msg-avatar.bot-avatar img {
@@ -572,7 +574,7 @@ body {
     height: 12px;
     background: #22c55e;
     border-radius: 50%;
-    border: 2px solid #03081a;
+    border: 2px solid var(--bg-deep);
     box-shadow: 0 0 2px rgba(34, 197, 94, 0.5);
     z-index: 10;
 }
@@ -977,11 +979,15 @@ body {
     .verified-badge {
         width: 14px;
         height: 14px;
+        bottom: -2px;
+        right: -2px;
     }
     .verified-badge svg { width: 8px; height: 8px; }
     .verified-badge-dialog {
         width: 16px;
         height: 16px;
+        bottom: -2px;
+        right: -2px;
     }
     .verified-badge-dialog svg { width: 9px; height: 9px; }
 }
