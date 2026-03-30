@@ -14,7 +14,7 @@ function startOnlineHeartbeat() {
     setUserOnlineStatus(true);
     onlineInterval = setInterval(() => {
         if (currentUser && isUserOnline) setUserOnlineStatus(true);
-    }, 30000);
+    }, 300000);
 }
 
 function stopOnlineHeartbeat() {
@@ -25,7 +25,7 @@ function stopOnlineHeartbeat() {
 async function updateLastSeen() {
     if (!currentUser) return;
     const now = Date.now();
-    if (now - lastActivityUpdate < 30000) return;
+    if (now - lastActivityUpdate < 60000) return;
     lastActivityUpdate = now;
     try {
         await supabaseClient.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
@@ -37,7 +37,9 @@ function subscribeToUserStatus(userId) {
     statusSubscription = supabaseClient.channel(`status-${userId}`)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
             async (payload) => {
-                if (payload.new && currentChat?.other_user?.id === userId) updateChatStatusFromProfile(payload.new);
+                if (payload.new && currentChat?.other_user?.id === userId && typeof updateChatStatusFromProfile === 'function') {
+                    updateChatStatusFromProfile(payload.new);
+                }
             })
         .subscribe();
 }
@@ -50,7 +52,7 @@ function subscribeToUserDeletion() {
                 setTimeout(() => logout(), 2000);
                 return;
             }
-            await loadDialogs();
+            if (typeof loadDialogs === 'function') await loadDialogs();
             if (currentChat?.other_user?.id === payload.old.id) {
                 currentChat = null;
                 const messagesContainer = document.getElementById('messages');
@@ -171,7 +173,7 @@ async function cleanupDeadChats() {
                 await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
             }
         }
-        await loadDialogs();
+        if (typeof loadDialogs === 'function') await loadDialogs();
     } catch (err) { console.error('Ошибка очистки мертвых чатов:', err); }
 }
 
