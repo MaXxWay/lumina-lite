@@ -1,12 +1,29 @@
 async function loadDialogs(searchTerm = '') {
+    const container = document.getElementById('dialogs-list');
+    if (!container) return;
+    
+    const isUserSearch = searchTerm && searchTerm.startsWith('@');
+    
+    if (isUserSearch && searchTerm.length > 1) {
+        await loadUserSearchResults(searchTerm, container);
+        return;
+    }
+    
+    if (isUpdatingDialogs) return;
+    isUpdatingDialogs = true;
+    
+    try {
+        // Используем RPC функцию
+        const { data: chats, error: chatsError } = await supabaseClient
+            .rpc('get_my_chats');
         
-        // ✅ Фильтруем чаты, где есть текущий пользователь
-        const chats = (allChats || []).filter(chat => 
-            chat.participants && chat.participants.includes(currentUser.id)
-        );
+        if (chatsError) {
+            console.error('Ошибка загрузки чатов:', chatsError);
+            throw chatsError;
+        }
         
         const validChats = [];
-        for (const chat of chats) {
+        for (const chat of chats || []) {
             const otherId = chat.participants?.find(id => id !== currentUser.id);
             
             if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
@@ -142,8 +159,6 @@ async function loadDialogs(searchTerm = '') {
     }
 }
 
-// ✅ Функция renderDialogsList ДОЛЖНА быть определена ДО её вызова
-// Переносим её определение выше или убеждаемся что она определена
 function renderDialogsList(container, filteredData) {
     container.innerHTML = '';
     
@@ -175,7 +190,7 @@ function renderDialogsList(container, filteredData) {
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
                 ${avatarHtml}
-                ${chat.isBot ? '<div class="verified-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
+                ${chat.isBot ? '<div class="verified-badge verified-badge-dialog"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
                 ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
