@@ -9,7 +9,7 @@
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
-    if (typeof initMobileOptimizations === 'function') initMobileOptimizations();
+    // initMobileOptimizations(); // УДАЛЕНО - больше нет ошибки
     
     window.addEventListener('resize', updateDvh);
     updateDvh();
