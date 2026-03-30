@@ -99,7 +99,7 @@ async function logout() {
     showScreen('reg');
 }
 
-// ─── ОНЛАЙН / НЕ В СЕТИ (реальное время) ────────────────
+// ─── ОТСЛЕЖИВАНИЕ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЯ ──────────────
 let userActivityTimeout = null;
 let lastActivityTime = Date.now();
 
@@ -110,20 +110,69 @@ function resetUserActivity() {
     
     if (userActivityTimeout) clearTimeout(userActivityTimeout);
     
-    // Если статус был false, ставим true
     if (!isUserOnline) {
         setUserOnlineStatus(true);
     }
     
-    // Через 2 минуты неактивности сбрасываем статус
     userActivityTimeout = setTimeout(async () => {
         const inactiveTime = Date.now() - lastActivityTime;
-        if (inactiveTime >= 120000 && isUserOnline) { // 2 минуты
-            console.log('⏰ Пользователь неактивен 2 минуты, статус: не в сети');
+        if (inactiveTime >= 15000 && isUserOnline) {
+            console.log('⏰ Пользователь неактивен 15 секунд, статус: не в сети');
             await setUserOnlineStatus(false);
         }
     }, 15000);
 }
+
+// Слушаем активность пользователя
+window.addEventListener('mousemove', resetUserActivity);
+window.addEventListener('keydown', resetUserActivity);
+window.addEventListener('click', resetUserActivity);
+window.addEventListener('scroll', resetUserActivity);
+
+
+// ─── ОНЛАЙН / НЕ В СЕТИ (реальное время) ────────────────
+let onlineInterval = null;
+let isUserOnline = true;
+
+async function setUserOnlineStatus(isOnline) {
+    if (!currentUser) return;
+    isUserOnline = isOnline;
+    try {
+        const { error } = await _supabase
+            .from('profiles')
+            .update({ is_online: isOnline, last_seen: new Date().toISOString() })
+            .eq('id', currentUser.id);
+        if (error) {
+            console.error('Ошибка обновления статуса:', error);
+        } else {
+            console.log(`✅ Статус изменен: ${isOnline ? 'онлайн 🟢' : 'не в сети ⚫'}`);
+        }
+    } catch (err) {
+        console.error('Ошибка:', err);
+    }
+}
+
+function startOnlineHeartbeat() {
+    if (onlineInterval) clearInterval(onlineInterval);
+    setUserOnlineStatus(true);
+    onlineInterval = setInterval(() => {
+        if (currentUser && isUserOnline) {
+            setUserOnlineStatus(true);
+        }
+    }, 30000);
+}
+
+function stopOnlineHeartbeat() {
+    if (onlineInterval) {
+        clearInterval(onlineInterval);
+        onlineInterval = null;
+    }
+    if (currentUser) setUserOnlineStatus(false);
+}
+
+window.addEventListener('beforeunload', () => {
+    if (currentUser) setUserOnlineStatus(false);
+});
 
 // Слушаем активность пользователя
 window.addEventListener('mousemove', resetUserActivity);
