@@ -46,13 +46,14 @@ function initMobileInterface() {
     const sidebar = document.querySelector('.glass-sidebar');
     
     if (chatHeader && sidebar && !document.getElementById('mobile-menu-btn')) {
-        // Скрываем сайдбар по умолчанию на мобилках
         sidebar.style.transform = 'translateX(-100%)';
         sidebar.style.transition = 'transform 0.3s ease';
         sidebar.style.position = 'absolute';
         sidebar.style.zIndex = '100';
         sidebar.style.height = '100%';
         sidebar.style.width = '280px';
+        sidebar.style.background = 'rgba(3, 8, 26, 0.95)';
+        sidebar.style.backdropFilter = 'blur(20px)';
         
         const menuBtn = document.createElement('button');
         menuBtn.id = 'mobile-menu-btn';
@@ -82,7 +83,6 @@ function initMobileInterface() {
             chatInfo.insertBefore(menuBtn, chatInfo.firstChild);
         }
         
-        // Закрываем сайдбар при клике вне его
         document.addEventListener('click', (e) => {
             if (sidebar.style.transform === 'translateX(0)' && !sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
                 sidebar.style.transform = 'translateX(-100%)';
@@ -96,5 +96,4 @@ function initMobileOptimizations() {
     initMobileInterface();
 }
 
-// Экспорт
 window.initMobileOptimizations = initMobileOptimizations;
