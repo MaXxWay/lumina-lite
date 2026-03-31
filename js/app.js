@@ -10,7 +10,7 @@
     initSendButton();
     initUserActivityTracking();
     
-    // ✅ Проверяем существование функции перед вызовом
+    // Инициализация мобильных оптимизаций
     if (typeof initMobileOptimizations === 'function') {
         initMobileOptimizations();
     }
