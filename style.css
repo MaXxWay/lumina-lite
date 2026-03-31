@@ -1195,3 +1195,7 @@ body {
     background: var(--accent-blue);
     opacity: 0.8;
 }
+/* Кнопка назад показывается только на мобилках */
+.mobile-back-btn {
+    display: none;
+}
