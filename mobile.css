@@ -9,7 +9,6 @@ function initMobileNavigation() {
     
     const sidebar = document.querySelector('.glass-sidebar');
     const chatArea = document.querySelector('.glass-chat-area');
-    const messagesContainer = document.getElementById('messages');
     
     if (!sidebar || !chatArea) return;
     
@@ -23,14 +22,8 @@ function initMobileNavigation() {
         chatArea.addEventListener('touchend', handleTouchEnd);
     }
     
-    // Настройка свайпов на списке чатов (для закрытия)
-    if (sidebar) {
-        sidebar.addEventListener('touchstart', handleSidebarTouchStart);
-        sidebar.addEventListener('touchmove', handleSidebarTouchMove);
-        sidebar.addEventListener('touchend', handleSidebarTouchEnd);
-    }
-    
-    // Предотвращаем случайные свайпы на сообщениях
+    // Запрещаем свайп на сообщениях
+    const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
         messagesContainer.addEventListener('touchstart', (e) => {
             e.stopPropagation();
@@ -41,6 +34,14 @@ function initMobileNavigation() {
     document.addEventListener('backbutton', () => {
         if (chatArea.classList.contains('chat-open')) {
             closeChat();
+        }
+    });
+    
+    // Обработка popstate (для браузерной кнопки назад)
+    window.addEventListener('popstate', (event) => {
+        if (chatArea.classList.contains('chat-open')) {
+            closeChat();
+            event.preventDefault();
         }
     });
 }
@@ -100,72 +101,49 @@ function handleTouchEnd(e) {
     if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
         closeChat();
     }
-    // Свайп вправо на списке чатов для ничего (можно добавить логику)
     
-    isSwiping = false;
-}
-
-function handleSidebarTouchStart(e) {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-    isSwiping = true;
-}
-
-function handleSidebarTouchMove(e) {
-    if (!isSwiping) return;
-    
-    const touchX = e.changedTouches[0].screenX;
-    const touchY = e.changedTouches[0].screenY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
-    
-    // Если свайп вправо и больше горизонтальный
-    if (deltaX > 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Не закрываем список чатов, просто предотвращаем навигацию
-        e.preventDefault();
-        isSwiping = false;
-    }
-}
-
-function handleSidebarTouchEnd(e) {
     isSwiping = false;
 }
 
 function openChatMobile(chatId) {
     const sidebar = document.querySelector('.glass-sidebar');
     const chatArea = document.querySelector('.glass-chat-area');
+    const body = document.body;
     
     if (!sidebar || !chatArea) return;
     
     // Добавляем классы для анимации
     sidebar.classList.add('chat-open');
     chatArea.classList.add('chat-open');
+    body.classList.add('chat-open-mobile');
     
-    // Обновляем URL без перезагрузки (опционально)
+    // Обновляем URL без перезагрузки
     if (window.history && chatId) {
         const url = new URL(window.location);
         url.searchParams.set('chat', chatId);
         window.history.pushState({ chatId }, '', url);
     }
     
-    // Фокусируем на поле ввода
+    // Фокусируем на поле ввода через небольшую задержку
     setTimeout(() => {
         const input = document.getElementById('message-input');
         if (input && !input.disabled) {
             input.focus();
         }
-    }, 300);
+    }, 350);
 }
 
 function closeChat() {
     const sidebar = document.querySelector('.glass-sidebar');
     const chatArea = document.querySelector('.glass-chat-area');
+    const body = document.body;
     
     if (!sidebar || !chatArea) return;
     
     // Убираем классы для анимации
     sidebar.classList.remove('chat-open');
     chatArea.classList.remove('chat-open');
+    body.classList.remove('chat-open-mobile');
     
     // Обновляем URL
     if (window.history) {
@@ -255,6 +233,7 @@ function initMobilePerformance() {
         };
     }
     
+    // Отключаем анимации при включенном энергосбережении
     if ('connection' in navigator && navigator.connection.saveData) {
         const style = document.createElement('style');
         style.textContent = `
@@ -277,7 +256,7 @@ function initMobileOptimizations() {
     initMobilePerformance();
 }
 
-// Переопределяем функцию openChat для мобильной версии
+// Переопределяем функции открытия чата
 function patchOpenChat() {
     if (!isMobileDevice()) return;
     
@@ -300,34 +279,19 @@ function patchOpenChat() {
     }
 }
 
-// Обработка аппаратной кнопки назад на Android
-function initHardwareBackButton() {
-    if (!isMobileDevice()) return;
-    
-    window.addEventListener('popstate', (event) => {
-        const chatArea = document.querySelector('.glass-chat-area');
-        if (chatArea && chatArea.classList.contains('chat-open')) {
-            closeChat();
-            event.preventDefault();
-        }
-    });
-}
-
 // Экспорт
 window.initMobileOptimizations = initMobileOptimizations;
 window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
 window.patchOpenChat = patchOpenChat;
 
-// Автоматическая инициализация после загрузки
+// Автоматическая инициализация
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         initMobileOptimizations();
         patchOpenChat();
-        initHardwareBackButton();
     });
 } else {
     initMobileOptimizations();
     patchOpenChat();
-    initHardwareBackButton();
 }
