@@ -1195,7 +1195,40 @@ body {
     background: var(--accent-blue);
     opacity: 0.8;
 }
-/* Кнопка назад показывается только на мобилках */
+/* ============================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ (ДОБАВИТЬ В КОНЕЦ ФАЙЛА)
+   ============================================ */
+
+/* Кнопка назад - скрыта на десктопе, показывается на мобилках через медиа-запросы */
 .mobile-back-btn {
     display: none;
+}
+
+/* Дополнительные стили для мобильной навигации */
+@media (max-width: 768px) {
+    /* Кнопка назад появляется */
+    .mobile-back-btn {
+        display: flex !important;
+    }
+    
+    /* Убираем лишние отступы */
+    .glass-sidebar, .glass-chat-area {
+        overflow: hidden;
+    }
+    
+    /* Исправляем скролл */
+    .dialogs-list, .messages-container {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Улучшаем тап-таргеты */
+    .dialog-item, .menu-item, .profile-footer-btn, .send-btn, .emoji-btn {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Предотвращаем зумирование при фокусе на input */
+    input, textarea {
+        font-size: 16px !important;
+    }
 }
