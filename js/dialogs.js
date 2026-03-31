@@ -21,7 +21,8 @@ function renderDialogsList(container, filteredData) {
         if (chat.isBot) {
             avatarHtml = '<img src="lumina.svg" alt="Bot">';
         } else if (chat.isSaved) {
-            avatarHtml = '<img src="favourite.svg" alt="Saved">';
+            // Избранное - синяя аватарка с иконкой закладки
+            avatarHtml = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
         } else {
             avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
         }
@@ -36,7 +37,6 @@ function renderDialogsList(container, filteredData) {
                 <div class="dialog-name">
                     ${escapeHtml(chat.name)}
                     ${chat.isBot ? '<span class="bot-badge">Бот</span>' : ''}
-                    ${chat.isSaved ? '<span class="saved-badge">⭐</span>' : ''}
                     ${unreadBadge}
                 </div>
                 <div class="dialog-preview">${escapeHtml(chat.lastMessage || '')}</div>
@@ -139,7 +139,9 @@ async function loadDialogs(searchTerm = '') {
                 const isOwn = lastMsg.user_id === currentUser.id;
                 const prefix = isOwn ? 'Вы: ' : '';
                 let text = lastMsg.text || '';
-                if (text.length > 50) text = text.slice(0, 47) + '...';
+                if (text.length > window.MAX_MESSAGE_PREVIEW_LENGTH) {
+                    text = text.slice(0, window.MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
+                }
                 lastMessages.set(chat.id, prefix + text);
             }
         }
@@ -394,7 +396,7 @@ async function openSavedChat(chatId) {
         
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное <span class="saved-badge">⭐</span>';
+            chatTitle.innerHTML = 'Избранное';
         }
         
         const chatStatus = document.querySelector('.chat-status');
