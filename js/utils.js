@@ -46,7 +46,8 @@ function getUserStatusFromProfile(profile) {
     const lastSeenDate = new Date(profile.last_seen);
     const now = new Date();
     const diffMins = (now - lastSeenDate) / 60000;
-    if (diffMins < 5) return { text: 'онлайн', class: 'status-online', isOnline: true };
+    const onlineTimeout = window.ONLINE_TIMEOUT_MINUTES || 5;
+    if (diffMins < onlineTimeout) return { text: 'онлайн', class: 'status-online', isOnline: true };
     return { text: formatLastSeen(profile.last_seen), class: 'status-offline', isOnline: false };
 }
 
@@ -71,23 +72,6 @@ function updateDvh() {
 function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
         || window.innerWidth <= 768;
-}
-// Добавить в конец файла utils.js:
-
-function initMobileOptimizationsPlaceholder() {
-    // Пустая заглушка, если mobile.js не загружен
-    if (typeof window.initMobileOptimizations !== 'function') {
-        window.initMobileOptimizations = function() {
-            console.log('Мобильные оптимизации не загружены');
-        };
-    }
-}
-
-// Вызвать при загрузке
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileOptimizationsPlaceholder);
-} else {
-    initMobileOptimizationsPlaceholder();
 }
 
 // Экспорт
