@@ -5,9 +5,14 @@
     
     window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
+    // Ждем инициализации
     await new Promise(resolve => setTimeout(resolve, 100));
     
     if (!window.supabaseClient) return;
+    
+    // Делаем supabaseClient глобально доступным через window
+    // и также создаем локальную переменную в window
+    window.supabase = window.supabaseClient;
     
     const initFunctions = [
         { name: 'initAuth', fn: initAuth },
