@@ -1,4 +1,4 @@
-// auth.js - исправленный
+// auth.js
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -21,10 +21,10 @@ function showScreen(key) {
 
 async function logout() {
     if (onlineInterval) clearInterval(onlineInterval);
-    if (realtimeChannel) await supabaseClient?.removeChannel(realtimeChannel);
-    if (statusSubscription) await supabaseClient?.removeChannel(statusSubscription);
-    if (typingChannel) await supabaseClient?.removeChannel(typingChannel);
-    if (window.deletionChannel) await supabaseClient?.removeChannel(window.deletionChannel);
+    if (realtimeChannel && supabaseClient) await supabaseClient.removeChannel(realtimeChannel);
+    if (statusSubscription && supabaseClient) await supabaseClient.removeChannel(statusSubscription);
+    if (typingChannel && supabaseClient) await supabaseClient.removeChannel(typingChannel);
+    if (window.deletionChannel && supabaseClient) await supabaseClient.removeChannel(window.deletionChannel);
     
     messagesCache.clear();
     dialogCache.clear();
@@ -83,23 +83,19 @@ function initAuth() {
 }
 
 async function handleSuccessfulLogin(user) {
-    if (!user) {
-        console.error('Нет пользователя для входа');
+    if (!user || !supabaseClient) {
+        console.error('Ошибка: нет пользователя или supabaseClient');
         return;
     }
     
     currentUser = user;
     
     try {
-        const { data: p, error: profileError } = await supabaseClient
+        const { data: p } = await supabaseClient
             .from('profiles')
             .select('*')
             .eq('id', currentUser.id)
             .maybeSingle();
-        
-        if (profileError) {
-            console.error('Ошибка загрузки профиля:', profileError);
-        }
         
         if (!p) {
             const username = user.email?.split('@')[0]?.replace(/@lumina\.local$/, '') || 'user';
@@ -164,13 +160,12 @@ async function handleSuccessfulLogin(user) {
         if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
         
     } catch (err) {
-        console.error('Ошибка в handleSuccessfulLogin:', err);
+        console.error('Ошибка:', err);
         showToast('Ошибка загрузки профиля', true);
         await logout();
     }
 }
 
-// Экспорт
 window.initAuth = initAuth;
 window.showScreen = showScreen;
 window.logout = logout;
