@@ -1,297 +1,416 @@
-// mobile.js - Полная мобильная навигация
+/* mobile.css - Полная мобильная адаптация */
 
-let touchStartX = 0;
-let touchStartY = 0;
-let isSwiping = false;
-
-function initMobileNavigation() {
-    if (!isMobileDevice()) return;
-    
-    const sidebar = document.querySelector('.glass-sidebar');
-    const chatArea = document.querySelector('.glass-chat-area');
-    
-    if (!sidebar || !chatArea) return;
-    
-    // Добавляем кнопку "Назад" в хедер чата
-    addBackButton();
-    
-    // Настройка свайпов на области чата
-    if (chatArea) {
-        chatArea.addEventListener('touchstart', handleTouchStart);
-        chatArea.addEventListener('touchmove', handleTouchMove);
-        chatArea.addEventListener('touchend', handleTouchEnd);
+/* Базовые стили для мобильных устройств */
+@media (max-width: 768px) {
+    /* Общие настройки */
+    body {
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        height: 100%;
     }
     
-    // Запрещаем свайп на сообщениях
-    const messagesContainer = document.getElementById('messages');
-    if (messagesContainer) {
-        messagesContainer.addEventListener('touchstart', (e) => {
-            e.stopPropagation();
-        });
+    .main-interface {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
     }
     
-    // Обработка аппаратной кнопки "Назад" на Android
-    document.addEventListener('backbutton', () => {
-        if (chatArea.classList.contains('chat-open')) {
-            closeChat();
-        }
-    });
+    /* Сайдбар (список чатов) - всегда виден по умолчанию */
+    .glass-sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
+        transform: translateX(0);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 10;
+        background: rgba(3, 8, 26, 0.98) !important;
+        backdrop-filter: blur(20px);
+        border-right: none;
+    }
     
-    // Обработка popstate (для браузерной кнопки назад)
-    window.addEventListener('popstate', (event) => {
-        if (chatArea.classList.contains('chat-open')) {
-            closeChat();
-            event.preventDefault();
-        }
-    });
+    /* Когда чат открыт - скрываем список */
+    .glass-sidebar.chat-open {
+        transform: translateX(-100%);
+    }
+    
+    /* Чатовая область - скрыта по умолчанию */
+    .glass-chat-area {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 100%;
+        height: 100%;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 20;
+        background: rgba(3, 8, 26, 0.98);
+        backdrop-filter: blur(20px);
+    }
+    
+    /* Когда чат открыт - показываем */
+    .glass-chat-area.chat-open {
+        transform: translateX(0);
+    }
+    
+    /* Скрываем поле ввода изначально */
+    .input-zone {
+        display: none !important;
+    }
+    
+    /* Показываем поле ввода только когда чат открыт */
+    .glass-chat-area.chat-open .input-zone {
+        display: block !important;
+    }
+    
+    /* Хедер чата */
+    .chat-header {
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid var(--glass-border);
+        flex-shrink: 0;
+    }
+    
+    .chat-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .chat-info h3 {
+        font-size: 16px;
+        margin: 0;
+    }
+    
+    .chat-status {
+        font-size: 11px;
+    }
+    
+    .current-user-badge {
+        font-size: 10px;
+        padding: 4px 8px;
+    }
+    
+    /* Кнопка назад в чате */
+    .mobile-back-btn {
+        display: flex !important;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+        flex-shrink: 0;
+    }
+    
+    .mobile-back-btn:active {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(0.95);
+    }
+    
+    .mobile-back-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* Список чатов */
+    .dialogs-header {
+        padding: 16px 12px;
+        flex-shrink: 0;
+    }
+    
+    .search-wrapper {
+        margin-right: 0;
+    }
+    
+    .search-input {
+        font-size: 13px;
+        padding: 10px 12px 10px 36px;
+        border-radius: 20px;
+    }
+    
+    .dialogs-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .dialog-item {
+        padding: 12px 16px;
+        gap: 12px;
+        cursor: pointer;
+        transition: background 0.15s;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .dialog-item:active {
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .dialog-avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+    
+    .dialog-name {
+        font-size: 15px;
+        font-weight: 600;
+    }
+    
+    .dialog-preview {
+        font-size: 12px;
+    }
+    
+    /* Область сообщений */
+    .messages-container {
+        padding: 12px;
+        gap: 10px;
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .message {
+        gap: 8px;
+    }
+    
+    .msg-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    
+    .msg-bubble {
+        max-width: 85%;
+        padding: 8px 12px;
+    }
+    
+    .text {
+        font-size: 14px;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+    
+    .msg-time {
+        font-size: 9px;
+        margin-top: 4px;
+    }
+    
+    /* Поле ввода */
+    .input-zone {
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(10px);
+        flex-shrink: 0;
+    }
+    
+    .glass-input-wrapper {
+        padding: 6px 12px;
+        border-radius: 25px;
+    }
+    
+    .glass-input-wrapper input {
+        font-size: 16px;
+        padding: 8px 0;
+    }
+    
+    /* Эмодзи панель */
+    .emoji-picker {
+        position: fixed;
+        bottom: 70px;
+        left: 12px;
+        right: 12px;
+        max-width: none;
+        width: auto;
+        padding: 12px;
+        z-index: 1000;
+    }
+    
+    .emoji-list {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    
+    .emoji-item {
+        font-size: 28px;
+        padding: 8px;
+        cursor: pointer;
+        text-align: center;
+        border-radius: 12px;
+        transition: all 0.1s;
+    }
+    
+    .emoji-item:active {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(0.95);
+    }
+    
+    /* Нижняя панель профиля */
+    .profile-footer {
+        padding: 10px 12px;
+        min-height: 60px;
+        flex-shrink: 0;
+    }
+    
+    .profile-footer-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+    
+    .profile-footer-name {
+        font-size: 13px;
+    }
+    
+    .profile-footer-username {
+        font-size: 11px;
+    }
+    
+    .profile-footer-btn {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .profile-footer-btn:active {
+        transform: scale(0.95);
+    }
+    
+    /* Кнопки отправки */
+    .send-btn, .emoji-btn {
+        padding: 8px;
+        min-width: 40px;
+        min-height: 40px;
+    }
+    
+    .send-btn:active, .emoji-btn:active {
+        transform: scale(0.95);
+    }
+    
+    /* Разделитель дат */
+    .date-divider {
+        margin: 15px 0;
+    }
+    
+    .date-divider-text {
+        font-size: 10px;
+        padding: 3px 10px;
+    }
+    
+    /* Контекстное меню */
+    .message-menu {
+        min-width: 160px;
+    }
+    
+    .message-menu .menu-item {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+    
+    /* Модальное окно профиля */
+    .profile-modal-card {
+        margin: 15px;
+        width: calc(100% - 30px);
+        max-width: none;
+    }
+    
+    .profile-modal-body {
+        padding: 16px 20px 20px;
+        max-height: calc(100vh - 120px);
+    }
+    
+    .profile-avatar-big {
+        width: 80px;
+        height: 80px;
+        font-size: 32px;
+    }
+    
+    .glass-input {
+        padding: 12px;
+        font-size: 14px;
+    }
 }
 
-function addBackButton() {
-    const chatInfo = document.querySelector('.chat-info');
-    if (!chatInfo || document.getElementById('mobile-back-btn')) return;
+/* Дополнительные стили для очень маленьких экранов */
+@media (max-width: 480px) {
+    .dialog-avatar {
+        width: 44px;
+        height: 44px;
+    }
     
-    const backBtn = document.createElement('button');
-    backBtn.id = 'mobile-back-btn';
-    backBtn.className = 'mobile-back-btn';
-    backBtn.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M15 18l-6-6 6-6"/>
-        </svg>
-    `;
-    backBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeChat();
-    };
+    .dialog-item {
+        padding: 10px 12px;
+    }
     
-    // Вставляем в начало chat-info
-    chatInfo.insertBefore(backBtn, chatInfo.firstChild);
-}
-
-function handleTouchStart(e) {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-    isSwiping = true;
-}
-
-function handleTouchMove(e) {
-    if (!isSwiping) return;
+    .msg-bubble {
+        max-width: 90%;
+        padding: 6px 10px;
+    }
     
-    const touchX = e.changedTouches[0].screenX;
-    const touchY = e.changedTouches[0].screenY;
-    const deltaX = touchX - touchStartX;
-    const deltaY = touchY - touchStartY;
+    .emoji-list {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+    }
     
-    // Если свайп влево и больше горизонтальный, чем вертикальный
-    if (deltaX < -30 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        e.preventDefault();
-        closeChat();
-        isSwiping = false;
+    .emoji-item {
+        font-size: 24px;
+        padding: 6px;
+    }
+    
+    .chat-info h3 {
+        font-size: 15px;
+    }
+    
+    .mobile-back-btn {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .mobile-back-btn svg {
+        width: 18px;
+        height: 18px;
     }
 }
 
-function handleTouchEnd(e) {
-    if (!isSwiping) return;
-    
-    const touchEndX = e.changedTouches[0].screenX;
-    const touchEndY = e.changedTouches[0].screenY;
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-    
-    // Свайп влево для закрытия чата
-    if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        closeChat();
+/* Анимации */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
     }
-    
-    isSwiping = false;
-}
-
-function openChatMobile(chatId) {
-    const sidebar = document.querySelector('.glass-sidebar');
-    const chatArea = document.querySelector('.glass-chat-area');
-    const body = document.body;
-    
-    if (!sidebar || !chatArea) return;
-    
-    // Добавляем классы для анимации
-    sidebar.classList.add('chat-open');
-    chatArea.classList.add('chat-open');
-    body.classList.add('chat-open-mobile');
-    
-    // Обновляем URL без перезагрузки
-    if (window.history && chatId) {
-        const url = new URL(window.location);
-        url.searchParams.set('chat', chatId);
-        window.history.pushState({ chatId }, '', url);
-    }
-    
-    // Фокусируем на поле ввода через небольшую задержку
-    setTimeout(() => {
-        const input = document.getElementById('message-input');
-        if (input && !input.disabled) {
-            input.focus();
-        }
-    }, 350);
-}
-
-function closeChat() {
-    const sidebar = document.querySelector('.glass-sidebar');
-    const chatArea = document.querySelector('.glass-chat-area');
-    const body = document.body;
-    
-    if (!sidebar || !chatArea) return;
-    
-    // Убираем классы для анимации
-    sidebar.classList.remove('chat-open');
-    chatArea.classList.remove('chat-open');
-    body.classList.remove('chat-open-mobile');
-    
-    // Обновляем URL
-    if (window.history) {
-        const url = new URL(window.location);
-        url.searchParams.delete('chat');
-        window.history.pushState({}, '', url);
-    }
-    
-    // Снимаем выделение с диалога
-    document.querySelectorAll('.dialog-item').forEach(el => {
-        el.classList.remove('active');
-    });
-    
-    // Очищаем текущий чат
-    if (window.currentChat) {
-        window.currentChat = null;
-    }
-    
-    // Очищаем сообщения
-    const messagesContainer = document.getElementById('messages');
-    if (messagesContainer) {
-        messagesContainer.innerHTML = `
-            <div class="msg-stub">
-                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                <p>Выберите диалог, чтобы начать общение</p>
-            </div>
-        `;
-    }
-    
-    // Скрываем поле ввода
-    const inputZone = document.querySelector('.input-zone');
-    if (inputZone) inputZone.style.display = 'none';
-    
-    // Обновляем заголовок
-    const chatTitle = document.getElementById('chat-title');
-    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
-    
-    const chatStatus = document.querySelector('.chat-status');
-    if (chatStatus) chatStatus.textContent = 'выберите диалог';
-}
-
-function initMobileKeyboardHandler() {
-    if (!isMobileDevice()) return;
-    
-    const messageInput = document.getElementById('message-input');
-    const messagesContainer = document.getElementById('messages');
-    
-    if (!messageInput) return;
-    
-    let originalHeight = window.innerHeight;
-    
-    window.addEventListener('resize', () => {
-        const currentHeight = window.innerHeight;
-        
-        if (currentHeight < originalHeight - 150) {
-            setTimeout(() => {
-                if (messagesContainer) {
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
-            }, 100);
-        }
-        
-        originalHeight = currentHeight;
-        if (typeof updateDvh === 'function') updateDvh();
-    });
-    
-    messageInput.addEventListener('focus', () => {
-        setTimeout(() => {
-            if (messagesContainer) {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-        }, 300);
-    });
-}
-
-function initMobilePerformance() {
-    if (!isMobileDevice()) return;
-    
-    const MAX_CACHED_MESSAGES = 100;
-    if (typeof messagesCache !== 'undefined' && messagesCache) {
-        const originalSet = messagesCache.set;
-        messagesCache.set = function(key, value) {
-            if (value && value.length > MAX_CACHED_MESSAGES) {
-                value = value.slice(-MAX_CACHED_MESSAGES);
-            }
-            return originalSet.call(this, key, value);
-        };
-    }
-    
-    // Отключаем анимации при включенном энергосбережении
-    if ('connection' in navigator && navigator.connection.saveData) {
-        const style = document.createElement('style');
-        style.textContent = `
-            .message, .dialog-item, .glass-button, .glass-card {
-                transition: none !important;
-                animation: none !important;
-            }
-            .orb {
-                display: none !important;
-            }
-        `;
-        document.head.appendChild(style);
+    to {
+        transform: translateX(0);
     }
 }
 
-function initMobileOptimizations() {
-    if (!isMobileDevice()) return;
-    initMobileNavigation();
-    initMobileKeyboardHandler();
-    initMobilePerformance();
-}
-
-// Переопределяем функции открытия чата
-function patchOpenChat() {
-    if (!isMobileDevice()) return;
-    
-    const originalOpenChat = window.openChat;
-    if (originalOpenChat) {
-        window.openChat = async function(chatId, otherUserId, otherUser) {
-            const result = await originalOpenChat(chatId, otherUserId, otherUser);
-            openChatMobile(chatId);
-            return result;
-        };
+@keyframes slideOutLeft {
+    from {
+        transform: translateX(0);
     }
-    
-    const originalOpenSavedChat = window.openSavedChat;
-    if (originalOpenSavedChat) {
-        window.openSavedChat = async function(chatId) {
-            const result = await originalOpenSavedChat(chatId);
-            openChatMobile(chatId);
-            return result;
-        };
+    to {
+        transform: translateX(-100%);
     }
 }
 
-// Экспорт
-window.initMobileOptimizations = initMobileOptimizations;
-window.openChatMobile = openChatMobile;
-window.closeChat = closeChat;
-window.patchOpenChat = patchOpenChat;
-
-// Автоматическая инициализация
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        initMobileOptimizations();
-        patchOpenChat();
-    });
-} else {
-    initMobileOptimizations();
-    patchOpenChat();
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
