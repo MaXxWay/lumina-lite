@@ -9,7 +9,13 @@
         return;
     }
     
+    // Создаем глобальный клиент Supabase
     window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Также создаем локальную переменную для совместимости с другими файлами
+    window.supabase = window.supabaseClient;
+    
+    // Ждем небольшую задержку для уверенности
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Инициализация всех компонентов с проверкой
     const initComponents = [
