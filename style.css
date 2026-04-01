@@ -1507,3 +1507,102 @@ body {
         height: 20px;
     }
 }
+/* Статус-галочка для бота */
+.verified-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    border: 2px solid var(--bg-deep);
+    box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+}
+.verified-badge svg {
+    width: 10px;
+    height: 10px;
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* Для аватара в списке диалогов */
+.dialog-avatar .verified-badge {
+    width: 16px;
+    height: 16px;
+    bottom: -2px;
+    right: -2px;
+}
+.dialog-avatar .verified-badge svg {
+    width: 9px;
+    height: 9px;
+}
+
+/* Для аватара в сообщениях */
+.msg-avatar .verified-badge-small {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    border: 2px solid var(--bg-deep);
+}
+.msg-avatar .verified-badge-small svg {
+    width: 9px;
+    height: 9px;
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* Убираем мерцание поля ввода при загрузке */
+.input-zone {
+    transition: none;
+}
+
+.input-zone.hidden-input {
+    display: none !important;
+}
+
+/* Улучшенная анимация открытия чата на мобилках */
+@media (max-width: 768px) {
+    .glass-sidebar,
+    .glass-chat-area {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: transform;
+    }
+    
+    .glass-chat-area {
+        transform: translateX(100%);
+    }
+    
+    .glass-chat-area.chat-open {
+        transform: translateX(0);
+    }
+    
+    .glass-sidebar {
+        transform: translateX(0);
+    }
+    
+    .glass-sidebar.chat-open {
+        transform: translateX(-100%);
+    }
+    
+    /* Плавное появление поля ввода */
+    .input-zone {
+        transition: opacity 0.2s ease;
+    }
+    
+    .input-zone.mobile-visible {
+        opacity: 1;
+    }
+}
