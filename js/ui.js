@@ -58,21 +58,72 @@ function initMessageMenu() {
     const menu = document.getElementById('message-menu');
     if (!menu) return;
     
-    function hide() { menu.style.display = 'none'; document.removeEventListener('click', hide); }
+    function hideMenu() { 
+        menu.style.display = 'none'; 
+        document.removeEventListener('click', hideMenu);
+        document.removeEventListener('touchstart', hideMenu);
+    }
     
     window.showMessageMenu = function(e, msgId, msgText, isOwn) {
         e.preventDefault();
+        
+        // Получаем координаты
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // Для мобильных устройств - позиционируем по центру касания
+        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice() && e.touches && e.touches[0]) {
+            const touch = e.touches[0];
+            x = touch.clientX;
+            y = touch.clientY;
+        }
+        
         menu.style.display = 'block';
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        
+        // На мобилках добавляем немного отступа
+        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice()) {
+            menu.style.transform = 'translate(-50%, -100%)';
+            menu.style.marginTop = '-10px';
+        } else {
+            menu.style.transform = 'translate(-50%, -100%)';
+        }
+        
+        // Проверяем, не выходит ли меню за экран
+        setTimeout(() => {
+            const rect = menu.getBoundingClientRect();
+            if (rect.left < 0) {
+                menu.style.left = '10px';
+                menu.style.transform = 'translate(0, -100%)';
+            }
+            if (rect.right > window.innerWidth) {
+                menu.style.left = 'auto';
+                menu.style.right = '10px';
+                menu.style.transform = 'translate(0, -100%)';
+            }
+            if (rect.top < 0) {
+                menu.style.transform = 'translate(-50%, 0)';
+                menu.style.marginTop = '10px';
+            }
+        }, 0);
+        
+        // Назначаем действия
         menu.querySelectorAll('.menu-item').forEach(item => {
             item.onclick = () => handleAction(item.dataset.action, msgId, msgText, isOwn);
         });
-        setTimeout(() => document.addEventListener('click', hide), 0);
+        
+        // Закрываем при клике вне меню
+        setTimeout(() => {
+            document.addEventListener('click', hideMenu);
+            document.addEventListener('touchstart', hideMenu);
+        }, 0);
     };
     
     async function handleAction(action, msgId, msgText, isOwn) {
-        menu.style.display = 'none';
+        const menu = document.getElementById('message-menu');
+        if (menu) menu.style.display = 'none';
+        
         switch (action) {
             case 'reply': 
                 const inp = document.getElementById('message-input'); 
@@ -90,6 +141,7 @@ function initMessageMenu() {
                     const newText = prompt('Изменить сообщение:', msgText);
                     if (newText?.trim()) {
                         await supabaseClient.from('messages').update({ text: newText.trim(), is_edited: true }).eq('id', msgId);
+                        // Обновляем отображение
                         const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
                         if (msgDiv) {
                             const textDiv = msgDiv.querySelector('.text');
