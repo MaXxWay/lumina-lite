@@ -24,7 +24,7 @@ const SAVED_CHAT = {
 };
 
 // Глобальные переменные
-let supabaseClient = null;  // Будет установлен в app.js
+let supabaseClient = null;
 let currentUser = null;
 let currentProfile = null;
 let currentChat = null;
