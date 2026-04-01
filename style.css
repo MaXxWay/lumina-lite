@@ -1283,3 +1283,227 @@ body {
         user-select: none;
     }
 }
+/* Кастомные модальные окна */
+.custom-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: modalFadeIn 0.2s ease;
+}
+
+.custom-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+}
+
+.custom-modal-container {
+    position: relative;
+    width: 90%;
+    max-width: 420px;
+    background: rgba(10, 25, 60, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    overflow: hidden;
+    animation: modalSlideUp 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.custom-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.custom-modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff, var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0;
+}
+
+.custom-modal-close {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-dim);
+}
+
+.custom-modal-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    transform: scale(1.05);
+}
+
+.custom-modal-body {
+    padding: 24px;
+}
+
+.custom-modal-message {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-main);
+    margin: 0 0 16px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.custom-modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--glass-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.custom-modal-footer .glass-button {
+    flex: 1;
+    margin: 0;
+    padding: 12px;
+}
+
+.custom-modal-footer .glass-button.primary {
+    background: linear-gradient(135deg, var(--accent-blue), #003399);
+}
+
+#modal-input {
+    width: 100%;
+    margin-top: 8px;
+    font-size: 15px;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Улучшенное контекстное меню */
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.message-menu.menu-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.message-menu .menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.message-menu .menu-item:active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.98);
+}
+
+.message-menu .menu-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.message-menu .menu-item.danger {
+    color: #ff6b6b;
+}
+
+.message-menu .menu-item.danger:active {
+    background: rgba(255, 107, 107, 0.2);
+}
+
+/* Мобильные адаптации */
+@media (max-width: 768px) {
+    .custom-modal-container {
+        width: 95%;
+        margin: 16px;
+        border-radius: 20px;
+    }
+    
+    .custom-modal-header {
+        padding: 16px 20px;
+    }
+    
+    .custom-modal-title {
+        font-size: 18px;
+    }
+    
+    .custom-modal-body {
+        padding: 20px;
+    }
+    
+    .custom-modal-message {
+        font-size: 14px;
+    }
+    
+    .custom-modal-footer {
+        padding: 16px 20px;
+    }
+    
+    .custom-modal-footer .glass-button {
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    .message-menu {
+        min-width: 180px;
+        border-radius: 20px;
+    }
+    
+    .message-menu .menu-item {
+        padding: 14px 18px;
+        font-size: 15px;
+        gap: 14px;
+    }
+    
+    .message-menu .menu-item svg {
+        width: 20px;
+        height: 20px;
+    }
+}
