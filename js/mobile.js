@@ -1,4 +1,4 @@
-// mobile.js - Мобильная адаптация
+// mobile.js - Полная мобильная навигация
 
 let touchStartX = 0;
 let touchStartY = 0;
@@ -6,8 +6,6 @@ let isSwiping = false;
 let isChatOpen = false;
 let longPressTimer = null;
 let longPressTarget = null;
-let pressStartX = 0;
-let pressStartY = 0;
 
 function initMobileNavigation() {
     if (!isMobileDevice()) return;
@@ -62,46 +60,54 @@ function initMobileNavigation() {
         }
     });
     
-    console.log('✅ mobileNavigation инициализирован');
+    // Добавляем обработчик для обновления URL при открытии чата
+    window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatId = urlParams.get('chat');
+        if (chatId) {
+            // Если есть chat в URL, но чат не открыт - закрываем его
+            if (!isChatOpen) {
+                closeChat();
+            }
+        }
+    });
 }
 
 function initLongPressHandler() {
     const messagesContainer = document.getElementById('messages');
     if (!messagesContainer) return;
     
+    // Используем делегирование событий для всех сообщений
     messagesContainer.addEventListener('touchstart', (e) => {
+        // Ищем элемент сообщения
         const messageDiv = e.target.closest('.message');
         if (!messageDiv) return;
         
-        const touch = e.touches[0];
-        pressStartX = touch.clientX;
-        pressStartY = touch.clientY;
-        
+        // Сохраняем целевое сообщение
         longPressTarget = messageDiv;
         
+        // Устанавливаем таймер на долгое нажатие (500ms)
         longPressTimer = setTimeout(() => {
             if (longPressTarget) {
-                // Вибрация (если поддерживается)
-                if (window.navigator && window.navigator.vibrate) {
-                    window.navigator.vibrate(50);
-                }
-                
+                // Получаем данные сообщения
                 const msgId = longPressTarget.dataset.id;
                 const msgText = longPressTarget.dataset.text;
                 const isOwn = longPressTarget.classList.contains('own');
                 
+                // Показываем контекстное меню
                 if (typeof showMessageMenu === 'function') {
+                    // Создаем искусственное событие с координатами касания
+                    const touch = e.touches[0];
                     const fakeEvent = {
-                        clientX: pressStartX,
-                        clientY: pressStartY,
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
                         preventDefault: () => {}
                     };
                     showMessageMenu(fakeEvent, msgId, msgText, isOwn);
                 }
                 
-                // Визуальный фидбек
+                // Добавляем визуальный фидбек
                 longPressTarget.style.transform = 'scale(0.98)';
-                longPressTarget.style.transition = 'transform 0.1s ease';
                 setTimeout(() => {
                     if (longPressTarget) {
                         longPressTarget.style.transform = '';
@@ -113,20 +119,7 @@ function initLongPressHandler() {
     });
     
     messagesContainer.addEventListener('touchmove', (e) => {
-        if (longPressTimer && longPressTarget) {
-            const touch = e.touches[0];
-            const deltaX = Math.abs(touch.clientX - pressStartX);
-            const deltaY = Math.abs(touch.clientY - pressStartY);
-            
-            if (deltaX > 10 || deltaY > 10) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-                longPressTarget = null;
-            }
-        }
-    });
-    
-    messagesContainer.addEventListener('touchend', () => {
+        // Если палец двигается - отменяем долгое нажатие
         if (longPressTimer) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -134,7 +127,17 @@ function initLongPressHandler() {
         }
     });
     
-    messagesContainer.addEventListener('touchcancel', () => {
+    messagesContainer.addEventListener('touchend', (e) => {
+        // Если палец поднят до окончания таймера - отменяем
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    });
+    
+    messagesContainer.addEventListener('touchcancel', (e) => {
+        // Если касание прервано - отменяем
         if (longPressTimer) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
@@ -164,6 +167,7 @@ function addBackButton() {
         closeChat();
     };
     
+    // Вставляем в начало chat-info
     chatInfo.insertBefore(backBtn, chatInfo.firstChild);
 }
 
@@ -177,9 +181,11 @@ function handleTouchMove(e) {
     if (!isSwiping || !isChatOpen) return;
     
     const touchX = e.changedTouches[0].screenX;
+    const touchY = e.changedTouches[0].screenY;
     const deltaX = touchX - touchStartX;
-    const deltaY = e.changedTouches[0].screenY - touchStartY;
+    const deltaY = touchY - touchStartY;
     
+    // Если свайп влево и больше горизонтальный, чем вертикальный
     if (deltaX < -30 && Math.abs(deltaX) > Math.abs(deltaY)) {
         e.preventDefault();
         closeChat();
@@ -194,9 +200,11 @@ function handleTouchEnd(e) {
     }
     
     const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
     const deltaX = touchEndX - touchStartX;
-    const deltaY = e.changedTouches[0].screenY - touchStartY;
+    const deltaY = touchEndY - touchStartY;
     
+    // Свайп влево для закрытия чата
     if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
         closeChat();
     }
@@ -210,19 +218,23 @@ function openChatMobile(chatId) {
     
     if (!sidebar || !chatArea) return;
     
+    // Открываем чат
     sidebar.classList.add('chat-open');
     chatArea.classList.add('chat-open');
     isChatOpen = true;
     
+    // Показываем поле ввода
     const inputZone = document.querySelector('.input-zone');
     if (inputZone) inputZone.style.display = 'block';
     
+    // Обновляем URL без перезагрузки
     if (window.history && chatId) {
         const url = new URL(window.location);
         url.searchParams.set('chat', chatId);
         window.history.pushState({ chatId }, '', url);
     }
     
+    // Фокусируем на поле ввода через небольшую задержку
     setTimeout(() => {
         const input = document.getElementById('message-input');
         if (input && !input.disabled) {
@@ -237,27 +249,33 @@ function closeChat() {
     
     if (!sidebar || !chatArea) return;
     
+    // Закрываем чат
     sidebar.classList.remove('chat-open');
     chatArea.classList.remove('chat-open');
     isChatOpen = false;
     
+    // Скрываем поле ввода
     const inputZone = document.querySelector('.input-zone');
     if (inputZone) inputZone.style.display = 'none';
     
+    // Обновляем URL
     if (window.history) {
         const url = new URL(window.location);
         url.searchParams.delete('chat');
         window.history.pushState({}, '', url);
     }
     
+    // Снимаем выделение с диалога
     document.querySelectorAll('.dialog-item').forEach(el => {
         el.classList.remove('active');
     });
     
+    // Очищаем текущий чат
     if (window.currentChat) {
         window.currentChat = null;
     }
     
+    // Очищаем сообщения
     const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
@@ -268,12 +286,14 @@ function closeChat() {
         `;
     }
     
+    // Обновляем заголовок
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle) chatTitle.textContent = 'Lumina Lite';
     
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
     
+    // Отключаем индикатор печати
     const typingStatus = document.querySelector('.typing-status');
     if (typingStatus) typingStatus.style.display = 'none';
 }
@@ -316,6 +336,18 @@ function initMobileKeyboardHandler() {
 function initMobilePerformance() {
     if (!isMobileDevice()) return;
     
+    const MAX_CACHED_MESSAGES = 100;
+    if (typeof messagesCache !== 'undefined' && messagesCache) {
+        const originalSet = messagesCache.set;
+        messagesCache.set = function(key, value) {
+            if (value && value.length > MAX_CACHED_MESSAGES) {
+                value = value.slice(-MAX_CACHED_MESSAGES);
+            }
+            return originalSet.call(this, key, value);
+        };
+    }
+    
+    // Отключаем анимации при включенном энергосбережении
     if ('connection' in navigator && navigator.connection.saveData) {
         const style = document.createElement('style');
         style.textContent = `
@@ -338,6 +370,7 @@ function initMobileOptimizations() {
     initMobilePerformance();
 }
 
+// Переопределяем функции открытия чата
 function patchOpenChat() {
     if (!isMobileDevice()) return;
     
@@ -376,5 +409,3 @@ if (document.readyState === 'loading') {
     initMobileOptimizations();
     patchOpenChat();
 }
-
-console.log('✅ mobile.js загружен');
