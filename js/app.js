@@ -1,4 +1,4 @@
-// app.js - главный файл инициализации с проверкой функций
+// app.js - главный файл инициализации
 
 (async function init() {
     console.log('🚀 Инициализация приложения...');
@@ -11,8 +11,8 @@
     
     window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    // Функции для инициализации с проверкой
-    const initFunctions = [
+    // Инициализация всех компонентов с проверкой
+    const initComponents = [
         { name: 'initAuth', fn: initAuth },
         { name: 'initProfileFooter', fn: initProfileFooter },
         { name: 'initEmojiPicker', fn: initEmojiPicker },
@@ -23,17 +23,16 @@
         { name: 'initUserActivityTracking', fn: initUserActivityTracking }
     ];
     
-    // Вызываем функции инициализации
-    for (const item of initFunctions) {
-        if (typeof item.fn === 'function') {
+    for (const component of initComponents) {
+        if (typeof component.fn === 'function') {
             try {
-                item.fn();
-                console.log(`✅ ${item.name} инициализирован`);
+                component.fn();
+                console.log(`✅ ${component.name} инициализирован`);
             } catch (err) {
-                console.warn(`⚠️ Ошибка в ${item.name}:`, err);
+                console.warn(`⚠️ Ошибка в ${component.name}:`, err.message);
             }
         } else {
-            console.warn(`⚠️ Функция ${item.name} не найдена`);
+            console.warn(`⚠️ Функция ${component.name} не найдена`);
         }
     }
     
@@ -43,7 +42,7 @@
             initMobileOptimizations();
             console.log('✅ mobileOptimizations инициализирован');
         } catch (err) {
-            console.warn('⚠️ Ошибка mobileOptimizations:', err);
+            console.warn('⚠️ Ошибка mobileOptimizations:', err.message);
         }
     }
     
@@ -62,7 +61,8 @@
                 const zone = document.querySelector('.input-zone'); 
                 const chatArea = document.querySelector('.glass-chat-area');
                 if (zone && chatArea && chatArea.classList.contains('chat-open')) {
-                    document.getElementById('message-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const input = document.getElementById('message-input');
+                    if (input) input.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }, 100);
         }
@@ -70,21 +70,26 @@
         if (typeof updateDvh === 'function') updateDvh();
     });
     
-    // Проверка сессии
-    const { data: { session } } = await window.supabaseClient.auth.getSession();
-    if (session) {
-        if (typeof handleSuccessfulLogin === 'function') {
-            await handleSuccessfulLogin(session.user);
-            console.log('✅ Пользователь авторизован');
+    // Проверка сессии и авторизация
+    try {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        if (session) {
+            if (typeof handleSuccessfulLogin === 'function') {
+                await handleSuccessfulLogin(session.user);
+                console.log('✅ Пользователь авторизован:', session.user.email);
+            } else {
+                console.error('❌ handleSuccessfulLogin не определена');
+            }
         } else {
-            console.error('❌ handleSuccessfulLogin не определена');
+            if (typeof showScreen === 'function') {
+                showScreen('reg');
+                console.log('📱 Показан экран регистрации');
+            } else {
+                console.error('❌ showScreen не определена');
+            }
         }
-    } else {
-        if (typeof showScreen === 'function') {
-            showScreen('reg');
-            console.log('📱 Показан экран регистрации');
-        } else {
-            console.error('❌ showScreen не определена');
-        }
+    } catch (err) {
+        console.error('❌ Ошибка при проверке сессии:', err);
+        if (typeof showScreen === 'function') showScreen('reg');
     }
 })();
