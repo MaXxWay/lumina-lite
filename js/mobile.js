@@ -1,100 +1,264 @@
-// mobile.js - Мобильная адаптация
+// mobile.js - Полная мобильная навигация
+
+let touchStartX = 0;
+let touchStartY = 0;
+let isSwiping = false;
+let isChatOpen = false;
+
+function initMobileNavigation() {
+    if (!isMobileDevice()) return;
+    
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Изначально чат закрыт
+    sidebar.classList.remove('chat-open');
+    chatArea.classList.remove('chat-open');
+    isChatOpen = false;
+    
+    // Скрываем поле ввода изначально
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    // Добавляем кнопку "Назад" в хедер чата
+    addBackButton();
+    
+    // Настройка свайпов на области чата
+    if (chatArea) {
+        chatArea.addEventListener('touchstart', handleTouchStart);
+        chatArea.addEventListener('touchmove', handleTouchMove);
+        chatArea.addEventListener('touchend', handleTouchEnd);
+    }
+    
+    // Запрещаем свайп на сообщениях, чтобы не мешать скроллу
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        });
+    }
+    
+    // Обработка аппаратной кнопки "Назад" на Android
+    document.addEventListener('backbutton', () => {
+        if (isChatOpen) {
+            closeChat();
+        }
+    });
+    
+    // Обработка popstate (для браузерной кнопки назад)
+    window.addEventListener('popstate', (event) => {
+        if (isChatOpen) {
+            closeChat();
+            event.preventDefault();
+        }
+    });
+    
+    // Добавляем обработчик для обновления URL при открытии чата
+    window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatId = urlParams.get('chat');
+        if (chatId) {
+            // Если есть chat в URL, но чат не открыт - закрываем его
+            if (!isChatOpen) {
+                closeChat();
+            }
+        }
+    });
+}
+
+function addBackButton() {
+    const chatInfo = document.querySelector('.chat-info');
+    if (!chatInfo) return;
+    
+    // Удаляем старую кнопку если есть
+    const oldBtn = document.getElementById('mobile-back-btn');
+    if (oldBtn) oldBtn.remove();
+    
+    const backBtn = document.createElement('button');
+    backBtn.id = 'mobile-back-btn';
+    backBtn.className = 'mobile-back-btn';
+    backBtn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+    `;
+    backBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeChat();
+    };
+    
+    // Вставляем в начало chat-info
+    chatInfo.insertBefore(backBtn, chatInfo.firstChild);
+}
+
+function handleTouchStart(e) {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+    isSwiping = true;
+}
+
+function handleTouchMove(e) {
+    if (!isSwiping || !isChatOpen) return;
+    
+    const touchX = e.changedTouches[0].screenX;
+    const touchY = e.changedTouches[0].screenY;
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+    
+    // Если свайп влево и больше горизонтальный, чем вертикальный
+    if (deltaX < -30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        e.preventDefault();
+        closeChat();
+        isSwiping = false;
+    }
+}
+
+function handleTouchEnd(e) {
+    if (!isSwiping || !isChatOpen) {
+        isSwiping = false;
+        return;
+    }
+    
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    
+    // Свайп влево для закрытия чата
+    if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        closeChat();
+    }
+    
+    isSwiping = false;
+}
+
+function openChatMobile(chatId) {
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Открываем чат
+    sidebar.classList.add('chat-open');
+    chatArea.classList.add('chat-open');
+    isChatOpen = true;
+    
+    // Показываем поле ввода
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'block';
+    
+    // Обновляем URL без перезагрузки
+    if (window.history && chatId) {
+        const url = new URL(window.location);
+        url.searchParams.set('chat', chatId);
+        window.history.pushState({ chatId }, '', url);
+    }
+    
+    // Фокусируем на поле ввода через небольшую задержку
+    setTimeout(() => {
+        const input = document.getElementById('message-input');
+        if (input && !input.disabled) {
+            input.focus();
+        }
+    }, 350);
+}
+
+function closeChat() {
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Закрываем чат
+    sidebar.classList.remove('chat-open');
+    chatArea.classList.remove('chat-open');
+    isChatOpen = false;
+    
+    // Скрываем поле ввода
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    // Обновляем URL
+    if (window.history) {
+        const url = new URL(window.location);
+        url.searchParams.delete('chat');
+        window.history.pushState({}, '', url);
+    }
+    
+    // Снимаем выделение с диалога
+    document.querySelectorAll('.dialog-item').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    // Очищаем текущий чат
+    if (window.currentChat) {
+        window.currentChat = null;
+    }
+    
+    // Очищаем сообщения
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div class="msg-stub">
+                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                <p>Выберите диалог, чтобы начать общение</p>
+            </div>
+        `;
+    }
+    
+    // Обновляем заголовок
+    const chatTitle = document.getElementById('chat-title');
+    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    
+    const chatStatus = document.querySelector('.chat-status');
+    if (chatStatus) chatStatus.textContent = 'выберите диалог';
+    
+    // Отключаем индикатор печати
+    const typingStatus = document.querySelector('.typing-status');
+    if (typingStatus) typingStatus.style.display = 'none';
+}
 
 function initMobileKeyboardHandler() {
     if (!isMobileDevice()) return;
     
     const messageInput = document.getElementById('message-input');
-    const inputZone = document.querySelector('.input-zone');
     const messagesContainer = document.getElementById('messages');
     
-    if (!messageInput || !inputZone) return;
+    if (!messageInput) return;
     
     let originalHeight = window.innerHeight;
-    let isKeyboardOpen = false;
     
     window.addEventListener('resize', () => {
         const currentHeight = window.innerHeight;
         
-        if (currentHeight < originalHeight - 150) {
-            if (!isKeyboardOpen) {
-                isKeyboardOpen = true;
-                setTimeout(() => {
-                    if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                    inputZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
-            }
-        } else if (currentHeight > originalHeight - 50) {
-            isKeyboardOpen = false;
-            if (typeof updateDvh === 'function') updateDvh();
+        if (currentHeight < originalHeight - 150 && isChatOpen) {
+            setTimeout(() => {
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }, 100);
         }
+        
         originalHeight = currentHeight;
         if (typeof updateDvh === 'function') updateDvh();
     });
     
     messageInput.addEventListener('focus', () => {
+        if (!isChatOpen) return;
         setTimeout(() => {
-            if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            inputZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (messagesContainer) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
         }, 300);
     });
-}
-
-function initMobileGestures() {
-    if (!isMobileDevice()) return;
-    
-    const sidebar = document.querySelector('.glass-sidebar');
-    const chatArea = document.querySelector('.glass-chat-area');
-    let touchStartX = 0;
-    
-    if (!sidebar || !chatArea) return;
-    
-    chatArea.addEventListener('touchstart', (e) => {
-        touchStartX = e.changedTouches[0].screenX;
-    });
-    
-    chatArea.addEventListener('touchend', (e) => {
-        const touchEndX = e.changedTouches[0].screenX;
-        const swipeDistance = touchEndX - touchStartX;
-        
-        if (swipeDistance > 50 && touchStartX < 50) {
-            toggleMobileSidebar(true);
-        } else if (swipeDistance < -50) {
-            toggleMobileSidebar(false);
-        }
-    });
-}
-
-function toggleMobileSidebar(show) {
-    if (!isMobileDevice()) return;
-    
-    const sidebar = document.querySelector('.glass-sidebar');
-    const overlay = document.getElementById('mobile-sidebar-overlay');
-    
-    if (show) {
-        if (sidebar) sidebar.classList.add('open');
-        if (!overlay) {
-            const newOverlay = document.createElement('div');
-            newOverlay.id = 'mobile-sidebar-overlay';
-            newOverlay.className = 'mobile-sidebar-overlay';
-            newOverlay.onclick = () => toggleMobileSidebar(false);
-            document.body.appendChild(newOverlay);
-            setTimeout(() => newOverlay.classList.add('active'), 10);
-        } else {
-            overlay.classList.add('active');
-        }
-    } else {
-        if (sidebar) sidebar.classList.remove('open');
-        if (overlay) {
-            overlay.classList.remove('active');
-            setTimeout(() => overlay.remove(), 300);
-        }
-    }
 }
 
 function initMobilePerformance() {
     if (!isMobileDevice()) return;
     
-    const MAX_CACHED_MESSAGES = window.MAX_CACHED_MESSAGES || 100;
+    const MAX_CACHED_MESSAGES = 100;
     if (typeof messagesCache !== 'undefined' && messagesCache) {
         const originalSet = messagesCache.set;
         messagesCache.set = function(key, value) {
@@ -105,6 +269,7 @@ function initMobilePerformance() {
         };
     }
     
+    // Отключаем анимации при включенном энергосбережении
     if ('connection' in navigator && navigator.connection.saveData) {
         const style = document.createElement('style');
         style.textContent = `
@@ -120,35 +285,49 @@ function initMobilePerformance() {
     }
 }
 
-function initMobileInterface() {
-    if (!isMobileDevice()) return;
-    
-    const chatHeader = document.querySelector('.chat-header');
-    const chatInfo = document.querySelector('.chat-info');
-    
-    if (chatHeader && chatInfo && !document.getElementById('mobile-menu-btn')) {
-        const menuBtn = document.createElement('button');
-        menuBtn.id = 'mobile-menu-btn';
-        menuBtn.className = 'mobile-menu-btn';
-        menuBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
-        menuBtn.onclick = (e) => {
-            e.stopPropagation();
-            toggleMobileSidebar(true);
-        };
-        
-        // Вставляем кнопку в начало chat-info
-        chatInfo.insertBefore(menuBtn, chatInfo.firstChild);
-    }
-}
-
 function initMobileOptimizations() {
     if (!isMobileDevice()) return;
+    initMobileNavigation();
     initMobileKeyboardHandler();
-    initMobileGestures();
     initMobilePerformance();
-    initMobileInterface();
+}
+
+// Переопределяем функции открытия чата
+function patchOpenChat() {
+    if (!isMobileDevice()) return;
+    
+    const originalOpenChat = window.openChat;
+    if (originalOpenChat) {
+        window.openChat = async function(chatId, otherUserId, otherUser) {
+            const result = await originalOpenChat(chatId, otherUserId, otherUser);
+            openChatMobile(chatId);
+            return result;
+        };
+    }
+    
+    const originalOpenSavedChat = window.openSavedChat;
+    if (originalOpenSavedChat) {
+        window.openSavedChat = async function(chatId) {
+            const result = await originalOpenSavedChat(chatId);
+            openChatMobile(chatId);
+            return result;
+        };
+    }
 }
 
 // Экспорт
 window.initMobileOptimizations = initMobileOptimizations;
-window.toggleMobileSidebar = toggleMobileSidebar;
+window.openChatMobile = openChatMobile;
+window.closeChat = closeChat;
+window.patchOpenChat = patchOpenChat;
+
+// Автоматическая инициализация
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initMobileOptimizations();
+        patchOpenChat();
+    });
+} else {
+    initMobileOptimizations();
+    patchOpenChat();
+}
