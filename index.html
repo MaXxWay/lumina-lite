@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="lumina.svg">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Syne:wght@800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
     <div class="orb orb-1"></div>
@@ -84,15 +85,6 @@
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
             <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
         </symbol>
-        <symbol id="icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-        </symbol>
-        <symbol id="icon-forward" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10 6L4 12l6 6"/>
-            <path d="M20 12H4"/>
-        </symbol>
         <symbol id="icon-smile" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
@@ -143,21 +135,14 @@
         </aside>
 
         <main class="glass-chat-area">
-<header class="chat-header">
-    <div class="chat-info">
-        <button id="mobile-menu-btn" class="mobile-menu-btn">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="3" y1="12" x2="21" y2="12"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-        </button>
-        <h3 id="chat-title">Lumina Lite</h3>
-        <span class="chat-status">выберите диалог</span>
-        <div class="typing-status"></div>
-    </div>
-    <span class="current-user-badge" id="current-user-badge"></span>
-</header>
+            <header class="chat-header">
+                <div class="chat-info">
+                    <h3 id="chat-title">Lumina Lite</h3>
+                    <span class="chat-status">выберите диалог</span>
+                    <div class="typing-status"></div>
+                </div>
+                <span class="current-user-badge" id="current-user-badge"></span>
+            </header>
 
             <div id="messages" class="messages-container">
                 <div class="msg-stub">
@@ -208,10 +193,6 @@
             <svg width="16" height="16"><use href="#icon-edit"/></svg>
             <span>Изменить</span>
         </div>
-        <div class="menu-item" data-action="pin">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6l2 2-2 2v6"/><path d="M8 8h8"/><line x1="12" y1="20" x2="12" y2="22"/></svg>
-            <span>Закрепить</span>
-        </div>
         <div class="menu-item danger" data-action="delete">
             <svg width="16" height="16"><use href="#icon-delete"/></svg>
             <span>Удалить</span>
@@ -258,6 +239,7 @@
     <script src="js/chat.js"></script>
     <script src="js/dialogs.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/mobile.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
