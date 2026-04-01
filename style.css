@@ -1283,3 +1283,138 @@ body {
         user-select: none;
     }
 }
+/* ============================================
+   УЛУЧШЕННОЕ КОНТЕКСТНОЕ МЕНЮ
+   ============================================ */
+
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform-origin: top left;
+}
+
+.message-menu .menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.message-menu .menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.message-menu .menu-item:active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.98);
+}
+
+.message-menu .menu-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.message-menu .menu-item.danger {
+    color: #ff6b6b;
+}
+
+.message-menu .menu-item.danger:hover {
+    background: rgba(255, 107, 107, 0.2);
+}
+
+.message-menu .menu-item.danger svg {
+    color: #ff6b6b;
+}
+
+/* Разделитель в меню */
+.message-menu .menu-divider {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 6px 0;
+}
+
+/* Мобильная версия контекстного меню */
+@media (max-width: 768px) {
+    .message-menu {
+        min-width: 180px;
+        border-radius: 20px;
+        padding: 10px 0;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+    
+    .message-menu .menu-item {
+        padding: 14px 20px;
+        font-size: 16px;
+        gap: 16px;
+    }
+    
+    .message-menu .menu-item svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .message-menu .menu-item:active {
+        background: rgba(255, 255, 255, 0.15);
+    }
+}
+
+/* Анимация появления меню */
+@keyframes menuPopIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes menuPopOut {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+}
+
+.message-menu.show {
+    animation: menuPopIn 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.message-menu.hide {
+    animation: menuPopOut 0.15s ease forwards;
+}
+
+/* Запрещаем выделение текста при долгом нажатии на мобилках */
+@media (max-width: 768px) {
+    .message {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    /* Увеличиваем зону нажатия */
+    .message .msg-bubble {
+        cursor: pointer;
+    }
+}
