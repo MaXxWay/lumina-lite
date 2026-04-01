@@ -24,7 +24,9 @@
         if (newH < origH - 100) {
             setTimeout(() => { 
                 const zone = document.querySelector('.input-zone'); 
-                if (zone?.style.display !== 'none') {
+                // Проверяем, открыт ли чат
+                const chatArea = document.querySelector('.glass-chat-area');
+                if (zone && chatArea && chatArea.classList.contains('chat-open')) {
                     document.getElementById('message-input')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }, 100);
