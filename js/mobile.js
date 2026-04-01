@@ -34,17 +34,6 @@ function initMobileNavigation() {
         chatArea.addEventListener('touchend', handleTouchEnd);
     }
     
-    // Добавляем обработку долгого нажатия на сообщения
-    initLongPressHandler();
-    
-    // Запрещаем свайп на сообщениях, чтобы не мешать скроллу
-    const messagesContainer = document.getElementById('messages');
-    if (messagesContainer) {
-        messagesContainer.addEventListener('touchstart', (e) => {
-            e.stopPropagation();
-        });
-    }
-    
     // Обработка аппаратной кнопки "Назад" на Android
     document.addEventListener('backbutton', () => {
         if (isChatOpen) {
@@ -57,93 +46,6 @@ function initMobileNavigation() {
         if (isChatOpen) {
             closeChat();
             event.preventDefault();
-        }
-    });
-    
-    // Добавляем обработчик для обновления URL при открытии чата
-    window.addEventListener('load', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const chatId = urlParams.get('chat');
-        if (chatId) {
-            // Если есть chat в URL, но чат не открыт - закрываем его
-            if (!isChatOpen) {
-                closeChat();
-            }
-        }
-    });
-}
-
-function initLongPressHandler() {
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
-    
-    // Используем делегирование событий для всех сообщений
-    messagesContainer.addEventListener('touchstart', (e) => {
-        // Ищем элемент сообщения
-        const messageDiv = e.target.closest('.message');
-        if (!messageDiv) return;
-        
-        // Сохраняем целевое сообщение
-        longPressTarget = messageDiv;
-        
-        // Устанавливаем таймер на долгое нажатие (500ms)
-        longPressTimer = setTimeout(() => {
-            if (longPressTarget) {
-                // Получаем данные сообщения
-                const msgId = longPressTarget.dataset.id;
-                const msgText = longPressTarget.dataset.text;
-                const isOwn = longPressTarget.classList.contains('own');
-                
-                // Показываем контекстное меню
-                if (typeof showMessageMenu === 'function') {
-                    // Создаем искусственное событие с координатами касания
-                    const touch = e.touches[0];
-                    const fakeEvent = {
-                        clientX: touch.clientX,
-                        clientY: touch.clientY,
-                        preventDefault: () => {},
-                        touches: e.touches
-                    };
-                    showMessageMenu(fakeEvent, msgId, msgText, isOwn);
-                }
-                
-                // Добавляем визуальный фидбек
-                longPressTarget.style.transform = 'scale(0.98)';
-                longPressTarget.style.transition = 'transform 0.1s ease';
-                setTimeout(() => {
-                    if (longPressTarget) {
-                        longPressTarget.style.transform = '';
-                    }
-                }, 150);
-            }
-            longPressTimer = null;
-        }, 500);
-    });
-    
-    messagesContainer.addEventListener('touchmove', (e) => {
-        // Если палец двигается - отменяем долгое нажатие
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-            longPressTarget = null;
-        }
-    });
-    
-    messagesContainer.addEventListener('touchend', (e) => {
-        // Если палец поднят до окончания таймера - отменяем
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-            longPressTarget = null;
-        }
-    });
-    
-    messagesContainer.addEventListener('touchcancel', (e) => {
-        // Если касание прервано - отменяем
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-            longPressTarget = null;
         }
     });
 }
