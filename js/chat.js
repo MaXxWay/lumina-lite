@@ -355,6 +355,33 @@ function updateDialogLastMessage(chatId, text, isOwn) {
         item.parentNode.insertBefore(item, item.parentNode.firstChild);
     }
 }
+// Добавьте эту функцию в конец файла chat.js
+
+function updateChatStatusFromProfile(profile) {
+    const chatStatus = document.querySelector('.chat-status');
+    if (!chatStatus) return;
+    
+    const status = getUserStatusFromProfile(profile);
+    chatStatus.textContent = status.text;
+    chatStatus.className = `chat-status ${status.class}`;
+    
+    if (currentChat?.other_user?.id === profile.id) {
+        const dialogItem = document.querySelector(`.dialog-item[data-chat-id="${currentChat.id}"]`);
+        if (dialogItem) {
+            const onlineDot = dialogItem.querySelector('.online-dot');
+            if (onlineDot) {
+                if (status.isOnline) {
+                    onlineDot.classList.remove('hidden');
+                } else {
+                    onlineDot.classList.add('hidden');
+                }
+            }
+        }
+    }
+}
+
+// Экспортируем функцию
+window.updateChatStatusFromProfile = updateChatStatusFromProfile;
 
 // Экспорт
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
