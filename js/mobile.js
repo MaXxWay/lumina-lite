@@ -1,4 +1,4 @@
-// mobile.js - исправленная версия с корректной инициализацией
+// mobile.js - исправленный, убираем дублирование инициализации
 
 let touchStartX = 0;
 let touchStartY = 0;
@@ -8,9 +8,11 @@ let longPressTimer = null;
 let longPressTarget = null;
 let pressStartX = 0;
 let pressStartY = 0;
+let mobileInitialized = false;
 
 function initMobileNavigation() {
-    // Используем isMobileDevice если функция определена, иначе проверяем по ширине
+    if (mobileInitialized) return;
+    
     const isMobile = (typeof isMobileDevice === 'function' && isMobileDevice()) || window.innerWidth <= 768;
     if (!isMobile) return;
     
@@ -56,6 +58,7 @@ function initMobileNavigation() {
         }
     });
     
+    mobileInitialized = true;
     console.log('✅ mobileNavigation инициализирован');
 }
 
@@ -63,80 +66,91 @@ function initLongPressHandler() {
     const messagesContainer = document.getElementById('messages');
     if (!messagesContainer) return;
     
-    messagesContainer.addEventListener('touchstart', (e) => {
-        const messageDiv = e.target.closest('.message');
-        if (!messageDiv) return;
-        
-        const touch = e.touches[0];
-        pressStartX = touch.clientX;
-        pressStartY = touch.clientY;
-        
-        longPressTarget = messageDiv;
-        
-        longPressTimer = setTimeout(() => {
-            if (longPressTarget) {
-                if (window.navigator && window.navigator.vibrate) {
-                    window.navigator.vibrate(50);
-                }
-                
-                const msgId = longPressTarget.dataset.id;
-                const msgText = longPressTarget.dataset.text;
-                const isOwn = longPressTarget.classList.contains('own');
-                
-                if (typeof showMessageMenu === 'function') {
-                    const fakeEvent = {
-                        clientX: pressStartX,
-                        clientY: pressStartY,
-                        preventDefault: () => {},
-                        touches: [{
-                            clientX: pressStartX,
-                            clientY: pressStartY
-                        }]
-                    };
-                    showMessageMenu(fakeEvent, msgId, msgText, isOwn);
-                }
-                
-                longPressTarget.style.transform = 'scale(0.98)';
-                longPressTarget.style.transition = 'transform 0.1s ease';
-                setTimeout(() => {
-                    if (longPressTarget) {
-                        longPressTarget.style.transform = '';
-                    }
-                }, 150);
-            }
-            longPressTimer = null;
-        }, 500);
-    });
+    // Удаляем старые обработчики, если есть
+    messagesContainer.removeEventListener('touchstart', longPressTouchStart);
+    messagesContainer.removeEventListener('touchmove', longPressTouchMove);
+    messagesContainer.removeEventListener('touchend', longPressTouchEnd);
+    messagesContainer.removeEventListener('touchcancel', longPressTouchCancel);
     
-    messagesContainer.addEventListener('touchmove', (e) => {
-        if (longPressTimer && longPressTarget) {
-            const touch = e.touches[0];
-            const deltaX = Math.abs(touch.clientX - pressStartX);
-            const deltaY = Math.abs(touch.clientY - pressStartY);
+    messagesContainer.addEventListener('touchstart', longPressTouchStart);
+    messagesContainer.addEventListener('touchmove', longPressTouchMove);
+    messagesContainer.addEventListener('touchend', longPressTouchEnd);
+    messagesContainer.addEventListener('touchcancel', longPressTouchCancel);
+}
+
+function longPressTouchStart(e) {
+    const messageDiv = e.target.closest('.message');
+    if (!messageDiv) return;
+    
+    const touch = e.touches[0];
+    pressStartX = touch.clientX;
+    pressStartY = touch.clientY;
+    
+    longPressTarget = messageDiv;
+    
+    longPressTimer = setTimeout(() => {
+        if (longPressTarget) {
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50);
+            }
             
-            if (deltaX > 10 || deltaY > 10) {
-                clearTimeout(longPressTimer);
-                longPressTimer = null;
-                longPressTarget = null;
+            const msgId = longPressTarget.dataset.id;
+            const msgText = longPressTarget.dataset.text;
+            const isOwn = longPressTarget.classList.contains('own');
+            
+            if (typeof showMessageMenu === 'function') {
+                const fakeEvent = {
+                    clientX: pressStartX,
+                    clientY: pressStartY,
+                    preventDefault: () => {},
+                    touches: [{
+                        clientX: pressStartX,
+                        clientY: pressStartY
+                    }]
+                };
+                showMessageMenu(fakeEvent, msgId, msgText, isOwn);
             }
+            
+            longPressTarget.style.transform = 'scale(0.98)';
+            longPressTarget.style.transition = 'transform 0.1s ease';
+            setTimeout(() => {
+                if (longPressTarget) {
+                    longPressTarget.style.transform = '';
+                }
+            }, 150);
         }
-    });
-    
-    messagesContainer.addEventListener('touchend', () => {
-        if (longPressTimer) {
+        longPressTimer = null;
+    }, 500);
+}
+
+function longPressTouchMove(e) {
+    if (longPressTimer && longPressTarget) {
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - pressStartX);
+        const deltaY = Math.abs(touch.clientY - pressStartY);
+        
+        if (deltaX > 10 || deltaY > 10) {
             clearTimeout(longPressTimer);
             longPressTimer = null;
             longPressTarget = null;
         }
-    });
-    
-    messagesContainer.addEventListener('touchcancel', () => {
-        if (longPressTimer) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-            longPressTarget = null;
-        }
-    });
+    }
+}
+
+function longPressTouchEnd() {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTarget = null;
+    }
+}
+
+function longPressTouchCancel() {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTarget = null;
+    }
 }
 
 function addBackButton() {
@@ -340,7 +354,6 @@ function patchOpenChat() {
     const isMobile = (typeof isMobileDevice === 'function' && isMobileDevice()) || window.innerWidth <= 768;
     if (!isMobile) return;
     
-    // Ждем, пока функции будут определены
     setTimeout(() => {
         const originalOpenChat = window.openChat;
         if (originalOpenChat) {
@@ -373,16 +386,5 @@ window.initMobileOptimizations = initMobileOptimizations;
 window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
 window.patchOpenChat = patchOpenChat;
-
-// Автоматическая инициализация
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        initMobileOptimizations();
-        patchOpenChat();
-    });
-} else {
-    initMobileOptimizations();
-    patchOpenChat();
-}
 
 console.log('✅ mobile.js загружен');
