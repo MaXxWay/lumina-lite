@@ -1,4 +1,4 @@
-// mobile.js - Полная мобильная навигация с поддержкой долгого нажатия
+// mobile.js - Мобильная адаптация
 
 let touchStartX = 0;
 let touchStartY = 0;
@@ -81,6 +81,7 @@ function initLongPressHandler() {
         
         longPressTimer = setTimeout(() => {
             if (longPressTarget) {
+                // Вибрация (если поддерживается)
                 if (window.navigator && window.navigator.vibrate) {
                     window.navigator.vibrate(50);
                 }
@@ -93,15 +94,12 @@ function initLongPressHandler() {
                     const fakeEvent = {
                         clientX: pressStartX,
                         clientY: pressStartY,
-                        preventDefault: () => {},
-                        touches: [{
-                            clientX: pressStartX,
-                            clientY: pressStartY
-                        }]
+                        preventDefault: () => {}
                     };
                     showMessageMenu(fakeEvent, msgId, msgText, isOwn);
                 }
                 
+                // Визуальный фидбек
                 longPressTarget.style.transform = 'scale(0.98)';
                 longPressTarget.style.transition = 'transform 0.1s ease';
                 setTimeout(() => {
@@ -149,6 +147,7 @@ function addBackButton() {
     const chatInfo = document.querySelector('.chat-info');
     if (!chatInfo) return;
     
+    // Удаляем старую кнопку если есть
     const oldBtn = document.getElementById('mobile-back-btn');
     if (oldBtn) oldBtn.remove();
     
