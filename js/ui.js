@@ -57,33 +57,110 @@ function initEmojiPicker() {
 function initMessageMenu() {
     const menu = document.getElementById('message-menu');
     if (!menu) return;
-    function hide() { menu.style.display = 'none'; document.removeEventListener('click', hide); }
+    
+    function hideMenu() { 
+        menu.style.display = 'none'; 
+        document.removeEventListener('click', hideMenu);
+        document.removeEventListener('touchstart', hideMenu);
+    }
+    
     window.showMessageMenu = function(e, msgId, msgText, isOwn) {
         e.preventDefault();
+        
+        // Получаем координаты
+        let x = e.clientX;
+        let y = e.clientY;
+        
+        // Для мобильных устройств - позиционируем по центру касания
+        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice() && e.touches && e.touches[0]) {
+            const touch = e.touches[0];
+            x = touch.clientX;
+            y = touch.clientY;
+        }
+        
         menu.style.display = 'block';
-        menu.style.left = `${e.clientX}px`;
-        menu.style.top = `${e.clientY}px`;
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        
+        // На мобилках добавляем немного отступа
+        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice()) {
+            menu.style.transform = 'translate(-50%, -100%)';
+            menu.style.marginTop = '-10px';
+        } else {
+            menu.style.transform = 'translate(-50%, -100%)';
+        }
+        
+        // Проверяем, не выходит ли меню за экран
+        setTimeout(() => {
+            const rect = menu.getBoundingClientRect();
+            if (rect.left < 0) {
+                menu.style.left = '10px';
+                menu.style.transform = 'translate(0, -100%)';
+            }
+            if (rect.right > window.innerWidth) {
+                menu.style.left = 'auto';
+                menu.style.right = '10px';
+                menu.style.transform = 'translate(0, -100%)';
+            }
+            if (rect.top < 0) {
+                menu.style.transform = 'translate(-50%, 0)';
+                menu.style.marginTop = '10px';
+            }
+        }, 0);
+        
+        // Назначаем действия
         menu.querySelectorAll('.menu-item').forEach(item => {
             item.onclick = () => handleAction(item.dataset.action, msgId, msgText, isOwn);
         });
-        setTimeout(() => document.addEventListener('click', hide), 0);
+        
+        // Закрываем при клике вне меню
+        setTimeout(() => {
+            document.addEventListener('click', hideMenu);
+            document.addEventListener('touchstart', hideMenu);
+        }, 0);
     };
+    
     async function handleAction(action, msgId, msgText, isOwn) {
-        menu.style.display = 'none';
+        const menu = document.getElementById('message-menu');
+        if (menu) menu.style.display = 'none';
+        
         switch (action) {
-            case 'reply': const inp = document.getElementById('message-input'); if (inp && currentChat?.id !== SAVED_CHAT_ID) { inp.value = `> ${msgText}\n\n`; inp.focus(); } break;
-            case 'copy': await navigator.clipboard.writeText(msgText); showToast('Текст скопирован'); break;
+            case 'reply': 
+                const inp = document.getElementById('message-input'); 
+                if (inp && currentChat?.id !== SAVED_CHAT_ID) { 
+                    inp.value = `> ${msgText}\n\n`; 
+                    inp.focus(); 
+                } 
+                break;
+            case 'copy': 
+                await navigator.clipboard.writeText(msgText); 
+                showToast('Текст скопирован'); 
+                break;
             case 'edit':
                 if (isOwn && currentChat?.id !== SAVED_CHAT_ID) {
                     const newText = prompt('Изменить сообщение:', msgText);
-                    if (newText?.trim()) await supabaseClient.from('messages').update({ text: newText.trim(), is_edited: true }).eq('id', msgId);
-                } else showToast('Можно редактировать только свои сообщения', true);
+                    if (newText?.trim()) {
+                        await supabaseClient.from('messages').update({ text: newText.trim(), is_edited: true }).eq('id', msgId);
+                        // Обновляем отображение
+                        const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
+                        if (msgDiv) {
+                            const textDiv = msgDiv.querySelector('.text');
+                            if (textDiv) textDiv.textContent = newText.trim();
+                        }
+                    }
+                } else {
+                    showToast('Можно редактировать только свои сообщения', true);
+                }
                 break;
             case 'delete':
-                if (isOwn && confirm('Удалить сообщение?')) await supabaseClient.from('messages').delete().eq('id', msgId);
-                else showToast('Можно удалять только свои сообщения', true);
+                if (isOwn && confirm('Удалить сообщение?')) {
+                    await supabaseClient.from('messages').delete().eq('id', msgId);
+                } else {
+                    showToast('Можно удалять только свои сообщения', true);
+                }
                 break;
-            default: showToast('Функция в разработке');
+            default: 
+                showToast('Функция в разработке');
         }
     }
 }
@@ -130,7 +207,7 @@ function initUserActivityTracking() {
         last = Date.now();
         if (timeout) clearTimeout(timeout);
         if (!isUserOnline) setUserOnlineStatus(true);
-        timeout = setTimeout(async () => { if (Date.now() - last >= 15000 && isUserOnline) await setUserOnlineStatus(false); }, 1);
+        timeout = setTimeout(async () => { if (Date.now() - last >= 15000 && isUserOnline) await setUserOnlineStatus(false); }, 1000);
     };
     window.addEventListener('mousemove', reset); window.addEventListener('keydown', reset); window.addEventListener('click', reset); window.addEventListener('scroll', reset);
     window.addEventListener('beforeunload', () => { if (currentUser) navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/rpc/force_set_offline`, JSON.stringify({ user_id: currentUser.id })); });
