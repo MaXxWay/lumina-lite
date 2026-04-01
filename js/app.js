@@ -1,53 +1,53 @@
+// app.js - исправленный главный файл инициализации
+
 (async function init() {
-    // Ждем загрузки всех скриптов
-    await new Promise(resolve => {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', resolve);
-        } else {
-            resolve();
-        }
-    });
+    console.log('🚀 Инициализация приложения...');
     
-    // Небольшая задержка для уверенности
-    await new Promise(resolve => setTimeout(resolve, 50));
+    if (typeof supabase === 'undefined') {
+        console.error('❌ Supabase не загружен!');
+        return;
+    }
     
-    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    // Проверяем и вызываем функции с задержкой
+    // Функции для инициализации с проверкой
     const initFunctions = [
-        'initAuth',
-        'initProfileFooter', 
-        'initEmojiPicker',
-        'initMessageMenu',
-        'initProfileScreen',
-        'initSearchDialogs',
-        'initSendButton',
-        'initUserActivityTracking'
+        { name: 'initAuth', fn: initAuth },
+        { name: 'initProfileFooter', fn: initProfileFooter },
+        { name: 'initProfileScreen', fn: initProfileScreen },
+        { name: 'initEmojiPicker', fn: initEmojiPicker },
+        { name: 'initMessageMenu', fn: initMessageMenu },
+        { name: 'initSearchDialogs', fn: initSearchDialogs },
+        { name: 'initSendButton', fn: initSendButton },
+        { name: 'initUserActivityTracking', fn: initUserActivityTracking }
     ];
     
-    for (const funcName of initFunctions) {
-        if (typeof window[funcName] === 'function') {
+    for (const item of initFunctions) {
+        if (typeof item.fn === 'function') {
             try {
-                window[funcName]();
+                item.fn();
+                console.log(`✅ ${item.name} инициализирован`);
             } catch (err) {
-                console.warn(`Ошибка при вызове ${funcName}:`, err);
+                console.warn(`⚠️ Ошибка в ${item.name}:`, err);
             }
         } else {
-            console.warn(`Функция ${funcName} не найдена`);
+            console.warn(`⚠️ Функция ${item.name} не найдена`);
         }
     }
     
-    // Инициализация мобильных оптимизаций
     if (typeof initMobileOptimizations === 'function') {
         try {
             initMobileOptimizations();
+            console.log('✅ mobileOptimizations инициализирован');
         } catch (err) {
-            console.warn('Ошибка мобильных оптимизаций:', err);
+            console.warn('⚠️ Ошибка mobileOptimizations:', err);
         }
     }
     
-    window.addEventListener('resize', updateDvh);
-    updateDvh();
+    if (typeof updateDvh === 'function') {
+        window.addEventListener('resize', updateDvh);
+        updateDvh();
+    }
     
     let origH = window.innerHeight;
     window.addEventListener('resize', () => {
@@ -62,21 +62,23 @@
             }, 100);
         }
         origH = newH;
-        updateDvh();
+        if (typeof updateDvh === 'function') updateDvh();
     });
     
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
     if (session) {
         if (typeof handleSuccessfulLogin === 'function') {
             await handleSuccessfulLogin(session.user);
+            console.log('✅ Пользователь авторизован');
         } else {
-            console.error('handleSuccessfulLogin не определена');
+            console.error('❌ handleSuccessfulLogin не определена');
         }
     } else {
         if (typeof showScreen === 'function') {
             showScreen('reg');
+            console.log('📱 Показан экран регистрации');
         } else {
-            console.error('showScreen не определена');
+            console.error('❌ showScreen не определена');
         }
     }
 })();
