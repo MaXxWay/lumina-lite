@@ -1,5 +1,3 @@
-// auth.js
-
 const screens = {
     reg: document.getElementById('step-register'),
     login: document.getElementById('step-login'),
@@ -21,11 +19,10 @@ function showScreen(key) {
 
 async function logout() {
     if (onlineInterval) clearInterval(onlineInterval);
-    const client = window.supabaseClient;
-    if (realtimeChannel && client) await client.removeChannel(realtimeChannel);
-    if (statusSubscription && client) await client.removeChannel(statusSubscription);
-    if (typingChannel && client) await client.removeChannel(typingChannel);
-    if (window.deletionChannel && client) await client.removeChannel(window.deletionChannel);
+    if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
+    if (statusSubscription) await supabaseClient.removeChannel(statusSubscription);
+    if (typingChannel) await supabaseClient.removeChannel(typingChannel);
+    if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
     
     messagesCache.clear();
     dialogCache.clear();
@@ -34,7 +31,7 @@ async function logout() {
         window.readStatusObservers.observer?.disconnect();
         window.readStatusObservers.mutationObserver?.disconnect();
     }
-    if (client) await client.auth.signOut();
+    await supabaseClient.auth.signOut();
     currentUser = null;
     currentProfile = null;
     currentChat = null;
@@ -50,19 +47,16 @@ function initAuth() {
     const regBtn = document.getElementById('btn-do-reg');
     if (regBtn) {
         regBtn.onclick = async () => {
-            const client = window.supabaseClient;
-            if (!client) return showToast('Ошибка подключения', true);
-            
             const user = document.getElementById('reg-username').value.trim();
             const pass = document.getElementById('reg-password').value.trim();
             const name = document.getElementById('reg-full-name').value.trim();
             if (!user || !pass) return showToast('Заполните все поля', true);
             
-            const { data, error } = await client.auth.signUp({ email: getEmail(user), password: pass });
+            const { data, error } = await supabaseClient.auth.signUp({ email: getEmail(user), password: pass });
             if (error) return showToast(error.message, true);
             
             if (data.user) {
-                await client.from('profiles').upsert({
+                await supabaseClient.from('profiles').upsert({
                     id: data.user.id,
                     username: user.replace(/^@/, ''),
                     full_name: name || user,
@@ -77,12 +71,9 @@ function initAuth() {
     const loginBtn = document.getElementById('btn-do-login');
     if (loginBtn) {
         loginBtn.onclick = async () => {
-            const client = window.supabaseClient;
-            if (!client) return showToast('Ошибка подключения', true);
-            
             const user = document.getElementById('login-username').value.trim();
             const pass = document.getElementById('login-password').value.trim();
-            const { data, error } = await client.auth.signInWithPassword({ email: getEmail(user), password: pass });
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email: getEmail(user), password: pass });
             if (error) return showToast('Ошибка входа: ' + error.message, true);
             await handleSuccessfulLogin(data.user);
         };
@@ -90,97 +81,73 @@ function initAuth() {
 }
 
 async function handleSuccessfulLogin(user) {
-    const client = window.supabaseClient;
-    
-    if (!user) {
-        console.error('Нет пользователя');
-        return;
-    }
-    
-    if (!client) {
-        console.error('Нет supabaseClient');
-        showToast('Ошибка подключения к серверу', true);
-        return;
-    }
-    
     currentUser = user;
     
-    try {
-        const { data: p } = await client
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .maybeSingle();
-        
-        if (!p) {
-            const username = user.email?.split('@')[0]?.replace(/@lumina\.local$/, '') || 'user';
-            const { data: newProfile } = await client.from('profiles').insert({
-                id: currentUser.id,
-                username: username,
-                full_name: username,
-                last_seen: new Date().toISOString()
-            }).select().maybeSingle();
-            currentProfile = newProfile;
-        } else {
-            currentProfile = p;
-        }
-        
-        if (currentProfile) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = currentProfile.full_name || currentProfile.username;
-            if (typeof updateProfileFooter === 'function') updateProfileFooter();
-        }
-        
-        if (typeof loadAllUsers === 'function') await loadAllUsers();
-        if (typeof ensureBotChat === 'function') await ensureBotChat();
-        if (typeof ensureSavedChat === 'function') await ensureSavedChat();
-        
-        if (typeof showScreen === 'function') showScreen('chat');
-        if (typeof loadDialogs === 'function') await loadDialogs();
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) chatTitle.textContent = 'Lumina Lite';
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) chatStatus.textContent = 'выберите диалог';
-        
-        const inputZone = document.querySelector('.input-zone');
-        if (inputZone) inputZone.style.display = 'none';
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = `
-                <div class="msg-stub">
-                    <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
-                    <p>Выберите диалог, чтобы начать общение</p>
-                </div>
-            `;
-        }
-        
-        currentChat = null;
-        
-        document.addEventListener('click', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
-        document.addEventListener('keypress', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
-        setInterval(() => { if (typeof updateLastSeen === 'function') updateLastSeen(); }, 30000);
-        if (typeof updateLastSeen === 'function') updateLastSeen();
-        
-        if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
-        
-        if (window.deletionChannel && client) {
-            await client.removeChannel(window.deletionChannel);
-        }
-        if (typeof subscribeToUserDeletion === 'function') {
-            window.deletionChannel = subscribeToUserDeletion();
-        }
-        if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
-        
-    } catch (err) {
-        console.error('Ошибка:', err);
-        showToast('Ошибка загрузки профиля', true);
-        await logout();
+    const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+    if (!p) {
+        const username = user.email.split('@')[0].replace(/@lumina\.local$/, '');
+        const { data: newProfile } = await supabaseClient.from('profiles').insert({
+            id: currentUser.id,
+            username: username,
+            full_name: username,
+            last_seen: new Date().toISOString()
+        }).select().maybeSingle();
+        currentProfile = newProfile;
+    } else {
+        currentProfile = p;
     }
+    
+    if (currentProfile) {
+        const badge = document.getElementById('current-user-badge');
+        if (badge) badge.textContent = currentProfile.full_name;
+        if (typeof updateProfileFooter === 'function') updateProfileFooter();
+        if (typeof initProfileFooter === 'function') initProfileFooter();
+    }
+    
+    if (typeof loadAllUsers === 'function') await loadAllUsers();
+    if (typeof ensureBotChat === 'function') await ensureBotChat();
+    if (typeof ensureSavedChat === 'function') await ensureSavedChat();
+    
+    if (typeof showScreen === 'function') showScreen('chat');
+    if (typeof loadDialogs === 'function') await loadDialogs();
+    
+    const chatTitle = document.getElementById('chat-title');
+    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    
+    const chatStatus = document.querySelector('.chat-status');
+    if (chatStatus) chatStatus.textContent = 'выберите диалог';
+    
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div class="msg-stub">
+                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                <p>Выберите диалог, чтобы начать общение</p>
+            </div>
+        `;
+    }
+    
+    currentChat = null;
+    
+    document.addEventListener('click', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
+    document.addEventListener('keypress', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
+    setInterval(() => { if (typeof updateLastSeen === 'function') updateLastSeen(); }, 30000);
+    if (typeof updateLastSeen === 'function') updateLastSeen();
+    
+    if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
+    if (window.deletionChannel && supabaseClient) {
+        await supabaseClient.removeChannel(window.deletionChannel);
+    }
+    if (typeof subscribeToUserDeletion === 'function') {
+        window.deletionChannel = subscribeToUserDeletion();
+    }
+    if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
 }
 
+// Экспорт
 window.initAuth = initAuth;
 window.showScreen = showScreen;
 window.logout = logout;
