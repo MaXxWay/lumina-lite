@@ -21,10 +21,11 @@ function showScreen(key) {
 
 async function logout() {
     if (onlineInterval) clearInterval(onlineInterval);
-    if (realtimeChannel && supabaseClient) await supabaseClient.removeChannel(realtimeChannel);
-    if (statusSubscription && supabaseClient) await supabaseClient.removeChannel(statusSubscription);
-    if (typingChannel && supabaseClient) await supabaseClient.removeChannel(typingChannel);
-    if (window.deletionChannel && supabaseClient) await supabaseClient.removeChannel(window.deletionChannel);
+    const client = window.supabaseClient;
+    if (realtimeChannel && client) await client.removeChannel(realtimeChannel);
+    if (statusSubscription && client) await client.removeChannel(statusSubscription);
+    if (typingChannel && client) await client.removeChannel(typingChannel);
+    if (window.deletionChannel && client) await client.removeChannel(window.deletionChannel);
     
     messagesCache.clear();
     dialogCache.clear();
@@ -33,7 +34,7 @@ async function logout() {
         window.readStatusObservers.observer?.disconnect();
         window.readStatusObservers.mutationObserver?.disconnect();
     }
-    if (supabaseClient) await supabaseClient.auth.signOut();
+    if (client) await client.auth.signOut();
     currentUser = null;
     currentProfile = null;
     currentChat = null;
@@ -49,16 +50,19 @@ function initAuth() {
     const regBtn = document.getElementById('btn-do-reg');
     if (regBtn) {
         regBtn.onclick = async () => {
+            const client = window.supabaseClient;
+            if (!client) return showToast('Ошибка подключения', true);
+            
             const user = document.getElementById('reg-username').value.trim();
             const pass = document.getElementById('reg-password').value.trim();
             const name = document.getElementById('reg-full-name').value.trim();
             if (!user || !pass) return showToast('Заполните все поля', true);
             
-            const { data, error } = await supabaseClient.auth.signUp({ email: getEmail(user), password: pass });
+            const { data, error } = await client.auth.signUp({ email: getEmail(user), password: pass });
             if (error) return showToast(error.message, true);
             
             if (data.user) {
-                await supabaseClient.from('profiles').upsert({
+                await client.from('profiles').upsert({
                     id: data.user.id,
                     username: user.replace(/^@/, ''),
                     full_name: name || user,
@@ -73,9 +77,12 @@ function initAuth() {
     const loginBtn = document.getElementById('btn-do-login');
     if (loginBtn) {
         loginBtn.onclick = async () => {
+            const client = window.supabaseClient;
+            if (!client) return showToast('Ошибка подключения', true);
+            
             const user = document.getElementById('login-username').value.trim();
             const pass = document.getElementById('login-password').value.trim();
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email: getEmail(user), password: pass });
+            const { data, error } = await client.auth.signInWithPassword({ email: getEmail(user), password: pass });
             if (error) return showToast('Ошибка входа: ' + error.message, true);
             await handleSuccessfulLogin(data.user);
         };
@@ -83,15 +90,23 @@ function initAuth() {
 }
 
 async function handleSuccessfulLogin(user) {
-    if (!user || !supabaseClient) {
-        console.error('Ошибка: нет пользователя или supabaseClient');
+    const client = window.supabaseClient;
+    
+    if (!user) {
+        console.error('Нет пользователя');
+        return;
+    }
+    
+    if (!client) {
+        console.error('Нет supabaseClient');
+        showToast('Ошибка подключения к серверу', true);
         return;
     }
     
     currentUser = user;
     
     try {
-        const { data: p } = await supabaseClient
+        const { data: p } = await client
             .from('profiles')
             .select('*')
             .eq('id', currentUser.id)
@@ -99,7 +114,7 @@ async function handleSuccessfulLogin(user) {
         
         if (!p) {
             const username = user.email?.split('@')[0]?.replace(/@lumina\.local$/, '') || 'user';
-            const { data: newProfile } = await supabaseClient.from('profiles').insert({
+            const { data: newProfile } = await client.from('profiles').insert({
                 id: currentUser.id,
                 username: username,
                 full_name: username,
@@ -151,8 +166,8 @@ async function handleSuccessfulLogin(user) {
         
         if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
         
-        if (window.deletionChannel && supabaseClient) {
-            await supabaseClient.removeChannel(window.deletionChannel);
+        if (window.deletionChannel && client) {
+            await client.removeChannel(window.deletionChannel);
         }
         if (typeof subscribeToUserDeletion === 'function') {
             window.deletionChannel = subscribeToUserDeletion();
