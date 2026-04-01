@@ -1,231 +1,413 @@
-function updateProfileFooter() {
-    if (!currentProfile) return;
-    const avatar = document.getElementById('footer-avatar');
-    const name = document.getElementById('footer-name');
-    const uname = document.getElementById('footer-username');
-    if (avatar) avatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-    if (name) name.textContent = currentProfile.full_name || currentProfile.username || 'Пользователь';
-    if (uname) uname.textContent = `@${currentProfile.username || 'username'}`;
-}
+// mobile.js - Полная мобильная навигация с поддержкой долгого нажатия
 
-function initProfileFooter() {
-    const footer = document.getElementById('profile-footer');
-    if (!footer) return;
-    const info = footer.querySelector('.profile-footer-info');
-    if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
-    const settings = document.getElementById('footer-settings');
-    if (settings) settings.onclick = () => { if (currentProfile) openProfileModal(); };
-    const logout = document.getElementById('footer-logout');
-    if (logout) logout.onclick = async () => { stopOnlineHeartbeat(); if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel); await supabaseClient.auth.signOut(); currentUser = null; currentProfile = null; currentChat = null; showScreen('reg'); };
-}
+let touchStartX = 0;
+let touchStartY = 0;
+let isSwiping = false;
+let isChatOpen = false;
+let longPressTimer = null;
+let longPressTarget = null;
 
-function openProfileModal() {
-    if (!currentProfile) return;
-    const letter = (currentProfile.full_name || '?')[0].toUpperCase();
-    const avatarLetter = document.getElementById('profile-avatar-letter');
-    const fullname = document.getElementById('profile-fullname');
-    const username = document.getElementById('profile-username');
-    const bio = document.getElementById('profile-bio');
-    if (avatarLetter) avatarLetter.textContent = letter;
-    if (fullname) fullname.value = currentProfile.full_name || '';
-    if (username) username.value = currentProfile.username || '';
-    if (bio) bio.value = currentProfile.bio || '';
-    showScreen('profile');
-}
-
-function updateChatStatusFromProfile(profile) {
-    const cs = document.querySelector('.chat-status');
-    if (!cs) return;
-    if (currentChat?.other_user?.id === BOT_USER_ID) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; return; }
-    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status status-offline'; return; }
-    const status = getUserStatusFromProfile(profile);
-    cs.textContent = status.text;
-    cs.className = `chat-status ${status.class}`;
-}
-
-function initEmojiPicker() {
-    const btn = document.getElementById('btn-emoji');
-    const picker = document.getElementById('emoji-picker');
-    if (!btn || !picker) return;
-    btn.onclick = (e) => { e.stopPropagation(); picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex'; };
-    document.querySelectorAll('.emoji-item').forEach(emoji => {
-        emoji.onclick = () => { const input = document.getElementById('message-input'); if (input) { input.value += emoji.textContent; input.focus(); } picker.style.display = 'none'; };
-    });
-    document.addEventListener('click', (e) => { if (!picker.contains(e.target) && e.target !== btn) picker.style.display = 'none'; });
-}
-
-function initMessageMenu() {
-    const menu = document.getElementById('message-menu');
-    if (!menu) return;
+function initMobileNavigation() {
+    if (!isMobileDevice()) return;
     
-    function hideMenu() { 
-        menu.style.display = 'none'; 
-        document.removeEventListener('click', hideMenu);
-        document.removeEventListener('touchstart', hideMenu);
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Изначально чат закрыт
+    sidebar.classList.remove('chat-open');
+    chatArea.classList.remove('chat-open');
+    isChatOpen = false;
+    
+    // Скрываем поле ввода изначально
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    // Добавляем кнопку "Назад" в хедер чата
+    addBackButton();
+    
+    // Настройка свайпов на области чата
+    if (chatArea) {
+        chatArea.addEventListener('touchstart', handleTouchStart);
+        chatArea.addEventListener('touchmove', handleTouchMove);
+        chatArea.addEventListener('touchend', handleTouchEnd);
     }
     
-    window.showMessageMenu = function(e, msgId, msgText, isOwn) {
-        e.preventDefault();
-        
-        // Получаем координаты
-        let x = e.clientX;
-        let y = e.clientY;
-        
-        // Для мобильных устройств - позиционируем по центру касания
-        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice() && e.touches && e.touches[0]) {
-            const touch = e.touches[0];
-            x = touch.clientX;
-            y = touch.clientY;
-        }
-        
-        menu.style.display = 'block';
-        menu.style.left = `${x}px`;
-        menu.style.top = `${y}px`;
-        
-        // На мобилках добавляем немного отступа
-        if (isMobileDevice && typeof isMobileDevice === 'function' && isMobileDevice()) {
-            menu.style.transform = 'translate(-50%, -100%)';
-            menu.style.marginTop = '-10px';
-        } else {
-            menu.style.transform = 'translate(-50%, -100%)';
-        }
-        
-        // Проверяем, не выходит ли меню за экран
-        setTimeout(() => {
-            const rect = menu.getBoundingClientRect();
-            if (rect.left < 0) {
-                menu.style.left = '10px';
-                menu.style.transform = 'translate(0, -100%)';
-            }
-            if (rect.right > window.innerWidth) {
-                menu.style.left = 'auto';
-                menu.style.right = '10px';
-                menu.style.transform = 'translate(0, -100%)';
-            }
-            if (rect.top < 0) {
-                menu.style.transform = 'translate(-50%, 0)';
-                menu.style.marginTop = '10px';
-            }
-        }, 0);
-        
-        // Назначаем действия
-        menu.querySelectorAll('.menu-item').forEach(item => {
-            item.onclick = () => handleAction(item.dataset.action, msgId, msgText, isOwn);
+    // Добавляем обработку долгого нажатия на сообщения
+    initLongPressHandler();
+    
+    // Запрещаем свайп на сообщениях, чтобы не мешать скроллу
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
         });
+    }
+    
+    // Обработка аппаратной кнопки "Назад" на Android
+    document.addEventListener('backbutton', () => {
+        if (isChatOpen) {
+            closeChat();
+        }
+    });
+    
+    // Обработка popstate (для браузерной кнопки назад)
+    window.addEventListener('popstate', (event) => {
+        if (isChatOpen) {
+            closeChat();
+            event.preventDefault();
+        }
+    });
+    
+    // Добавляем обработчик для обновления URL при открытии чата
+    window.addEventListener('load', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatId = urlParams.get('chat');
+        if (chatId) {
+            // Если есть chat в URL, но чат не открыт - закрываем его
+            if (!isChatOpen) {
+                closeChat();
+            }
+        }
+    });
+}
+
+function initLongPressHandler() {
+    const messagesContainer = document.getElementById('messages');
+    if (!messagesContainer) return;
+    
+    // Используем делегирование событий для всех сообщений
+    messagesContainer.addEventListener('touchstart', (e) => {
+        // Ищем элемент сообщения
+        const messageDiv = e.target.closest('.message');
+        if (!messageDiv) return;
         
-        // Закрываем при клике вне меню
-        setTimeout(() => {
-            document.addEventListener('click', hideMenu);
-            document.addEventListener('touchstart', hideMenu);
-        }, 0);
+        // Сохраняем целевое сообщение
+        longPressTarget = messageDiv;
+        
+        // Устанавливаем таймер на долгое нажатие (500ms)
+        longPressTimer = setTimeout(() => {
+            if (longPressTarget) {
+                // Получаем данные сообщения
+                const msgId = longPressTarget.dataset.id;
+                const msgText = longPressTarget.dataset.text;
+                const isOwn = longPressTarget.classList.contains('own');
+                
+                // Показываем контекстное меню
+                if (typeof showMessageMenu === 'function') {
+                    // Создаем искусственное событие с координатами касания
+                    const touch = e.touches[0];
+                    const fakeEvent = {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        preventDefault: () => {},
+                        touches: e.touches
+                    };
+                    showMessageMenu(fakeEvent, msgId, msgText, isOwn);
+                }
+                
+                // Добавляем визуальный фидбек
+                longPressTarget.style.transform = 'scale(0.98)';
+                longPressTarget.style.transition = 'transform 0.1s ease';
+                setTimeout(() => {
+                    if (longPressTarget) {
+                        longPressTarget.style.transform = '';
+                    }
+                }, 150);
+            }
+            longPressTimer = null;
+        }, 500);
+    });
+    
+    messagesContainer.addEventListener('touchmove', (e) => {
+        // Если палец двигается - отменяем долгое нажатие
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    });
+    
+    messagesContainer.addEventListener('touchend', (e) => {
+        // Если палец поднят до окончания таймера - отменяем
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    });
+    
+    messagesContainer.addEventListener('touchcancel', (e) => {
+        // Если касание прервано - отменяем
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTarget = null;
+        }
+    });
+}
+
+function addBackButton() {
+    const chatInfo = document.querySelector('.chat-info');
+    if (!chatInfo) return;
+    
+    // Удаляем старую кнопку если есть
+    const oldBtn = document.getElementById('mobile-back-btn');
+    if (oldBtn) oldBtn.remove();
+    
+    const backBtn = document.createElement('button');
+    backBtn.id = 'mobile-back-btn';
+    backBtn.className = 'mobile-back-btn';
+    backBtn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+    `;
+    backBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeChat();
     };
     
-    async function handleAction(action, msgId, msgText, isOwn) {
-        const menu = document.getElementById('message-menu');
-        if (menu) menu.style.display = 'none';
-        
-        switch (action) {
-            case 'reply': 
-                const inp = document.getElementById('message-input'); 
-                if (inp && currentChat?.id !== SAVED_CHAT_ID) { 
-                    inp.value = `> ${msgText}\n\n`; 
-                    inp.focus(); 
-                } 
-                break;
-            case 'copy': 
-                await navigator.clipboard.writeText(msgText); 
-                showToast('Текст скопирован'); 
-                break;
-            case 'edit':
-                if (isOwn && currentChat?.id !== SAVED_CHAT_ID) {
-                    const newText = prompt('Изменить сообщение:', msgText);
-                    if (newText?.trim()) {
-                        await supabaseClient.from('messages').update({ text: newText.trim(), is_edited: true }).eq('id', msgId);
-                        // Обновляем отображение
-                        const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
-                        if (msgDiv) {
-                            const textDiv = msgDiv.querySelector('.text');
-                            if (textDiv) textDiv.textContent = newText.trim();
-                        }
-                    }
-                } else {
-                    showToast('Можно редактировать только свои сообщения', true);
-                }
-                break;
-            case 'delete':
-                if (isOwn && confirm('Удалить сообщение?')) {
-                    await supabaseClient.from('messages').delete().eq('id', msgId);
-                } else {
-                    showToast('Можно удалять только свои сообщения', true);
-                }
-                break;
-            default: 
-                showToast('Функция в разработке');
-        }
+    // Вставляем в начало chat-info
+    chatInfo.insertBefore(backBtn, chatInfo.firstChild);
+}
+
+function handleTouchStart(e) {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+    isSwiping = true;
+}
+
+function handleTouchMove(e) {
+    if (!isSwiping || !isChatOpen) return;
+    
+    const touchX = e.changedTouches[0].screenX;
+    const touchY = e.changedTouches[0].screenY;
+    const deltaX = touchX - touchStartX;
+    const deltaY = touchY - touchStartY;
+    
+    // Если свайп влево и больше горизонтальный, чем вертикальный
+    if (deltaX < -30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        e.preventDefault();
+        closeChat();
+        isSwiping = false;
     }
 }
 
-function initProfileScreen() {
-    const back = document.getElementById('btn-profile-back');
-    if (back) back.onclick = () => showScreen('chat');
-    const logout = document.getElementById('btn-logout-profile');
-    if (logout) logout.onclick = async () => { stopOnlineHeartbeat(); if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel); await supabaseClient.auth.signOut(); currentUser = null; currentProfile = null; currentChat = null; showScreen('reg'); };
-    const save = document.getElementById('btn-save-profile');
-    if (save) save.onclick = async () => {
-        const full = document.getElementById('profile-fullname').value.trim();
-        const bio = document.getElementById('profile-bio').value.trim();
-        if (!full) return showToast('Имя не может быть пустым', true);
-        await supabaseClient.from('profiles').update({ full_name: full, bio }).eq('id', currentUser.id);
-        currentProfile.full_name = full;
-        currentProfile.bio = bio;
-        document.getElementById('current-user-badge').textContent = full;
-        document.getElementById('profile-avatar-letter').textContent = full[0].toUpperCase();
-        updateProfileFooter();
-        showToast('Профиль сохранён ✓');
-        setTimeout(() => showScreen('chat'), 800);
-    };
+function handleTouchEnd(e) {
+    if (!isSwiping || !isChatOpen) {
+        isSwiping = false;
+        return;
+    }
+    
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    
+    // Свайп влево для закрытия чата
+    if (deltaX < -50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        closeChat();
+    }
+    
+    isSwiping = false;
 }
 
-function initSearchDialogs() {
-    const input = document.getElementById('search-dialogs');
-    if (!input) return;
-    let timeout;
-    input.oninput = (e) => { clearTimeout(timeout); timeout = setTimeout(() => loadDialogs(e.target.value), 300); };
+function openChatMobile(chatId) {
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Открываем чат
+    sidebar.classList.add('chat-open');
+    chatArea.classList.add('chat-open');
+    isChatOpen = true;
+    
+    // Показываем поле ввода
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'block';
+    
+    // Обновляем URL без перезагрузки
+    if (window.history && chatId) {
+        const url = new URL(window.location);
+        url.searchParams.set('chat', chatId);
+        window.history.pushState({ chatId }, '', url);
+    }
+    
+    // Фокусируем на поле ввода через небольшую задержку
+    setTimeout(() => {
+        const input = document.getElementById('message-input');
+        if (input && !input.disabled) {
+            input.focus();
+        }
+    }, 350);
 }
 
-function initSendButton() {
-    const btn = document.getElementById('btn-send-msg');
-    if (btn) btn.onclick = sendMsg;
-    const input = document.getElementById('message-input');
-    if (input) input.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
-}
-
-function initUserActivityTracking() {
-    let timeout = null, last = Date.now();
-    const reset = () => {
-        if (!currentUser) return;
-        last = Date.now();
-        if (timeout) clearTimeout(timeout);
-        if (!isUserOnline) setUserOnlineStatus(true);
-        timeout = setTimeout(async () => { if (Date.now() - last >= 15000 && isUserOnline) await setUserOnlineStatus(false); }, 1000);
-    };
-    window.addEventListener('mousemove', reset); window.addEventListener('keydown', reset); window.addEventListener('click', reset); window.addEventListener('scroll', reset);
-    window.addEventListener('beforeunload', () => { if (currentUser) navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/rpc/force_set_offline`, JSON.stringify({ user_id: currentUser.id })); });
-    document.addEventListener('visibilitychange', async () => {
-        if (!currentUser) return;
-        if (document.hidden) { await setUserOnlineStatus(false); if (timeout) clearTimeout(timeout); }
-        else { await setUserOnlineStatus(true); reset(); if (currentChat) { await markChatMessagesAsRead(currentChat.id); if (window.readStatusObservers) { window.readStatusObservers.observer?.disconnect(); window.readStatusObservers.mutationObserver?.disconnect(); } window.readStatusObservers = setupReadStatusObserver(); } }
+function closeChat() {
+    const sidebar = document.querySelector('.glass-sidebar');
+    const chatArea = document.querySelector('.glass-chat-area');
+    
+    if (!sidebar || !chatArea) return;
+    
+    // Закрываем чат
+    sidebar.classList.remove('chat-open');
+    chatArea.classList.remove('chat-open');
+    isChatOpen = false;
+    
+    // Скрываем поле ввода
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    // Обновляем URL
+    if (window.history) {
+        const url = new URL(window.location);
+        url.searchParams.delete('chat');
+        window.history.pushState({}, '', url);
+    }
+    
+    // Снимаем выделение с диалога
+    document.querySelectorAll('.dialog-item').forEach(el => {
+        el.classList.remove('active');
     });
-    window.addEventListener('pagehide', () => { if (currentUser) navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/rpc/force_set_offline`, JSON.stringify({ user_id: currentUser.id })); });
+    
+    // Очищаем текущий чат
+    if (window.currentChat) {
+        window.currentChat = null;
+    }
+    
+    // Очищаем сообщения
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `
+            <div class="msg-stub">
+                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                <p>Выберите диалог, чтобы начать общение</p>
+            </div>
+        `;
+    }
+    
+    // Обновляем заголовок
+    const chatTitle = document.getElementById('chat-title');
+    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    
+    const chatStatus = document.querySelector('.chat-status');
+    if (chatStatus) chatStatus.textContent = 'выберите диалог';
+    
+    // Отключаем индикатор печати
+    const typingStatus = document.querySelector('.typing-status');
+    if (typingStatus) typingStatus.style.display = 'none';
+}
+
+function initMobileKeyboardHandler() {
+    if (!isMobileDevice()) return;
+    
+    const messageInput = document.getElementById('message-input');
+    const messagesContainer = document.getElementById('messages');
+    
+    if (!messageInput) return;
+    
+    let originalHeight = window.innerHeight;
+    
+    window.addEventListener('resize', () => {
+        const currentHeight = window.innerHeight;
+        
+        if (currentHeight < originalHeight - 150 && isChatOpen) {
+            setTimeout(() => {
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }, 100);
+        }
+        
+        originalHeight = currentHeight;
+        if (typeof updateDvh === 'function') updateDvh();
+    });
+    
+    messageInput.addEventListener('focus', () => {
+        if (!isChatOpen) return;
+        setTimeout(() => {
+            if (messagesContainer) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }, 300);
+    });
+}
+
+function initMobilePerformance() {
+    if (!isMobileDevice()) return;
+    
+    const MAX_CACHED_MESSAGES = 100;
+    if (typeof messagesCache !== 'undefined' && messagesCache) {
+        const originalSet = messagesCache.set;
+        messagesCache.set = function(key, value) {
+            if (value && value.length > MAX_CACHED_MESSAGES) {
+                value = value.slice(-MAX_CACHED_MESSAGES);
+            }
+            return originalSet.call(this, key, value);
+        };
+    }
+    
+    // Отключаем анимации при включенном энергосбережении
+    if ('connection' in navigator && navigator.connection.saveData) {
+        const style = document.createElement('style');
+        style.textContent = `
+            .message, .dialog-item, .glass-button, .glass-card {
+                transition: none !important;
+                animation: none !important;
+            }
+            .orb {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+function initMobileOptimizations() {
+    if (!isMobileDevice()) return;
+    initMobileNavigation();
+    initMobileKeyboardHandler();
+    initMobilePerformance();
+}
+
+// Переопределяем функции открытия чата
+function patchOpenChat() {
+    if (!isMobileDevice()) return;
+    
+    const originalOpenChat = window.openChat;
+    if (originalOpenChat) {
+        window.openChat = async function(chatId, otherUserId, otherUser) {
+            const result = await originalOpenChat(chatId, otherUserId, otherUser);
+            openChatMobile(chatId);
+            return result;
+        };
+    }
+    
+    const originalOpenSavedChat = window.openSavedChat;
+    if (originalOpenSavedChat) {
+        window.openSavedChat = async function(chatId) {
+            const result = await originalOpenSavedChat(chatId);
+            openChatMobile(chatId);
+            return result;
+        };
+    }
 }
 
 // Экспорт
-window.updateProfileFooter = updateProfileFooter;
-window.initProfileFooter = initProfileFooter;
-window.updateChatStatusFromProfile = updateChatStatusFromProfile;
-window.initEmojiPicker = initEmojiPicker;
-window.initMessageMenu = initMessageMenu;
-window.initProfileScreen = initProfileScreen;
-window.initSearchDialogs = initSearchDialogs;
-window.initSendButton = initSendButton;
-window.initUserActivityTracking = initUserActivityTracking;
+window.initMobileOptimizations = initMobileOptimizations;
+window.openChatMobile = openChatMobile;
+window.closeChat = closeChat;
+window.patchOpenChat = patchOpenChat;
+
+// Автоматическая инициализация
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initMobileOptimizations();
+        patchOpenChat();
+    });
+} else {
+    initMobileOptimizations();
+    patchOpenChat();
+}
