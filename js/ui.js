@@ -13,6 +13,14 @@ function updateProfileFooter() {
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
+    
+    // Скрываем поле ввода изначально
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) {
+        inputZone.classList.remove('visible');
+        inputZone.style.display = 'none';
+    }
+    
     const info = footer.querySelector('.profile-footer-info');
     if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
     const settings = document.getElementById('footer-settings');
@@ -50,11 +58,28 @@ function openProfileModal() {
 function updateChatStatusFromProfile(profile) {
     const cs = document.querySelector('.chat-status');
     if (!cs) return;
-    if (currentChat?.other_user?.id === BOT_USER_ID) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; return; }
-    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status status-offline'; return; }
+    
+    if (currentChat?.other_user?.id === BOT_USER_ID) { 
+        cs.textContent = 'бот';
+        cs.className = 'chat-status status-bot';
+        return;
+    }
+    
+    if (currentChat?.id === SAVED_CHAT_ID) { 
+        cs.textContent = 'личное';
+        cs.className = 'chat-status offline';
+        return;
+    }
+    
     const status = getUserStatusFromProfile(profile);
-    cs.textContent = status.text;
-    cs.className = `chat-status ${status.class}`;
+    
+    if (status.isOnline) {
+        cs.textContent = 'онлайн';
+        cs.className = 'chat-status online';
+    } else {
+        cs.textContent = status.text;
+        cs.className = 'chat-status offline';
+    }
 }
 
 function initEmojiPicker() {
