@@ -1,5 +1,3 @@
-// chat.js - Управление чатами и сообщениями
-
 async function getOrCreatePrivateChat(otherUserId) {
     try {
         if (otherUserId === BOT_USER_ID) {
@@ -215,13 +213,9 @@ function renderMessage(msg, isNewMessage = false) {
         </div>
     ` : '';
     
-    const avatarContent = isBot ? 
-        '<img src="lumina.svg" alt="Bot" style="width: 60%; height: 60%; object-fit: contain;">' : 
-        `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
-    
     divMsg.innerHTML = `
-        <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}" style="position: relative;">
-            ${avatarContent}
+        <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
+            ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
             ${botVerifiedBadge}
         </div>
         <div class="msg-bubble">
@@ -362,187 +356,6 @@ function updateDialogLastMessage(chatId, text, isOwn) {
     }
 }
 
-async function openChat(chatId, otherUserId, otherUser) {
-    if (otherUserId && otherUserId !== BOT_USER_ID) {
-        const userExists = await checkUserExists(otherUserId);
-        if (!userExists) {
-            showToast('Пользователь удален, чат будет закрыт', true);
-            await supabaseClient.from('chats').delete().eq('id', chatId);
-            await supabaseClient.from('messages').delete().eq('chat_id', chatId);
-            await loadDialogs();
-            return;
-        }
-    }
-    if (isOpeningChat) {
-        pendingChatId = chatId;
-        return;
-    }
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const isBot = otherUserId === BOT_USER_ID;
-        
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'private',
-            other_user: otherUser || (isBot ? BOT_PROFILE : null)
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge">Бот</span>' : ''}`;
-        }
-        
-        if (!isBot && otherUserId) {
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('id', otherUserId)
-                .maybeSingle();
-            
-            if (profile) {
-                if (typeof updateChatStatusFromProfile === 'function') updateChatStatusFromProfile(profile);
-                subscribeToUserStatus(otherUserId);
-                subscribeToTyping(chatId);
-            }
-        } else if (isBot) {
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) {
-                chatStatus.textContent = 'бот';
-                chatStatus.className = 'chat-status status-bot';
-            }
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (isBot) {
-            if (inputZone) {
-                inputZone.style.display = 'none';
-                inputZone.classList.add('hidden-input');
-            }
-            if (messageInput) messageInput.disabled = true;
-            if (sendButton) sendButton.disabled = true;
-        } else {
-            if (inputZone) {
-                if (isMobileDevice()) {
-                    inputZone.style.display = 'none';
-                    inputZone.classList.add('hidden-input');
-                } else {
-                    inputZone.style.display = 'block';
-                    inputZone.classList.remove('hidden-input');
-                }
-            }
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.placeholder = 'Написать сообщение...';
-            }
-            if (sendButton) sendButton.disabled = false;
-            setupTypingIndicator();
-        }
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        setTimeout(async () => {
-            await markChatMessagesAsRead(chatId);
-            
-            if (window.readStatusObservers) {
-                window.readStatusObservers.observer?.disconnect();
-                window.readStatusObservers.mutationObserver?.disconnect();
-            }
-            window.readStatusObservers = setupReadStatusObserver();
-        }, 500);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
-        if (pendingChatId && pendingChatId !== chatId) {
-            const pending = pendingChatId;
-            pendingChatId = null;
-            const pendingDialog = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
-            if (pendingDialog) {
-                const otherId = pendingDialog.dataset.otherUserId;
-                await openChat(pending, otherId, null);
-            }
-        }
-    }
-}
-
-async function openSavedChat(chatId) {
-    if (isOpeningChat) return;
-    if (currentChat?.id === chatId) return;
-    
-    isOpeningChat = true;
-    
-    try {
-        const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
-        
-        currentChat = {
-            id: chatId,
-            type: 'saved',
-            other_user: SAVED_CHAT
-        };
-        
-        const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное';
-        }
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = 'личное';
-            chatStatus.className = 'chat-status status-offline';
-        }
-        
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
-        if (inputZone) {
-            if (isMobileDevice()) {
-                inputZone.style.display = 'none';
-                inputZone.classList.add('hidden-input');
-            } else {
-                inputZone.style.display = 'block';
-                inputZone.classList.remove('hidden-input');
-            }
-        }
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Сохранить сообщение...';
-        }
-        if (sendButton) sendButton.disabled = false;
-        
-        await loadMessages(chatId);
-        subscribeToMessages(chatId);
-        
-        document.querySelectorAll('.dialog-item').forEach(el => {
-            el.classList.remove('active');
-            if (el.dataset.chatId === chatId) el.classList.add('active');
-        });
-        
-    } finally {
-        isOpeningChat = false;
-    }
-}
-
 // Экспорт
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
@@ -555,5 +368,3 @@ window.sendTypingStatus = sendTypingStatus;
 window.subscribeToTyping = subscribeToTyping;
 window.sendMsg = sendMsg;
 window.updateDialogLastMessage = updateDialogLastMessage;
-window.openChat = openChat;
-window.openSavedChat = openSavedChat;
