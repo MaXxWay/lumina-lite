@@ -13,14 +13,6 @@ function updateProfileFooter() {
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
-    
-    // Скрываем поле ввода изначально
-    const inputZone = document.querySelector('.input-zone');
-    if (inputZone) {
-        inputZone.classList.remove('visible');
-        inputZone.style.display = 'none';
-    }
-    
     const info = footer.querySelector('.profile-footer-info');
     if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
     const settings = document.getElementById('footer-settings');
@@ -58,28 +50,11 @@ function openProfileModal() {
 function updateChatStatusFromProfile(profile) {
     const cs = document.querySelector('.chat-status');
     if (!cs) return;
-    
-    if (currentChat?.other_user?.id === BOT_USER_ID) { 
-        cs.textContent = 'бот';
-        cs.className = 'chat-status status-bot';
-        return;
-    }
-    
-    if (currentChat?.id === SAVED_CHAT_ID) { 
-        cs.textContent = 'личное';
-        cs.className = 'chat-status offline';
-        return;
-    }
-    
+    if (currentChat?.other_user?.id === BOT_USER_ID) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; return; }
+    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status status-offline'; return; }
     const status = getUserStatusFromProfile(profile);
-    
-    if (status.isOnline) {
-        cs.textContent = 'онлайн';
-        cs.className = 'chat-status online';
-    } else {
-        cs.textContent = status.text;
-        cs.className = 'chat-status offline';
-    }
+    cs.textContent = status.text;
+    cs.className = `chat-status ${status.class}`;
 }
 
 function initEmojiPicker() {
@@ -120,14 +95,17 @@ function initMessageMenu() {
         currentMessageText = msgText;
         currentIsOwn = isOwn;
         
+        // Получаем координаты
         let x = e.clientX;
         let y = e.clientY;
         
+        // Для мобильных устройств
         if (isMobileDevice() && e.touches && e.touches[0]) {
             const touch = e.touches[0];
             x = touch.clientX;
             y = touch.clientY;
             
+            // Виброотклик для лучшего UX
             if (window.navigator.vibrate) {
                 window.navigator.vibrate(50);
             }
@@ -135,6 +113,7 @@ function initMessageMenu() {
         
         menu.style.display = 'block';
         
+        // Позиционирование с учетом границ экрана
         setTimeout(() => {
             const menuRect = menu.getBoundingClientRect();
             const viewportWidth = window.innerWidth;
@@ -143,15 +122,22 @@ function initMessageMenu() {
             let left = x;
             let top = y;
             
+            // Если меню выходит за правый край
             if (x + menuRect.width > viewportWidth - 10) {
                 left = x - menuRect.width;
             }
+            
+            // Если меню выходит за левый край
             if (left < 10) {
                 left = 10;
             }
+            
+            // Если меню выходит за нижний край
             if (y + menuRect.height > viewportHeight - 10) {
                 top = y - menuRect.height;
             }
+            
+            // Если меню выходит за верхний край
             if (top < 10) {
                 top = 10;
             }
@@ -159,9 +145,11 @@ function initMessageMenu() {
             menu.style.left = `${left}px`;
             menu.style.top = `${top}px`;
             menu.style.transform = 'none';
+            
             menu.classList.add('menu-visible');
         }, 0);
         
+        // Назначаем действия
         const menuItems = menu.querySelectorAll('.menu-item');
         menuItems.forEach(item => {
             const newItem = item.cloneNode(true);
@@ -173,6 +161,7 @@ function initMessageMenu() {
             };
         });
         
+        // Закрываем при клике вне меню
         setTimeout(() => {
             document.addEventListener('click', hideMenu);
             document.addEventListener('touchstart', hideMenu);
@@ -197,6 +186,7 @@ function initMessageMenu() {
                     await navigator.clipboard.writeText(msgText);
                     showToast('✓ Текст скопирован в буфер обмена');
                 } catch (err) {
+                    // Fallback для старых браузеров
                     const textarea = document.createElement('textarea');
                     textarea.value = msgText;
                     document.body.appendChild(textarea);
@@ -225,6 +215,7 @@ function initMessageMenu() {
                             
                             if (error) throw error;
                             
+                            // Обновляем отображение
                             const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
                             if (msgDiv) {
                                 const textDiv = msgDiv.querySelector('.text');
@@ -234,6 +225,7 @@ function initMessageMenu() {
                                 }
                             }
                             
+                            // Обновляем кэш
                             if (messagesCache.has(currentChat?.id)) {
                                 const cached = messagesCache.get(currentChat.id);
                                 const idx = cached.findIndex(m => m.id === msgId);
@@ -271,9 +263,11 @@ function initMessageMenu() {
                             
                             showToast('✓ Сообщение удалено');
                             
+                            // Удаляем из DOM
                             const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
                             if (msgDiv) msgDiv.remove();
                             
+                            // Обновляем кэш
                             if (messagesCache.has(currentChat?.id)) {
                                 const cached = messagesCache.get(currentChat.id);
                                 messagesCache.set(
@@ -282,6 +276,7 @@ function initMessageMenu() {
                                 );
                             }
                             
+                            // Если сообщений не осталось, показываем заглушку
                             const container = document.getElementById('messages');
                             if (container && container.querySelectorAll('.message').length === 0) {
                                 container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
@@ -317,17 +312,21 @@ function initMobileLongPress() {
         const messageDiv = e.target.closest('.message');
         if (!messageDiv) return;
         
+        // Сохраняем начальные координаты для определения скролла
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         pressTarget = messageDiv;
         
+        // Устанавливаем таймер на 500ms
         pressTimer = setTimeout(() => {
             if (pressTarget && pressTarget.isConnected) {
+                // Получаем данные сообщения
                 const msgId = pressTarget.dataset.id;
                 const msgText = pressTarget.dataset.text;
                 const isOwn = pressTarget.classList.contains('own');
                 
                 if (msgId && typeof showMessageMenu === 'function') {
+                    // Создаем событие с координатами касания
                     const fakeEvent = {
                         clientX: startX,
                         clientY: startY,
@@ -337,6 +336,7 @@ function initMobileLongPress() {
                     
                     showMessageMenu(fakeEvent, msgId, msgText, isOwn);
                     
+                    // Визуальный фидбек
                     pressTarget.style.transform = 'scale(0.98)';
                     pressTarget.style.transition = 'transform 0.1s ease';
                     setTimeout(() => {
@@ -353,11 +353,13 @@ function initMobileLongPress() {
     messagesContainer.addEventListener('touchmove', (e) => {
         if (!pressTarget) return;
         
+        // Проверяем, не уехал ли палец слишком далеко
         const currentX = e.touches[0].clientX;
         const currentY = e.touches[0].clientY;
         const deltaX = Math.abs(currentX - startX);
         const deltaY = Math.abs(currentY - startY);
         
+        // Если палец переместился более чем на 10px - отменяем долгое нажатие
         if (deltaX > 10 || deltaY > 10) {
             if (pressTimer) {
                 clearTimeout(pressTimer);
@@ -373,6 +375,7 @@ function initMobileLongPress() {
             pressTimer = null;
         }
         if (pressTarget) {
+            // Убираем фидбек
             setTimeout(() => {
                 if (pressTarget && pressTarget.isConnected) {
                     pressTarget.style.transform = '';
