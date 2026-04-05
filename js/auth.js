@@ -1,5 +1,3 @@
-// auth.js - Авторизация и аутентификация
-
 const screens = {
     reg: document.getElementById('step-register'),
     login: document.getElementById('step-login'),
@@ -20,9 +18,6 @@ function showScreen(key) {
 }
 
 async function logout() {
-    const confirmed = await modal.confirm('Вы действительно хотите выйти из аккаунта?', 'Выход из системы');
-    if (!confirmed) return;
-    
     if (onlineInterval) clearInterval(onlineInterval);
     if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
     if (statusSubscription) await supabaseClient.removeChannel(statusSubscription);
@@ -41,7 +36,6 @@ async function logout() {
     currentProfile = null;
     currentChat = null;
     showScreen('reg');
-    showToast('Вы вышли из аккаунта');
 }
 
 function initAuth() {
@@ -123,22 +117,8 @@ async function handleSuccessfulLogin(user) {
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
     
-    // Скрываем поле ввода до выбора чата
     const inputZone = document.querySelector('.input-zone');
-    if (inputZone) {
-        inputZone.classList.remove('visible');
-        inputZone.style.display = 'none';
-    }
-    
-    // Отключаем поле ввода
-    const messageInput = document.getElementById('message-input');
-    if (messageInput) {
-        messageInput.disabled = true;
-        messageInput.placeholder = 'Сначала выберите чат';
-    }
-    
-    const sendButton = document.getElementById('btn-send-msg');
-    if (sendButton) sendButton.disabled = true;
+    if (inputZone) inputZone.style.display = 'none';
     
     const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
