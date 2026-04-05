@@ -112,12 +112,18 @@ function openChatMobile(chatId) {
     
     if (!sidebar || !chatArea) return;
     
-    if (inputZone) {
+    // Проверяем, не бот ли это
+    const isBot = currentChat?.other_user?.id === BOT_USER_ID;
+    
+    if (inputZone && !isBot) {
+        inputZone.classList.add('visible');
         inputZone.style.display = 'block';
-        inputZone.classList.remove('hidden-input');
         setTimeout(() => {
             inputZone.style.opacity = '1';
         }, 10);
+    } else if (inputZone && isBot) {
+        inputZone.classList.remove('visible');
+        inputZone.style.display = 'none';
     }
     
     sidebar.classList.add('chat-open');
@@ -132,7 +138,7 @@ function openChatMobile(chatId) {
     
     setTimeout(() => {
         const input = document.getElementById('message-input');
-        if (input && !input.disabled) {
+        if (input && !input.disabled && !isBot) {
             input.focus();
         }
     }, 350);
@@ -290,6 +296,7 @@ window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
 window.patchOpenChat = patchOpenChat;
 
+// Автоматическая инициализация
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         initMobileOptimizations();
