@@ -320,10 +320,8 @@ body {
 }
 
 .msg-avatar {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
+    width: 35px;
+    height: 35px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -331,6 +329,8 @@ body {
     font-size: 14px;
     font-weight: 700;
     color: white;
+    flex-shrink: 0;
+    position: relative;
     background: #1e293b;
 }
 .msg-avatar img { 
@@ -338,30 +338,6 @@ body {
     height: 100%; 
     object-fit: cover; 
     border-radius: 50%; 
-}
-
-/* Галочка бота снаружи аватарки */
-.msg-avatar .verified-badge-outside {
-    position: absolute;
-    bottom: -4px;
-    right: -6px;
-    width: 18px;
-    height: 18px;
-    background: #3b82f6;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 3;
-    border: 2px solid var(--bg-deep);
-    box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
-}
-
-.msg-avatar .verified-badge-outside svg {
-    width: 10px;
-    height: 10px;
-    stroke: white;
-    stroke-width: 3;
 }
 
 .msg-bubble {
@@ -395,18 +371,13 @@ body {
     color: rgba(255,255,255,0.5); 
 }
 
-/* Поле ввода - скрыто по умолчанию */
+/* Поле ввода */
 .input-zone {
-    display: none !important;
     padding: 20px 30px;
     border-top: 1px solid var(--glass-border);
     flex-shrink: 0;
     background: rgba(0, 0, 0, 0.3);
     position: relative;
-}
-
-.input-zone.visible {
-    display: block !important;
 }
 
 .glass-input-wrapper {
@@ -465,12 +436,8 @@ body {
 .glass-input-wrapper input::placeholder { 
     color: var(--text-dim); 
 }
-.glass-input-wrapper input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
 
-/* Эмодзи панель */
+/* Эмодзи панель - ИСПРАВЛЕНО: не выходит за рамки */
 .emoji-picker {
     position: absolute;
     bottom: 80px;
@@ -525,42 +492,34 @@ body {
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     padding: 8px 0;
-    min-width: 200px;
-    z-index: 10000;
+    min-width: 180px;
+    z-index: 1000;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    opacity: 0;
-    transform: scale(0.95);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.message-menu.menu-visible {
-    opacity: 1;
-    transform: scale(1);
+    animation: fadeIn 0.1s ease;
 }
 .message-menu .menu-item {
-    padding: 12px 20px;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    transition: 0.15s;
+    transition: 0.1s;
     color: var(--text-main);
     font-size: 14px;
-    font-weight: 500;
 }
-.message-menu .menu-item:active {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(0.98);
+.message-menu .menu-item:hover { 
+    background: rgba(255, 255, 255, 0.1); 
 }
-.message-menu .menu-item svg {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
+.message-menu .menu-item svg { 
+    width: 18px; 
+    height: 18px; 
+    flex-shrink: 0; 
 }
-.message-menu .menu-item.danger {
-    color: #ff6b6b;
+.message-menu .menu-item.danger { 
+    color: #ff6b6b; 
 }
-.message-menu .menu-item.danger:active {
-    background: rgba(255, 107, 107, 0.2);
+.message-menu .menu-item.danger:hover { 
+    background: rgba(255, 107, 107, 0.2); 
 }
 
 @keyframes fadeIn { 
@@ -629,7 +588,6 @@ body {
 }
 
 .dialog-avatar {
-    position: relative;
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -639,92 +597,11 @@ body {
     font-weight: 700;
     font-size: 18px;
     flex-shrink: 0;
+    position: relative;
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
 }
 
-.dialog-avatar .verified-badge-outside {
-    position: absolute;
-    bottom: -4px;
-    right: -6px;
-    width: 18px;
-    height: 18px;
-    background: #3b82f6;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 3;
-    border: 2px solid var(--bg-deep);
-}
-
-.dialog-avatar .verified-badge-outside svg {
-    width: 10px;
-    height: 10px;
-    stroke: white;
-    stroke-width: 3;
-}
-
-/* Онлайн-точка в списке диалогов */
-.online-dot {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 12px;
-    height: 12px;
-    background: #4ade80;
-    border-radius: 50%;
-    border: 2px solid var(--bg-deep);
-    animation: pulseOnline 2s infinite;
-}
-
-.online-dot.hidden {
-    display: none;
-}
-
-@keyframes pulseOnline {
-    0% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.5;
-        transform: scale(1.2);
-    }
-    100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Статус онлайн в шапке чата */
-.chat-status.online {
-    color: #4ade80;
-    position: relative;
-    padding-left: 14px;
-}
-
-.chat-status.online::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-    background: #4ade80;
-    border-radius: 50%;
-    animation: pulseOnline 2s infinite;
-}
-
-.chat-status.offline {
-    color: var(--text-dim);
-    opacity: 0.7;
-}
-
-.chat-status.status-bot {
-    color: #a0aec0;
-}
-
+/* Аватар бота */
 .dialog-avatar.bot-avatar {
     background: #12141D;
     display: flex;
@@ -733,12 +610,13 @@ body {
     overflow: hidden;
 }
 .dialog-avatar.bot-avatar img {
-    width: 100%;
-    height: 100%;
+    width: 60%;
+    height: 60%;
     object-fit: contain;
-    border-radius: 50%;
+    border-radius: 0;
 }
 
+/* Аватар избранного - СИНЯЯ АВАТАРКА С ЗАКЛАДКОЙ */
 .dialog-avatar.saved-avatar {
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     position: relative;
@@ -749,6 +627,7 @@ body {
     color: white;
 }
 
+/* Аватар бота в сообщениях */
 .msg-avatar.bot-avatar {
     background: #12141D;
     display: flex;
@@ -758,10 +637,31 @@ body {
     position: relative;
 }
 .msg-avatar.bot-avatar img {
-    width: 100%;
-    height: 100%;
+    width: 60%;
+    height: 60%;
     object-fit: contain;
+    border-radius: 0;
+}
+
+/* Верификационный бейдж для бота */
+.verified-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    background: #3b82f6;
     border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+.verified-badge svg { 
+    width: 10px; 
+    height: 10px; 
+    stroke: white; 
+    stroke-width: 3; 
 }
 
 .verified-badge-small {
@@ -804,6 +704,7 @@ body {
     text-overflow: ellipsis; 
 }
 
+/* Стили для бота */
 .bot-badge { 
     display: inline-block; 
     background: #4a5568; 
@@ -834,8 +735,9 @@ body {
     color: #a0aec0; 
 }
 
+/* Избранное - убрана звезда, только синяя аватарка */
 .saved-badge {
-    display: none;
+    display: none; /* Скрываем текстовую звезду */
 }
 .saved-dialog.active {
     background: linear-gradient(90deg, rgba(59, 130, 246, 0.2), transparent);
@@ -865,6 +767,7 @@ body {
     cursor: not-allowed; 
 }
 
+/* Поиск */
 .search-wrapper { 
     flex: 1; 
     position: relative; 
@@ -897,6 +800,7 @@ body {
     font-size: 12px; 
 }
 
+/* Профиль */
 .profile-back-btn { 
     background: none; 
     border: none; 
@@ -919,6 +823,7 @@ body {
     align-self: center; 
 }
 
+/* Нижняя панель профиля */
 .profile-footer {
     margin-top: auto;
     border-top: 1px solid var(--glass-border);
@@ -999,6 +904,7 @@ body {
     transform: scale(1.05);
 }
 
+/* Непрочитанные сообщения */
 .unread-badge-count {
     display: inline-block;
     background: var(--accent-blue);
@@ -1019,6 +925,7 @@ body {
     background: rgba(0, 114, 255, 0.15); 
 }
 
+/* Поиск пользователей */
 .search-header { 
     padding: 12px 20px; 
     border-bottom: 1px solid var(--glass-border); 
@@ -1048,6 +955,62 @@ body {
     display: none !important; 
 }
 
+/* Статус онлайн */
+.online-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    background: #22c55e;
+    border-radius: 50%;
+    border: 2px solid #03081a;
+    box-shadow: 0 0 2px rgba(34, 197, 94, 0.5);
+    z-index: 10;
+}
+.online-dot.hidden { 
+    display: none; 
+}
+
+.chat-status.online {
+    color: #22c55e;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.chat-status.online::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-online {
+    color: #4ade80;
+    position: relative;
+    padding-left: 12px;
+}
+.status-online::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #4ade80;
+    border-radius: 50%;
+}
+.status-offline { 
+    color: var(--text-dim); 
+    opacity: 0.7; 
+}
+.status-bot { 
+    color: #a0aec0; 
+}
+
+/* Индикатор печатания */
 .typing-status {
     font-size: 11px;
     color: var(--accent-cyan);
@@ -1059,6 +1022,7 @@ body {
     position: relative; 
 }
 
+/* Кнопка сохранить */
 #btn-save-profile {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
     border: none;
@@ -1077,6 +1041,7 @@ body {
     box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
 }
 
+/* Разделитель дней */
 .date-divider {
     display: flex;
     align-items: center;
@@ -1100,6 +1065,7 @@ body {
     letter-spacing: 0.5px;
 }
 
+/* Профиль модальное окно */
 .profile-modal-overlay {
     position: fixed;
     inset: 0;
@@ -1184,6 +1150,7 @@ body {
     margin-top: 0; 
 }
 
+/* Аватарки в сообщениях */
 .message.own { 
     flex-direction: row; 
     justify-content: flex-end; 
@@ -1228,7 +1195,94 @@ body {
     background: var(--accent-blue);
     opacity: 0.8;
 }
+/* ============================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ (ДОБАВИТЬ В КОНЕЦ ФАЙЛА)
+   ============================================ */
 
+/* Кнопка назад - скрыта на десктопе, показывается на мобилках через медиа-запросы */
+.mobile-back-btn {
+    display: none;
+}
+
+/* Дополнительные стили для мобильной навигации */
+@media (max-width: 768px) {
+    /* Кнопка назад появляется */
+    .mobile-back-btn {
+        display: flex !important;
+    }
+    
+    /* Убираем лишние отступы */
+    .glass-sidebar, .glass-chat-area {
+        overflow: hidden;
+    }
+    
+    /* Исправляем скролл */
+    .dialogs-list, .messages-container {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Улучшаем тап-таргеты */
+    .dialog-item, .menu-item, .profile-footer-btn, .send-btn, .emoji-btn {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Предотвращаем зумирование при фокусе на input */
+    input, textarea {
+        font-size: 16px !important;
+    }
+}
+/* Мобильное контекстное меню */
+@media (max-width: 768px) {
+    .message-menu {
+        position: fixed;
+        min-width: 180px;
+        z-index: 10000;
+        animation: menuFadeIn 0.2s ease;
+    }
+    
+    .message-menu .menu-item {
+        padding: 14px 18px;
+        font-size: 16px;
+        gap: 14px;
+    }
+    
+    .message-menu .menu-item svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* Анимация для меню */
+    @keyframes menuFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    
+    /* Визуальный фидбек при долгом нажатии */
+    .message {
+        transition: transform 0.1s ease;
+        cursor: pointer;
+    }
+    
+    .message:active {
+        transform: scale(0.99);
+    }
+}
+
+/* Убираем стандартное контекстное меню на мобилках */
+@media (max-width: 768px) {
+    .message {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+}
 /* Кастомные модальные окна */
 .custom-modal {
     position: fixed;
@@ -1352,6 +1406,58 @@ body {
     }
 }
 
+/* Улучшенное контекстное меню */
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.message-menu.menu-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.message-menu .menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.message-menu .menu-item:active {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(0.98);
+}
+
+.message-menu .menu-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.message-menu .menu-item.danger {
+    color: #ff6b6b;
+}
+
+.message-menu .menu-item.danger:active {
+    background: rgba(255, 107, 107, 0.2);
+}
+
 /* Мобильные адаптации */
 @media (max-width: 768px) {
     .custom-modal-container {
@@ -1400,28 +1506,75 @@ body {
         width: 20px;
         height: 20px;
     }
-    
-    .mobile-back-btn {
-        display: flex !important;
-    }
-    
-    .glass-sidebar, .glass-chat-area {
-        overflow: hidden;
-    }
-    
-    .dialogs-list, .messages-container {
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    .dialog-item, .menu-item, .profile-footer-btn, .send-btn, .emoji-btn {
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-    }
-    
-    input, textarea {
-        font-size: 16px !important;
-    }
-    
+}
+/* Статус-галочка для бота */
+.verified-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    border: 2px solid var(--bg-deep);
+    box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+}
+.verified-badge svg {
+    width: 10px;
+    height: 10px;
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* Для аватара в списке диалогов */
+.dialog-avatar .verified-badge {
+    width: 16px;
+    height: 16px;
+    bottom: -2px;
+    right: -2px;
+}
+.dialog-avatar .verified-badge svg {
+    width: 9px;
+    height: 9px;
+}
+
+/* Для аватара в сообщениях */
+.msg-avatar .verified-badge-small {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    border: 2px solid var(--bg-deep);
+}
+.msg-avatar .verified-badge-small svg {
+    width: 9px;
+    height: 9px;
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* Убираем мерцание поля ввода при загрузке */
+.input-zone {
+    transition: none;
+}
+
+.input-zone.hidden-input {
+    display: none !important;
+}
+
+/* Улучшенная анимация открытия чата на мобилках */
+@media (max-width: 768px) {
     .glass-sidebar,
     .glass-chat-area {
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1444,13 +1597,12 @@ body {
         transform: translateX(-100%);
     }
     
+    /* Плавное появление поля ввода */
     .input-zone {
         transition: opacity 0.2s ease;
     }
     
-    .message {
-        -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        user-select: none;
+    .input-zone.mobile-visible {
+        opacity: 1;
     }
 }
