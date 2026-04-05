@@ -1,7 +1,8 @@
+// app.js - Главный файл инициализации
+
 (async function init() {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    // Инициализация модальных окон (до других инициализаций)
     if (typeof modal !== 'undefined') {
         console.log('Modal system initialized');
     }
@@ -9,13 +10,12 @@
     initAuth();
     initProfileFooter();
     initEmojiPicker();
-    initImprovedMessageMenu(); // Используем улучшенную версию
+    initImprovedMessageMenu();
     initProfileScreen();
     initSearchDialogs();
     initSendButton();
     initUserActivityTracking();
     
-    // Инициализация мобильных оптимизаций
     if (typeof initMobileOptimizations === 'function') {
         initMobileOptimizations();
     }
