@@ -123,15 +123,22 @@ async function handleSuccessfulLogin(user) {
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
     
+    // Скрываем поле ввода до выбора чата
     const inputZone = document.querySelector('.input-zone');
     if (inputZone) {
-        if (isMobileDevice()) {
-            inputZone.style.display = 'none';
-            inputZone.classList.add('hidden-input');
-        } else {
-            inputZone.style.display = 'block';
-        }
+        inputZone.classList.remove('visible');
+        inputZone.style.display = 'none';
     }
+    
+    // Отключаем поле ввода
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        messageInput.disabled = true;
+        messageInput.placeholder = 'Сначала выберите чат';
+    }
+    
+    const sendButton = document.getElementById('btn-send-msg');
+    if (sendButton) sendButton.disabled = true;
     
     const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
