@@ -1,5 +1,3 @@
-// user.js - Управление пользователями и статусами
-
 async function setUserOnlineStatus(isOnline) {
     if (!currentUser) return;
     isUserOnline = isOnline;
