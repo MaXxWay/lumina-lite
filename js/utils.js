@@ -1,4 +1,5 @@
-// Вспомогательные функции
+// utils.js - Вспомогательные функции
+
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
