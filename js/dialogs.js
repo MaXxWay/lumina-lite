@@ -30,13 +30,13 @@ function renderDialogsList(container, filteredData) {
         div.innerHTML = `
             <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
                 ${avatarHtml}
-                ${chat.isBot ? '<div class="verified-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' : ''}
                 ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
+                    ${chat.isBot ? '<span class="bot-badge left-badge">Бот</span>' : ''}
                     ${escapeHtml(chat.name)}
-                    ${chat.isBot ? '<span class="bot-badge">Бот</span>' : ''}
+                    ${chat.isBot ? '<span class="bot-verify-inline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}
                     ${unreadBadge}
                 </div>
                 <div class="dialog-preview">${escapeHtml(chat.lastMessage || '')}</div>
@@ -56,6 +56,47 @@ function renderDialogsList(container, filteredData) {
         
         container.appendChild(div);
     });
+}
+
+function updateChatHeaderAvatar(userProfile, options = {}) {
+    const avatarBtn = document.getElementById('chat-user-avatar');
+    if (!avatarBtn) return;
+
+    const isHidden = options.hidden === true || !userProfile;
+    const isBot = userProfile?.id === BOT_USER_ID;
+    const isSaved = userProfile?.id === SAVED_CHAT_ID;
+
+    if (isHidden || isSaved) {
+        avatarBtn.style.display = 'none';
+        avatarBtn.onclick = null;
+        avatarBtn.classList.remove('bot-avatar');
+        avatarBtn.textContent = '?';
+        return;
+    }
+
+    avatarBtn.style.display = 'inline-flex';
+    avatarBtn.classList.toggle('bot-avatar', isBot);
+    avatarBtn.title = 'Открыть профиль';
+    avatarBtn.innerHTML = isBot ? '<img src="lumina.svg" alt="Bot">' : escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
+    avatarBtn.onclick = () => {
+        if (typeof openProfileModal !== 'function') return;
+        openProfileModal(userProfile, { readOnly: userProfile.id !== currentUser?.id });
+    };
+}
+
+function setMessagesLoadingState(container, isLoading) {
+    if (!container) return;
+    container.classList.toggle('chat-loading', isLoading);
+}
+
+async function smoothLoadChatMessages(chatId, container) {
+    setMessagesLoadingState(container, true);
+    // Let CSS transition start before replacing message list.
+    await new Promise(resolve => setTimeout(resolve, 90));
+    await loadMessages(chatId);
+    // Keep a tiny tail so fade-in feels continuous.
+    await new Promise(resolve => setTimeout(resolve, 70));
+    setMessagesLoadingState(container, false);
 }
 
 async function loadDialogs(searchTerm = '') {
@@ -225,7 +266,15 @@ async function loadUserSearchResults(searchTerm, container) {
     
     container.innerHTML = `
         <div class="search-header">
-            <span class="search-title">👥 Найдено пользователей: ${users.length}</span>
+            <span class="search-title search-title-with-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Найдено пользователей: ${users.length}
+            </span>
         </div>
     `;
     
@@ -240,8 +289,12 @@ async function loadUserSearchResults(searchTerm, container) {
         div.className = 'dialog-item user-search-item';
         div.dataset.userId = user.id;
         div.innerHTML = `
-            <div class="dialog-avatar">
-                <div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>
+            <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''} ${user.isSaved ? 'saved-avatar' : ''}">
+                ${user.isBot
+                    ? '<img src="lumina.svg" alt="Bot">'
+                    : (user.isSaved
+                        ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
+                        : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`)}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
@@ -253,8 +306,13 @@ async function loadUserSearchResults(searchTerm, container) {
         `;
         div.onclick = async () => {
             try {
-                const chatId = await getOrCreatePrivateChat(user.id);
-                await openChat(chatId, user.id, user);
+                if (user.isSaved || user.id === SAVED_CHAT_ID) {
+                    await ensureSavedChat();
+                    await openSavedChat(SAVED_CHAT_ID);
+                } else {
+                    const chatId = await getOrCreatePrivateChat(user.id);
+                    await openChat(chatId, user.id, user);
+                }
                 const searchInputElem = document.getElementById('search-dialogs');
                 if (searchInputElem) searchInputElem.value = '';
                 loadDialogs();
@@ -289,9 +347,7 @@ async function openChat(chatId, otherUserId, otherUser) {
         const isBot = otherUserId === BOT_USER_ID;
         
         const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, true);
         
         currentChat = {
             id: chatId,
@@ -302,8 +358,11 @@ async function openChat(chatId, otherUserId, otherUser) {
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) {
             const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
-            chatTitle.innerHTML = `${escapeHtml(name)} ${isBot ? '<span class="bot-badge">Бот</span>' : ''}`;
+            chatTitle.innerHTML = isBot
+                ? `<span class="bot-badge left-badge">Бот</span>${escapeHtml(name)}<span class="bot-verify-inline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>`
+                : escapeHtml(name);
         }
+        updateChatHeaderAvatar(otherUser || (isBot ? BOT_PROFILE : null));
         
         if (!isBot && otherUserId) {
             const { data: profile } = await supabaseClient
@@ -344,7 +403,7 @@ async function openChat(chatId, otherUserId, otherUser) {
             setupTypingIndicator();
         }
         
-        await loadMessages(chatId);
+        await smoothLoadChatMessages(chatId, messagesContainer);
         subscribeToMessages(chatId);
         
         setTimeout(async () => {
@@ -363,6 +422,8 @@ async function openChat(chatId, otherUserId, otherUser) {
         });
         
     } finally {
+        const messagesContainer = document.getElementById('messages');
+        setMessagesLoadingState(messagesContainer, false);
         isOpeningChat = false;
         if (pendingChatId && pendingChatId !== chatId) {
             const pending = pendingChatId;
@@ -384,9 +445,7 @@ async function openSavedChat(chatId) {
     
     try {
         const messagesContainer = document.getElementById('messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
-        }
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, true);
         
         currentChat = {
             id: chatId,
@@ -398,6 +457,7 @@ async function openSavedChat(chatId) {
         if (chatTitle) {
             chatTitle.innerHTML = 'Избранное';
         }
+        updateChatHeaderAvatar(SAVED_CHAT, { hidden: true });
         
         const chatStatus = document.querySelector('.chat-status');
         if (chatStatus) {
@@ -417,7 +477,7 @@ async function openSavedChat(chatId) {
         }
         if (sendButton) sendButton.disabled = false;
         
-        await loadMessages(chatId);
+        await smoothLoadChatMessages(chatId, messagesContainer);
         subscribeToMessages(chatId);
         
         document.querySelectorAll('.dialog-item').forEach(el => {
@@ -426,6 +486,8 @@ async function openSavedChat(chatId) {
         });
         
     } finally {
+        const messagesContainer = document.getElementById('messages');
+        setMessagesLoadingState(messagesContainer, false);
         isOpeningChat = false;
     }
 }
