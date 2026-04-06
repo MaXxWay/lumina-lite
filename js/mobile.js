@@ -127,9 +127,10 @@ function openChatMobile(chatId) {
     chatArea.classList.add('chat-open');
     isChatOpen = true;
     
-    // Показываем поле ввода
+    // Показываем поле ввода только для чатов, где можно писать
     const inputZone = document.querySelector('.input-zone');
-    if (inputZone) inputZone.style.display = 'block';
+    const canWrite = currentChat?.id !== SAVED_CHAT_ID && currentChat?.other_user?.id !== BOT_USER_ID;
+    if (inputZone) inputZone.style.display = canWrite ? 'block' : 'none';
     
     // Обновляем URL без перезагрузки
     if (window.history && chatId) {
@@ -193,6 +194,8 @@ function closeChat() {
     // Обновляем заголовок
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    const chatAvatar = document.getElementById('chat-user-avatar');
+    if (chatAvatar) chatAvatar.style.display = 'none';
     
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
