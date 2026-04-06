@@ -33,17 +33,49 @@ function initProfileFooter() {
     };
 }
 
-function openProfileModal() {
-    if (!currentProfile) return;
-    const letter = (currentProfile.full_name || '?')[0].toUpperCase();
+function openProfileModal(profile = currentProfile, options = {}) {
+    if (!profile) return;
+    const isOwnProfile = profile.id === currentUser?.id;
+    const readOnly = options.readOnly === true || !isOwnProfile;
+    const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
     const avatarLetter = document.getElementById('profile-avatar-letter');
     const fullname = document.getElementById('profile-fullname');
     const username = document.getElementById('profile-username');
     const bio = document.getElementById('profile-bio');
-    if (avatarLetter) avatarLetter.textContent = letter;
-    if (fullname) fullname.value = currentProfile.full_name || '';
-    if (username) username.value = currentProfile.username || '';
-    if (bio) bio.value = currentProfile.bio || '';
+    const title = document.querySelector('.profile-modal-title');
+    const viewMode = document.getElementById('profile-view-mode');
+    const editMode = document.getElementById('profile-edit-mode');
+    const nameView = document.getElementById('profile-name-view');
+    const usernameView = document.getElementById('profile-username-view');
+    const bioView = document.getElementById('profile-bio-view');
+    const editBtn = document.getElementById('btn-edit-profile');
+    const saveBtn = document.getElementById('btn-save-profile');
+    const logoutBtn = document.getElementById('btn-logout-profile');
+
+    if (avatarLetter) {
+        if (profile.id === BOT_USER_ID) avatarLetter.innerHTML = '<img src="lumina.svg" alt="Bot">';
+        else avatarLetter.textContent = letter;
+    }
+    if (nameView) nameView.textContent = profile.full_name || profile.username || 'Пользователь';
+    if (usernameView) usernameView.textContent = `@${profile.username || 'username'}`;
+    if (bioView) bioView.textContent = profile.bio || 'Пользователь пока ничего не рассказал о себе.';
+    if (fullname) {
+        fullname.value = profile.full_name || '';
+        fullname.readOnly = readOnly;
+        fullname.style.opacity = readOnly ? '0.75' : '1';
+    }
+    if (username) username.value = profile.username || '';
+    if (bio) {
+        bio.value = profile.bio || '';
+        bio.readOnly = readOnly;
+        bio.style.opacity = readOnly ? '0.75' : '1';
+    }
+    if (viewMode) viewMode.style.display = 'block';
+    if (editMode) editMode.style.display = 'none';
+    if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
+    if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
+    if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
+    if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
     showScreen('profile');
 }
 
@@ -402,6 +434,18 @@ function initImprovedMessageMenu() {
 function initProfileScreen() {
     const back = document.getElementById('btn-profile-back');
     if (back) back.onclick = () => showScreen('chat');
+    const editBtn = document.getElementById('btn-edit-profile');
+    const cancelEditBtn = document.getElementById('btn-cancel-edit-profile');
+    const viewMode = document.getElementById('profile-view-mode');
+    const editMode = document.getElementById('profile-edit-mode');
+    if (editBtn) editBtn.onclick = () => {
+        if (viewMode) viewMode.style.display = 'none';
+        if (editMode) editMode.style.display = 'block';
+    };
+    if (cancelEditBtn) cancelEditBtn.onclick = () => {
+        if (viewMode) viewMode.style.display = 'block';
+        if (editMode) editMode.style.display = 'none';
+    };
     const logout = document.getElementById('btn-logout-profile');
     if (logout) logout.onclick = async () => {
         const confirmed = await modal.confirm('Вы действительно хотите выйти из аккаунта?', 'Выход из системы');
@@ -440,8 +484,10 @@ function initProfileScreen() {
             if (avatarLetter) avatarLetter.textContent = full[0].toUpperCase();
             
             updateProfileFooter();
-            showToast('✓ Профиль сохранён');
-            setTimeout(() => showScreen('chat'), 800);
+            if (viewMode) viewMode.style.display = 'block';
+            if (editMode) editMode.style.display = 'none';
+            showScreen('chat');
+            setTimeout(() => showToast('✓ Профиль сохранён'), 120);
         } catch (error) {
             showToast('Ошибка сохранения профиля', true);
         }
@@ -504,6 +550,7 @@ function initUserActivityTracking() {
 // Экспорт
 window.updateProfileFooter = updateProfileFooter;
 window.initProfileFooter = initProfileFooter;
+window.openProfileModal = openProfileModal;
 window.updateChatStatusFromProfile = updateChatStatusFromProfile;
 window.initEmojiPicker = initEmojiPicker;
 window.initImprovedMessageMenu = initImprovedMessageMenu;
