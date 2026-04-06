@@ -118,9 +118,9 @@
                 </div>
                 <div class="profile-footer-actions">
                     <button id="footer-settings" class="profile-footer-btn" title="Настройки профиля">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H5.78a1.65 1.65 0 0 0-1.51 1 1.65 1.65 0 0 0 .33 1.82l.04.04A10 10 0 0 0 12 17.66a10 10 0 0 0 6.36-2.62l.04-.04Z"/>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.65 1.65 0 0 0-1-1.5 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.65 1.65 0 0 0 1.5-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.65 1.65 0 0 0 1 1.5 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.64.88 1.05 1.57 1.05H21a2 2 0 0 1 0 4h-.1A1.65 1.65 0 0 0 19.4 15z"></path>
                         </svg>
                     </button>
                     <button id="footer-logout" class="profile-footer-btn" title="Выйти">
@@ -137,6 +137,7 @@
         <main class="glass-chat-area">
             <header class="chat-header">
                 <div class="chat-info">
+                    <button id="chat-user-avatar" class="chat-user-avatar" type="button" title="Открыть профиль" style="display:none;">?</button>
                     <h3 id="chat-title">Lumina Lite</h3>
                     <span class="chat-status">выберите диалог</span>
                     <div class="typing-status"></div>
@@ -151,7 +152,7 @@
                 </div>
             </div>
 
-            <div class="input-zone">
+            <div class="input-zone" style="display:none;">
                 <div class="glass-input-wrapper">
                     <button id="btn-emoji" class="emoji-btn" title="Эмодзи">
                         <svg width="20" height="20"><use href="#icon-smile"/></svg>
@@ -213,17 +214,36 @@
                 <div class="profile-avatar-center">
                     <div class="profile-avatar-big" id="profile-avatar-letter">?</div>
                 </div>
+                <div id="profile-view-mode">
+                    <div class="profile-view-item">
+                        <div class="profile-view-label">Имя</div>
+                        <div class="profile-view-value" id="profile-name-view">—</div>
+                    </div>
+                    <div class="profile-view-item">
+                        <div class="profile-view-label">Username</div>
+                        <div class="profile-view-value" id="profile-username-view">@username</div>
+                    </div>
+                    <div class="profile-view-item">
+                        <div class="profile-view-label">О себе</div>
+                        <div class="profile-view-value profile-bio-view" id="profile-bio-view">Пользователь пока ничего не рассказал о себе.</div>
+                    </div>
+                    <button id="btn-edit-profile" class="glass-button primary" style="margin-top: 16px;">Редактировать профиль</button>
+                </div>
 
-                <label class="profile-label">Имя</label>
-                <input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
+                <div id="profile-edit-mode" style="display:none;">
+                    <label class="profile-label">Имя</label>
+                    <input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
 
-                <label class="profile-label">Username</label>
-                <input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.5;cursor:not-allowed;">
+                    <label class="profile-label">Username</label>
+                    <input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.5;cursor:not-allowed;">
 
-                <label class="profile-label">О себе</label>
-                <textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
+                    <label class="profile-label">О себе</label>
+                    <textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
 
-                <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
+                    <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
+                    <button id="btn-cancel-edit-profile" class="glass-button" style="margin-top: 12px;">Отмена</button>
+                </div>
+
                 <button id="btn-logout-profile" class="glass-button" style="margin-top: 12px; background: rgba(255,71,87,0.2); border: 1px solid rgba(255,71,87,0.3); width:100%; padding:14px; border-radius:var(--radius-input); color:white; font-weight:600; font-size:15px; cursor:pointer;">Выйти</button>
             </div>
         </div>
