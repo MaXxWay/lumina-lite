@@ -34,8 +34,7 @@ async function markChatMessagesAsRead(chatId) {
             container.querySelectorAll('.message:not(.own)').forEach(msgDiv => {
                 const readSpan = msgDiv.querySelector('.read-status');
                 if (readSpan && !msgDiv.classList.contains('bot-message')) {
-                    readSpan.className = 'read-status read';
-                    readSpan.innerHTML = '✓✓';
+                    setMessageReadStatus(readSpan, true);
                 }
                 msgDiv.classList.remove('unread-message');
             });
@@ -71,7 +70,7 @@ function setupReadStatusObserver() {
                         const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
                         if (msgDiv) {
                             const readSpan = msgDiv.querySelector('.read-status');
-                            if (readSpan) { readSpan.className = 'read-status read'; readSpan.innerHTML = '✓✓'; }
+                            if (readSpan) setMessageReadStatus(readSpan, true);
                             msgDiv.classList.remove('unread-message');
                         }
                     });
@@ -202,24 +201,30 @@ function renderMessage(msg, isNewMessage = false) {
     divMsg.dataset.text = msg.text;
     divMsg.dataset.date = formattedCurrentDate;
     
-    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? 
-        `<span class="read-status ${isRead ? 'read' : 'unread'}">${isRead ? '✓✓' : '✓'}</span>` : '';
-    
-    const botVerifiedBadge = isBot ? `
-        <div class="verified-badge-small">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
+    const getReadStatusIcon = (read) => {
+        if (read) {
+            return `
+                <svg class="read-icon double-check" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M1 7L5 11L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M8 7L12 11L19 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            `;
+        }
+        return `
+            <svg class="read-icon single-check" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M1 5L4 8L11 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-        </div>
-    ` : '';
+        `;
+    };
+    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID) ? 
+        `<span class="read-status ${isRead ? 'read' : 'unread'}">${getReadStatusIcon(isRead)}</span>` : '';
     
     divMsg.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
             ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
-            ${botVerifiedBadge}
         </div>
         <div class="msg-bubble">
-            ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)} ${isBot ? '<span class="bot-badge-small">Бот</span>' : ''}</div>` : ''}
+            ${!isOwn ? `<div class="msg-sender">${escapeHtml(name)}</div>` : ''}
             <div class="text">${escapeHtml(msg.text)}</div>
             <div class="msg-time">${timeStr} ${readStatusHtml}</div>
         </div>
@@ -229,6 +234,21 @@ function renderMessage(msg, isNewMessage = false) {
         if (typeof showMessageMenu === 'function') showMessageMenu(e, msg.id, msg.text, isOwn);
         return false;
     };
+
+    const msgAvatar = divMsg.querySelector('.msg-avatar');
+    if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
+        const profileForModal = isBot
+            ? BOT_PROFILE
+            : (msg.user_id === currentUser?.id ? currentProfile : (msg.profiles || currentChat?.other_user));
+        if (profileForModal) {
+            msgAvatar.classList.add('clickable-avatar');
+            msgAvatar.title = 'Открыть профиль';
+            msgAvatar.onclick = (e) => {
+                e.stopPropagation();
+                openProfileModal(profileForModal, { readOnly: profileForModal.id !== currentUser?.id });
+            };
+        }
+    }
     
     container.appendChild(divMsg);
     
@@ -236,6 +256,25 @@ function renderMessage(msg, isNewMessage = false) {
         setTimeout(() => container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' }), 50);
     } else {
         setTimeout(() => container.scrollTop = container.scrollHeight, 50);
+    }
+}
+
+function setMessageReadStatus(readSpan, isRead) {
+    if (!readSpan) return;
+    readSpan.className = `read-status ${isRead ? 'read' : 'unread'}`;
+    if (isRead) {
+        readSpan.innerHTML = `
+            <svg class="read-icon double-check" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M1 7L5 11L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8 7L12 11L19 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        `;
+    } else {
+        readSpan.innerHTML = `
+            <svg class="read-icon single-check" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M1 5L4 8L11 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        `;
     }
 }
 
@@ -267,7 +306,7 @@ function subscribeToMessages(chatId) {
                 if (payload.new.is_read && !msgDiv.classList.contains('own') && !msgDiv.classList.contains('bot-message')) {
                     msgDiv.classList.remove('unread-message');
                     const rs = msgDiv.querySelector('.read-status');
-                    if (rs) { rs.className = 'read-status read'; rs.innerHTML = '✓✓'; }
+                    if (rs) setMessageReadStatus(rs, true);
                 }
             }
             if (messagesCache.has(chatId)) {
