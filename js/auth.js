@@ -113,6 +113,8 @@ async function handleSuccessfulLogin(user) {
     
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    const chatAvatar = document.getElementById('chat-user-avatar');
+    if (chatAvatar) chatAvatar.style.display = 'none';
     
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
