@@ -93,14 +93,36 @@ async function checkUserExists(userId) {
 
 async function searchUsersByUsername(username) {
     if (!username || username.length < 1) return [];
-    let cleanUsername = username.replace(/^@/, '');
+    const cleanUsername = username.replace(/^@/, '').trim();
     try {
         const { data } = await supabaseClient.from('profiles')
             .select('id, username, full_name')
-            .ilike('username', `%${cleanUsername}%`)
+            .or(`username.ilike.%${cleanUsername}%,full_name.ilike.%${cleanUsername}%`)
             .neq('id', currentUser.id)
             .limit(10);
-        return data || [];
+        const users = data || [];
+        const q = cleanUsername.toLowerCase();
+
+        // Добавляем системные профили в поиск
+        const botTokens = ['lumina', 'bot', 'lumina_bot', 'бот'];
+        if (botTokens.some(token => token.includes(q) || q.includes(token))) {
+            users.unshift({
+                id: BOT_USER_ID,
+                username: BOT_PROFILE.username,
+                full_name: BOT_PROFILE.full_name,
+                isBot: true
+            });
+        }
+        const savedTokens = ['saved', 'favorite', 'избранное', 'закладки', 'избр'];
+        if (savedTokens.some(token => token.includes(q) || q.includes(token))) {
+            users.unshift({
+                id: SAVED_CHAT_ID,
+                username: SAVED_CHAT.username,
+                full_name: SAVED_CHAT.full_name,
+                isSaved: true
+            });
+        }
+        return users;
     } catch { return []; }
 }
 
