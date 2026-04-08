@@ -167,16 +167,8 @@ function initMobileGroupContextMenu() {
     menu.style.width = '100%';
 }
 
-// Экспорт
 window.initMobileOptimizations = initMobileOptimizations;
 window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
 window.isChatOpen = isChatOpen;
 window.initMobileGroupContextMenu = initMobileGroupContextMenu;
-
-// Автоинициализация
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileOptimizations);
-} else {
-    initMobileOptimizations();
-}
