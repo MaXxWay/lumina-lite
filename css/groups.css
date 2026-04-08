@@ -222,7 +222,72 @@
     cursor: pointer;
     transition: all 0.15s;
     color: var(--text-main);
-    display: inline-flex;
+    display: inline-flex;/* Ограничиваем контекстное меню */
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    max-width: 280px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Ограничиваем список участников */
+.group-members-list {
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 8px;
+}
+
+/* Карточка участника — не растягивается */
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    transition: background 0.15s;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.member-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-role {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.member-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
     align-items: center;
     gap: 6px;
 }
@@ -240,4 +305,70 @@
     padding: 40px;
     color: var(--text-dim);
     font-size: 13px;
+}
+/* Ограничиваем контекстное меню */
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    max-width: 280px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Ограничиваем список участников */
+.group-members-list {
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 8px;
+}
+
+/* Карточка участника — не растягивается */
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    transition: background 0.15s;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.member-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-role {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.member-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
 }
