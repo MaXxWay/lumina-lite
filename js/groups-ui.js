@@ -89,14 +89,20 @@ function displayMemberResults(users, results, selected, setRef) {
 }
 
 async function showGroupProfile(groupId) {
+    if (!groupManager) {
+        console.log('Waiting for groupManager...');
+        setTimeout(() => showGroupProfile(groupId), 200);
+        return;
+    }
+    
     const m = document.getElementById('group-profile-modal');
     if (!m) {
         console.error('Modal element not found');
         return;
     }
     
-    if (!groupManager || typeof groupManager.getGroupInfo !== 'function') {
-        console.error('groupManager not initialized');
+    if (typeof groupManager.getGroupInfo !== 'function') {
+        console.error('groupManager.getGroupInfo not a function');
         showToast('Ошибка: группа не загружена', true);
         return;
     }
@@ -136,40 +142,39 @@ async function showGroupProfile(groupId) {
             membersList.innerHTML = (group.members || []).map(member => {
                 const status = getUserStatusFromProfile(member.profile || {});
                 const roleName = roleNames[member.role] || 'Участник';
+                const memberProfile = member.profile || {};
                 return `
-                <div class="member-item" data-user-id="${member.user_id}" data-role="${member.role}" data-username="${member.profile?.username || ''}" data-fullname="${escapeHtml(member.profile?.full_name || member.profile?.username || 'Пользователь')}">
+                <div class="member-item" data-user-id="${member.user_id}" data-role="${member.role}" data-username="${memberProfile.username || ''}" data-fullname="${escapeHtml(memberProfile.full_name || memberProfile.username || 'Пользователь')}">
                     <div class="member-avatar" style="background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));">
-                        ${(member.profile?.full_name || member.profile?.username || '?')[0].toUpperCase()}
+                        ${(memberProfile.full_name || memberProfile.username || '?')[0].toUpperCase()}
                         <div class="member-online-dot ${status.isOnline ? 'online' : ''}"></div>
                     </div>
                     <div class="member-info">
-                        <div class="member-name">${escapeHtml(member.profile?.full_name || member.profile?.username || 'Пользователь')}</div>
-                        <div class="member-username">@${escapeHtml(member.profile?.username || '')}</div>
-                        ${member.profile?.bio ? `<div class="member-bio">${escapeHtml(member.profile.bio.substring(0, 50))}${member.profile.bio.length > 50 ? '...' : ''}</div>` : ''}
+                        <div class="member-name">${escapeHtml(memberProfile.full_name || memberProfile.username || 'Пользователь')}</div>
+                        <div class="member-username">@${escapeHtml(memberProfile.username || '')}</div>
+                        ${memberProfile.bio ? `<div class="member-bio">${escapeHtml(memberProfile.bio.substring(0, 50))}${memberProfile.bio.length > 50 ? '...' : ''}</div>` : ''}
                     </div>
                     <div class="member-role ${member.role}">${roleName}</div>
                 </div>`;
             }).join('');
 
-            // Добавляем клик по участнику для открытия профиля
             membersList.querySelectorAll('.member-item').forEach(item => {
                 const userId = item.dataset.userId;
-                const userRole = item.dataset.role;
-                const username = item.dataset.username;
                 const fullname = item.dataset.fullname;
+                const username = item.dataset.username;
                 const isCurrentUser = userId === currentUser?.id;
                 const isCreator = group.created_by === currentUser?.id;
                 
-                // Клик по аватарке или всей строке - открываем профиль
-                const avatar = item.querySelector('.member-avatar');
-                const info = item.querySelector('.member-info');
+                const memberData = group.members?.find(m => m.user_id === userId);
+                const memberProfileData = memberData?.profile || {};
+                
                 const openProfileHandler = (e) => {
                     e.stopPropagation();
                     const profile = {
                         id: userId,
                         full_name: fullname,
                         username: username,
-                        bio: member.profile?.bio || ''
+                        bio: memberProfileData.bio || ''
                     };
                     openProfileModal(profile, { 
                         readOnly: true,
@@ -178,14 +183,12 @@ async function showGroupProfile(groupId) {
                         groupName: group.name
                     });
                 };
-                if (avatar) avatar.style.cursor = 'pointer';
-                if (avatar) avatar.onclick = openProfileHandler;
-                if (info) info.style.cursor = 'pointer';
-                if (info) info.onclick = openProfileHandler;
                 
-                // Контекстное меню только для админа и не для себя
+                item.style.cursor = 'pointer';
+                item.onclick = openProfileHandler;
+                
                 if (isAdmin && !isCurrentUser) {
-                    attachMemberContextMenu(item, groupId, userId, userRole, fullname);
+                    attachMemberContextMenu(item, groupId, userId, item.dataset.role, fullname);
                 }
             });
         }
@@ -216,14 +219,14 @@ async function showGroupProfile(groupId) {
 
         const leaveBtn = document.getElementById('leave-group-btn');
         if (leaveBtn) {
-            leaveBtn.innerHTML = `<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-logout"/></svg>Покинуть группу`;
+            leaveBtn.innerHTML = `<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-logout"/></svg>Покинуть`;
             leaveBtn.onclick = async () => {
                 const confirmed = await window.modal.confirm('Покинуть группу?', 'Выход из группы');
                 if (confirmed) { await groupManager.leaveGroup(groupId); m.style.display = 'none'; }
             };
         }
 
-        const closeBtn = document.getElementById('close-group-profile');
+        const closeBtn = m.querySelector('.close-group-modal');
         const overlay = m.querySelector('.custom-modal-overlay');
         [closeBtn, overlay].forEach(el => { if (el) el.onclick = () => m.style.display = 'none'; });
         
@@ -235,7 +238,6 @@ async function showGroupProfile(groupId) {
 }
 
 function attachMemberContextMenu(element, groupId, userId, currentRole, fullname) {
-    // ПКМ
     element.oncontextmenu = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -243,7 +245,6 @@ function attachMemberContextMenu(element, groupId, userId, currentRole, fullname
         return false;
     };
     
-    // Долгое нажатие на мобильных
     let touchTimer = null;
     element.addEventListener('touchstart', (e) => {
         touchTimer = setTimeout(() => {
@@ -301,22 +302,25 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         `;
         document.body.insertAdjacentHTML('beforeend', menuHTML);
         menu = document.getElementById('member-context-menu');
+        
+        if (isMobileDevice()) {
+            menu.style.position = 'fixed';
+            menu.style.bottom = '0';
+            menu.style.left = '0';
+            menu.style.right = '0';
+            menu.style.top = 'auto';
+            menu.style.transform = 'translateY(100%)';
+            menu.style.borderRadius = '20px 20px 0 0';
+            menu.style.maxWidth = 'none';
+            menu.style.width = '100%';
+            menu.style.transition = 'transform 0.3s ease';
+        }
     }
     
-    // Позиционируем меню
     const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
     const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
     
     if (isMobileDevice()) {
-        menu.style.position = 'fixed';
-        menu.style.bottom = '0';
-        menu.style.left = '0';
-        menu.style.right = '0';
-        menu.style.top = 'auto';
-        menu.style.transform = 'translateY(100%)';
-        menu.style.borderRadius = '20px 20px 0 0';
-        menu.style.maxWidth = 'none';
-        menu.style.width = '100%';
         menu.style.display = 'block';
         setTimeout(() => menu.classList.add('menu-visible'), 10);
     } else {
@@ -329,23 +333,26 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.classList.add('menu-visible');
     }
     
-    // Настраиваем видимость пунктов в зависимости от текущей роли
     const promoteModerator = menu.querySelector('[data-action="promote-moderator"]');
     const promoteAdmin = menu.querySelector('[data-action="promote-admin"]');
     const demoteBtn = menu.querySelector('[data-action="demote"]');
+    const removeBtn = menu.querySelector('[data-action="remove"]');
     
     if (currentRole === 'admin') {
-        promoteModerator.style.display = 'none';
-        promoteAdmin.style.display = 'none';
-        demoteBtn.style.display = 'flex';
+        if (promoteModerator) promoteModerator.style.display = 'none';
+        if (promoteAdmin) promoteAdmin.style.display = 'none';
+        if (demoteBtn) demoteBtn.style.display = 'flex';
+        if (removeBtn) removeBtn.style.display = 'flex';
     } else if (currentRole === 'moderator') {
-        promoteModerator.style.display = 'none';
-        promoteAdmin.style.display = 'flex';
-        demoteBtn.style.display = 'flex';
+        if (promoteModerator) promoteModerator.style.display = 'none';
+        if (promoteAdmin) promoteAdmin.style.display = 'flex';
+        if (demoteBtn) demoteBtn.style.display = 'flex';
+        if (removeBtn) removeBtn.style.display = 'flex';
     } else {
-        promoteModerator.style.display = 'flex';
-        promoteAdmin.style.display = 'flex';
-        demoteBtn.style.display = 'none';
+        if (promoteModerator) promoteModerator.style.display = 'flex';
+        if (promoteAdmin) promoteAdmin.style.display = 'flex';
+        if (demoteBtn) demoteBtn.style.display = 'none';
+        if (removeBtn) removeBtn.style.display = 'flex';
     }
     
     const closeMenu = () => {
