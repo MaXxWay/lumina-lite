@@ -495,6 +495,64 @@ function updateChatStatusFromProfile(profile) {
         cs.style.color = '';
     }
 }
+// В user.js, замените функцию ensureBotChat на эту:
+
+async function ensureBotChat() {
+    try {
+        const { data: existing } = await supabaseClient.from('chats')
+            .select('id')
+            .eq('type', 'private')
+            .contains('participants', [currentUser.id, BOT_USER_ID])
+            .maybeSingle();
+        
+        if (existing) {
+            // Проверяем есть ли сообщения от бота
+            const { data: botMessages } = await supabaseClient.from('messages')
+                .select('id')
+                .eq('chat_id', existing.id)
+                .eq('user_id', BOT_USER_ID)
+                .limit(1);
+            
+            if (!botMessages || botMessages.length === 0) {
+                // Отправляем приветственное сообщение
+                await supabaseClient.from('messages').insert({
+                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль\n\nПриятного общения! 🚀',
+                    user_id: BOT_USER_ID,
+                    chat_id: existing.id,
+                    is_welcome: true,
+                    is_system: false,
+                    created_at: new Date().toISOString()
+                });
+            }
+            return;
+        }
+        
+        const { data: chat, error } = await supabaseClient.from('chats')
+            .insert({ 
+                type: 'private', 
+                participants: [currentUser.id, BOT_USER_ID], 
+                created_at: new Date().toISOString(), 
+                updated_at: new Date().toISOString(), 
+                is_bot_chat: true 
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        
+        if (chat) {
+            await supabaseClient.from('messages').insert({
+                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль\n\nПриятного общения! 🚀',
+                user_id: BOT_USER_ID,
+                chat_id: chat.id,
+                is_welcome: true,
+                is_system: false,
+                created_at: new Date().toISOString()
+            });
+        }
+    } catch (err) { 
+        console.error('ensureBotChat:', err); 
+    }
+}
 
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
