@@ -41,15 +41,28 @@ function formatLastSeen(lastSeen) {
 
 function getUserStatusFromProfile(profile) {
     if (!profile) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
-    if (profile.is_online === true) return { text: 'онлайн', class: 'status-online', isOnline: true };
-    if (!profile.last_seen) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
     
-    const lastSeenDate = new Date(profile.last_seen);
-    const now = new Date();
-    const diffMins = (now - lastSeenDate) / 60000;
-    const onlineTimeout = window.ONLINE_TIMEOUT_MINUTES || 5;
-    if (diffMins < onlineTimeout) return { text: 'онлайн', class: 'status-online', isOnline: true };
-    return { text: formatLastSeen(profile.last_seen), class: 'status-offline', isOnline: false };
+    // Бот всегда онлайн
+    if (profile.id === BOT_USER_ID) return { text: 'бот', class: 'status-bot', isOnline: false };
+    
+    // Проверяем is_online
+    if (profile.is_online === true) {
+        return { text: 'онлайн', class: 'status-online', isOnline: true };
+    }
+    
+    // Проверяем last_seen (если был активен в последние 5 минут)
+    if (profile.last_seen) {
+        const lastSeenDate = new Date(profile.last_seen);
+        const now = new Date();
+        const diffMins = (now - lastSeenDate) / 60000;
+        const onlineTimeout = window.ONLINE_TIMEOUT_MINUTES || 5;
+        if (diffMins < onlineTimeout) {
+            return { text: 'онлайн', class: 'status-online', isOnline: true };
+        }
+        return { text: formatLastSeen(profile.last_seen), class: 'status-offline', isOnline: false };
+    }
+    
+    return { text: 'неизвестно', class: 'status-offline', isOnline: false };
 }
 
 function formatDateDivider(date) {
