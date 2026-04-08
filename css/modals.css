@@ -1,0 +1,224 @@
+/* ============================================
+   ОБЩИЕ МОДАЛЬНЫЕ ОКНА (создание группы, добавление участников)
+   ============================================ */
+
+.custom-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 8, 26, 0.18);
+    backdrop-filter: blur(14px);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+
+.custom-modal-container {
+    width: 100%;
+    max-width: 440px;
+    margin: 20px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+}
+
+.custom-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.custom-modal-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    background: linear-gradient(135deg, #fff, var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0;
+}
+
+.custom-modal-close {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-dim);
+}
+.custom-modal-close:hover {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    transform: scale(1.05);
+}
+
+.custom-modal-body {
+    padding: 20px 24px 24px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+}
+
+.custom-modal-message {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-main);
+    margin: 0 0 16px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.custom-modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--glass-border);
+}
+.custom-modal-footer .glass-button {
+    flex: 1;
+    margin: 0;
+    padding: 12px;
+}
+
+/* Поиск участников */
+.members-search-container {
+    margin-bottom: 16px;
+}
+
+.members-results {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 8px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.search-result-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.result-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+    color: white;
+}
+
+.result-info {
+    flex: 1;
+    min-width: 0;
+}
+.result-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.result-username {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.add-member-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(0, 114, 255, 0.2);
+    border: 1px solid rgba(0, 114, 255, 0.3);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.add-member-btn:hover {
+    background: rgba(0, 114, 255, 0.4);
+}
+
+/* Выбранные участники */
+.selected-members {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px;
+    min-height: 50px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+}
+
+.selected-member-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 114, 255, 0.2);
+    border: 1px solid rgba(0, 114, 255, 0.3);
+    border-radius: 20px;
+    padding: 4px 8px 4px 12px;
+    font-size: 12px;
+}
+
+.remove-member {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.15s;
+}
+.remove-member:hover {
+    color: var(--danger);
+    transform: scale(1.1);
+}
+/* Единое размытие для всех модальных окон */
+.profile-modal-overlay,
+.custom-modal,
+#group-profile-modal,
+#create-group-modal,
+#add-members-modal,
+#edit-group-modal {
+    background: rgba(3, 8, 26, 0.18);
+    backdrop-filter: blur(14px);
+}
+
+.profile-modal-card,
+.custom-modal-container,
+#group-profile-modal .profile-modal-card,
+#create-group-modal .custom-modal-container,
+#add-members-modal .custom-modal-container,
+#edit-group-modal .custom-modal-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px);
+}
