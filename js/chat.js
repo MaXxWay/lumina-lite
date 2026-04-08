@@ -152,10 +152,10 @@ function renderSystemMessage(text, timestamp = null) {
     const container = document.getElementById('messages');
     if (!container) return;
     
-    // Убираем смайлики из текста
+    // Удаляем ВСЕ эмодзи из системных сообщений
     let cleanText = text
-        .replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️]/g, '')
-        .replace(/^\s+/, '')
+        .replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️💾👥]/g, '')
+        .replace(/\s+/g, ' ')
         .trim();
     
     const div = document.createElement('div');
@@ -235,37 +235,33 @@ function renderMessage(msg, isNewMessage = false) {
 
     attachMessageContextMenu(divMsg, msg, isOwn);
 
-// Клик по аватарке — открываем профиль
-const msgAvatar = divMsg.querySelector('.msg-avatar');
-if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
-    // Для своих сообщений
-    if (isOwn) {
-        msgAvatar.classList.add('clickable-avatar');
-        msgAvatar.onclick = e => { 
-            e.stopPropagation(); 
-            openProfileModal(currentProfile, { readOnly: false });
-        };
-    }
-    // Для групповых чатов — показываем профиль отправителя
-    else if (isGroup && !isOwn && !isBot && msg.profiles) {
-        msgAvatar.classList.add('clickable-avatar');
-        msgAvatar.onclick = e => { 
-            e.stopPropagation(); 
-            openProfileModal(msg.profiles, { readOnly: true });
-        };
-    } 
-    // Для личных чатов
-    else if (!isGroup && !isOwn) {
-        const profile = isBot ? BOT_PROFILE : (msg.profiles || currentChat?.other_user);
-        if (profile) {
+    const msgAvatar = divMsg.querySelector('.msg-avatar');
+    if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
+        if (isOwn) {
             msgAvatar.classList.add('clickable-avatar');
             msgAvatar.onclick = e => { 
                 e.stopPropagation(); 
-                openProfileModal(profile, { readOnly: profile.id !== currentUser?.id });
+                openProfileModal(currentProfile, { readOnly: false });
             };
         }
+        else if (isGroup && !isOwn && !isBot && msg.profiles) {
+            msgAvatar.classList.add('clickable-avatar');
+            msgAvatar.onclick = e => { 
+                e.stopPropagation(); 
+                openProfileModal(msg.profiles, { readOnly: true });
+            };
+        } 
+        else if (!isGroup && !isOwn) {
+            const profile = isBot ? BOT_PROFILE : (msg.profiles || currentChat?.other_user);
+            if (profile) {
+                msgAvatar.classList.add('clickable-avatar');
+                msgAvatar.onclick = e => { 
+                    e.stopPropagation(); 
+                    openProfileModal(profile, { readOnly: profile.id !== currentUser?.id });
+                };
+            }
+        }
     }
-}
     container.appendChild(divMsg);
 
     if (isNewMessage) {
@@ -472,6 +468,33 @@ function updateDialogLastMessage(chatId, text, isOwn) {
     item.parentNode?.insertBefore(item, item.parentNode.firstChild);
 }
 
+function updateChatStatusFromProfile(profile) {
+    const cs = document.querySelector('.chat-status');
+    if (!cs) return;
+    
+    if (currentChat?.other_user?.id === BOT_USER_ID) {
+        cs.textContent = 'бот';
+        cs.className = 'chat-status status-bot';
+        return;
+    }
+    
+    if (currentChat?.id === SAVED_CHAT_ID) {
+        cs.textContent = 'личное';
+        cs.className = 'chat-status';
+        return;
+    }
+    
+    const status = getUserStatusFromProfile(profile);
+    cs.textContent = status.text;
+    cs.className = `chat-status ${status.class}`;
+    
+    if (status.isOnline) {
+        cs.setAttribute('data-online', 'true');
+    } else {
+        cs.removeAttribute('data-online');
+    }
+}
+
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
@@ -487,3 +510,4 @@ window.sendMsg = sendMsg;
 window.updateDialogLastMessage = updateDialogLastMessage;
 window.setMessageReadStatus = setMessageReadStatus;
 window.attachMessageContextMenu = attachMessageContextMenu;
+window.updateChatStatusFromProfile = updateChatStatusFromProfile;
