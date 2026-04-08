@@ -488,10 +488,11 @@ function updateChatStatusFromProfile(profile) {
     cs.textContent = status.text;
     cs.className = `chat-status ${status.class}`;
     
+    // Добавляем стиль для онлайн статуса
     if (status.isOnline) {
-        cs.setAttribute('data-online', 'true');
+        cs.style.color = '#22c55e';
     } else {
-        cs.removeAttribute('data-online');
+        cs.style.color = '';
     }
 }
 
