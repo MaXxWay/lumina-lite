@@ -163,19 +163,28 @@ async function showGroupProfile(groupId) {
                 const fullname = item.dataset.fullname;
                 const username = item.dataset.username;
                 const isCurrentUser = userId === currentUser?.id;
-                const isCreator = group.created_by === currentUser?.id;
                 
                 const memberData = group.members?.find(m => m.user_id === userId);
                 const memberProfileData = memberData?.profile || {};
                 
+                // Обработчик открытия профиля ПОВЕРХ группы
                 const openProfileHandler = (e) => {
                     e.stopPropagation();
+                    // Скрываем окно группы
+                    const groupModal = document.getElementById('group-profile-modal');
+                    if (groupModal) groupModal.style.display = 'none';
+                    
+                    // Сохраняем ID группы для возврата
+                    window.lastOpenedGroupId = groupId;
+                    
                     const profile = {
                         id: userId,
                         full_name: fullname,
                         username: username,
                         bio: memberProfileData.bio || ''
                     };
+                    
+                    // Открываем профиль
                     openProfileModal(profile, { 
                         readOnly: true,
                         fromGroup: true,
@@ -222,13 +231,21 @@ async function showGroupProfile(groupId) {
             leaveBtn.innerHTML = `<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-logout"/></svg>Покинуть`;
             leaveBtn.onclick = async () => {
                 const confirmed = await window.modal.confirm('Покинуть группу?', 'Выход из группы');
-                if (confirmed) { await groupManager.leaveGroup(groupId); m.style.display = 'none'; }
+                if (confirmed) { 
+                    await groupManager.leaveGroup(groupId); 
+                    m.style.display = 'none'; 
+                }
             };
         }
 
         const closeBtn = m.querySelector('.close-group-modal');
         const overlay = m.querySelector('.custom-modal-overlay');
-        [closeBtn, overlay].forEach(el => { if (el) el.onclick = () => m.style.display = 'none'; });
+        [closeBtn, overlay].forEach(el => { 
+            if (el) el.onclick = () => {
+                m.style.display = 'none';
+                window.lastOpenedGroupId = null;
+            };
+        });
         
     } catch (error) {
         console.error('showGroupProfile error:', error);
