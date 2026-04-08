@@ -364,7 +364,18 @@ function initProfileScreen() {
             currentProfile.bio = bio;
             updateProfileFooter();
             showToast('Профиль сохранён');
-            showScreen('chat');
+            
+            // Закрываем профиль
+            const modal = document.getElementById('profile-screen');
+            if (modal) modal.style.display = 'none';
+            
+            // Если открывали из группы — возвращаем окно группы
+            if (window.lastOpenedGroupId) {
+                showGroupProfile(window.lastOpenedGroupId);
+                window.lastOpenedGroupId = null;
+            } else {
+                showScreen('chat');
+            }
         } catch { showToast('Ошибка сохранения', true); }
     };
 
@@ -378,7 +389,18 @@ function initProfileScreen() {
         }
     };
 
-    if (backBtn) backBtn.onclick = () => showScreen('chat');
+    if (backBtn) backBtn.onclick = () => {
+        const modal = document.getElementById('profile-screen');
+        if (modal) modal.style.display = 'none';
+        
+        // Если открывали из группы — возвращаем окно группы
+        if (window.lastOpenedGroupId) {
+            showGroupProfile(window.lastOpenedGroupId);
+            window.lastOpenedGroupId = null;
+        } else {
+            showScreen('chat');
+        }
+    };
 }
 
 window.updateProfileFooter = updateProfileFooter;
