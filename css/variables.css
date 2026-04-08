@@ -1,0 +1,56 @@
+/* ============================================
+   LUMINA LITE — ПЕРЕМЕННЫЕ И БАЗОВЫЕ СТИЛИ
+   ============================================ */
+
+:root {
+    --bg-deep: #03081a;
+    --glass-bg: rgba(10, 25, 60, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --accent-blue: #0072ff;
+    --accent-cyan: #00c6ff;
+    --text-main: #ffffff;
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --success: #4ade80;
+    --danger: #ff4757;
+    --warning: #f59e0b;
+    --radius-card: 35px;
+    --radius-input: 14px;
+    --transition: 0.3s ease;
+    --dvh: 100vh;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    outline: none;
+}
+
+body {
+    height: 100vh;
+    height: var(--dvh);
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-deep);
+    font-family: 'Manrope', sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+/* Орбы */
+.orb {
+    position: absolute;
+    border-radius: 40%;
+    filter: blur(120px);
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+}
+.orb-1 { width: 500px; height: 500px; background: var(--accent-blue); top: -150px; left: -150px; }
+.orb-2 { width: 400px; height: 400px; background: var(--accent-cyan); bottom: -100px; right: -100px; }
+.orb-3 { width: 250px; height: 250px; background: #7b2fff; top: 50%; left: 50%; transform: translate(-50%, -50%); }
