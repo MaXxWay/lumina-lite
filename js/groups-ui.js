@@ -284,6 +284,7 @@ function attachMemberContextMenu(element, groupId, userId, currentRole, fullname
     });
 }
 
+// В showMemberContextMenu, добавьте проверку на выход за границы экрана
 async function showMemberContextMenu(event, groupId, userId, currentRole, fullname) {
     let menu = document.getElementById('member-context-menu');
     if (!menu) {
@@ -319,36 +320,48 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         `;
         document.body.insertAdjacentHTML('beforeend', menuHTML);
         menu = document.getElementById('member-context-menu');
-        
-        if (isMobileDevice()) {
-            menu.style.position = 'fixed';
-            menu.style.bottom = '0';
-            menu.style.left = '0';
-            menu.style.right = '0';
-            menu.style.top = 'auto';
-            menu.style.transform = 'translateY(100%)';
-            menu.style.borderRadius = '20px 20px 0 0';
-            menu.style.maxWidth = 'none';
-            menu.style.width = '100%';
-            menu.style.transition = 'transform 0.3s ease';
-        }
     }
     
     const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
     const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
     
     if (isMobileDevice()) {
+        menu.style.position = 'fixed';
+        menu.style.bottom = '0';
+        menu.style.left = '0';
+        menu.style.right = '0';
+        menu.style.top = 'auto';
+        menu.style.transform = 'translateY(100%)';
+        menu.style.borderRadius = '20px 20px 0 0';
+        menu.style.maxWidth = 'none';
+        menu.style.width = '100%';
         menu.style.display = 'block';
         setTimeout(() => menu.classList.add('menu-visible'), 10);
     } else {
         menu.style.display = 'block';
-        menu.style.left = `${x}px`;
+        menu.style.maxWidth = '280px';
+        menu.style.width = 'auto';
+        
+        // Проверяем выход за правый край
+        const rect = menu.getBoundingClientRect();
+        const vw = window.innerWidth;
+        let left = x;
+        if (left + 280 > vw - 10) {
+            left = vw - 290;
+        }
+        if (left < 10) left = 10;
+        
+        menu.style.left = `${left}px`;
         menu.style.top = `${y}px`;
         menu.style.transform = 'none';
         menu.style.bottom = 'auto';
         menu.style.right = 'auto';
         menu.classList.add('menu-visible');
     }
+    
+    // ... остальной код без изменений
+}
+
     
     const promoteModerator = menu.querySelector('[data-action="promote-moderator"]');
     const promoteAdmin = menu.querySelector('[data-action="promote-admin"]');
@@ -420,7 +433,7 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
     });
     
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
-}
+
 
 async function showAddMembersToGroup(groupId) {
     const m = document.getElementById('add-members-modal');
