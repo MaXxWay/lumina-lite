@@ -42,15 +42,12 @@ function formatLastSeen(lastSeen) {
 function getUserStatusFromProfile(profile) {
     if (!profile) return { text: 'неизвестно', class: 'status-offline', isOnline: false };
     
-    // Бот всегда онлайн
     if (profile.id === BOT_USER_ID) return { text: 'бот', class: 'status-bot', isOnline: false };
     
-    // Проверяем is_online
     if (profile.is_online === true) {
         return { text: 'онлайн', class: 'status-online', isOnline: true };
     }
     
-    // Проверяем last_seen (если был активен в последние 5 минут)
     if (profile.last_seen) {
         const lastSeenDate = new Date(profile.last_seen);
         const now = new Date();
@@ -64,7 +61,6 @@ function getUserStatusFromProfile(profile) {
     
     return { text: 'неизвестно', class: 'status-offline', isOnline: false };
 }
-
 function formatDateDivider(date) {
     const msgDate = new Date(date);
     const today = new Date();
