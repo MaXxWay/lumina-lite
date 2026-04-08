@@ -291,3 +291,38 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+/* Статус в шапке чата */
+.chat-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    opacity: 0.7;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chat-status.online {
+    color: #22c55e;
+    opacity: 1;
+}
+
+.chat-status.online::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse-green 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
