@@ -1,0 +1,451 @@
+/* ============================================
+   БЕЙДЖИ, СТАТУСЫ И ДАТА
+   ============================================ */
+
+/* Скроллбары */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+}
+
+/* Разделитель дат — по центру */
+.date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 24px 0;
+    position: relative;
+}
+.date-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--glass-border);
+}
+.date-divider-text {
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    background: rgba(3, 8, 26, 0.7);
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+    letter-spacing: 0.5px;
+    font-family: 'Manrope', sans-serif;
+    white-space: nowrap;
+}
+
+/* Статус онлайн в чате */
+.chat-status.online {
+    color: var(--success);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.chat-status.online::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* Бейдж бота */
+.bot-badge {
+    display: inline-block;
+    background: #4a5568;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 600;
+    vertical-align: middle;
+    font-family: 'Manrope', sans-serif;
+}
+.left-badge {
+    margin-left: 0 !important;
+    margin-right: 6px;
+}
+
+/* Бейдж группы — серый кружок с человечком */
+.group-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: #4a5568;
+    border-radius: 10px;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+.group-badge svg {
+    width: 12px;
+    height: 12px;
+    stroke: white;
+    stroke-width: 2;
+}
+
+/* Верификация бота */
+.bot-verify-inline {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.verified-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    background: #3b82f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg-deep);
+}
+.verified-badge svg {
+    width: 10px;
+    height: 10px;
+    stroke: white;
+    stroke-width: 3;
+}
+
+/* Сообщения бота */
+.bot-message .msg-bubble {
+    background: rgba(74, 85, 104, 0.3);
+    border: 1px solid rgba(74, 85, 104, 0.5);
+}
+.bot-message .msg-sender {
+    color: #a0aec0;
+}
+
+/* Избранное */
+.saved-dialog.active {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.2), transparent);
+    border-left: 3px solid #3b82f6;
+}
+
+/* Заглушка сообщений */
+.msg-stub {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 60px 20px;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-family: 'Manrope', sans-serif;
+}
+.msg-stub p {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    margin-top: 16px;
+}
+.msg-stub svg {
+    animation: stubFloat 2.6s ease-in-out infinite;
+    opacity: 0.3;
+}
+@keyframes stubFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+/* Текст сообщений */
+.text {
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.msg-sender {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    margin-bottom: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.msg-time {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    margin-top: 5px;
+    text-align: right;
+}
+
+/* Отметка о редактировании */
+.edited-mark {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    opacity: 0.5;
+    margin-right: 4px;
+    font-style: italic;
+}
+
+/* Статус прочтения */
+.read-status {
+    font-family: 'Manrope', sans-serif;
+    font-size: 10px;
+    margin-left: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    line-height: 1;
+}
+.read-status.read {
+    color: var(--accent-cyan);
+}
+.read-status.unread {
+    color: var(--text-dim);
+    opacity: 0.5;
+}
+.bot-message .read-status {
+    display: none;
+}
+
+.read-icon {
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+}
+.read-icon.double-check {
+    width: 16px;
+    height: 10px;
+}
+
+/* Индикатор печатания */
+.typing-status {
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    color: var(--accent-cyan);
+    margin-top: 4px;
+    display: none;
+    animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* Аватар группы в списке диалогов — фиолетовый фон */
+.dialog-avatar.group-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+}
+.dialog-avatar.group-avatar svg {
+    stroke: white;
+    stroke-width: 1.5;
+    width: 28px;
+    height: 28px;
+}
+
+/* Аватар пользователя — синий */
+.dialog-avatar:not(.group-avatar):not(.bot-avatar):not(.saved-avatar) {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+}
+
+/* Аватар группы в шапке чата — фиолетовый */
+.chat-user-avatar.group-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.chat-user-avatar.group-avatar svg {
+    width: 24px;
+    height: 24px;
+    stroke: white;
+    stroke-width: 1.5;
+}
+
+/* Аватар пользователя в шапке чата — синий */
+.chat-user-avatar:not(.group-avatar):not(.bot-avatar) {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+}
+
+/* Аватарка группы в окне профиля — фиолетовый */
+.group-avatar-big {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.group-avatar-big svg {
+    width: 48px;
+    height: 48px;
+    stroke: white;
+    stroke-width: 1.2;
+}
+
+/* Аватарка в сообщениях — синяя для своих, фиолетовая для чужих */
+.message.own {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+.message.own .msg-avatar {
+    order: 2;
+    margin-left: 8px;
+    margin-right: 0;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+}
+.message.own .msg-bubble {
+    order: 1;
+}
+.message.other {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+.message.other .msg-avatar {
+    order: 1;
+    margin-right: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+}
+.message.other .msg-bubble {
+    order: 2;
+}
+
+.msg-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+.msg-avatar:active {
+    transform: scale(0.95);
+}
+
+/* Системные сообщения (как дата, без фона и времени) */
+.system-message-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 16px 0;
+}
+.system-message {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: transparent;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-dim);
+    max-width: 90%;
+    word-break: break-word;
+}
+.system-message .system-icon {
+    display: none;
+}
+.system-message .system-text {
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--text-dim);
+    opacity: 0.7;
+    font-style: italic;
+}
+.system-message .system-time {
+    display: none;
+}
+
+/* БИО пользователя */
+.member-bio {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+/* Пустое состояние диалогов */
+.dialogs-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 13px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+.dialogs-empty svg {
+    opacity: 0.3;
+    width: 48px;
+    height: 48px;
+}
+
+/* Роли в группе — админ фиолетовый */
+.member-role.admin {
+    background: rgba(102, 126, 234, 0.3);
+    color: #a78bfa;
+}
+.member-role.moderator {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+.member-role.member {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.6);
+}
+/* Верифицированный пользователь */
+.verified-user-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: #3b82f6;
+    border-radius: 50%;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.verified-user-badge svg {
+    width: 10px;
+    height: 10px;
+    stroke: white;
+    stroke-width: 2.5;
+}
