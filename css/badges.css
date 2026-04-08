@@ -330,15 +330,30 @@
     flex-direction: row;
     justify-content: flex-start;
 }
+/* Аватар пользователя в сообщениях — голубой */
 .message.other .msg-avatar {
     order: 1;
     margin-right: 8px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-}
-.message.other .msg-bubble {
-    order: 2;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)) !important;
 }
 
+/* Аватар в списке диалогов — голубой для пользователей */
+.dialog-avatar:not(.group-avatar):not(.bot-avatar):not(.saved-avatar) {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)) !important;
+}
+
+/* Аватар в шапке чата — голубой для пользователей */
+.chat-user-avatar:not(.group-avatar):not(.bot-avatar) {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan)) !important;
+}
+
+/* Аватар группы — фиолетовый (везде) */
+.dialog-avatar.group-avatar,
+.chat-user-avatar.group-avatar,
+.group-avatar-big,
+.message.other .msg-avatar.group-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+}
 .msg-avatar {
     width: 35px;
     height: 35px;
