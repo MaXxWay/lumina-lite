@@ -11,37 +11,56 @@ class GroupManager {
 
             const { data: group, error: gErr } = await this.supabase
                 .from('groups')
-                .insert({ name: name.trim(), description: description.trim(), created_by: currentUser.id, member_count: 1 + memberIds.length, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                .insert({ 
+                    name: name.trim(), 
+                    description: description.trim(), 
+                    created_by: currentUser.id, 
+                    member_count: 1 + memberIds.length,
+                    avatar_emoji: '👥',
+                    created_at: new Date().toISOString(), 
+                    updated_at: new Date().toISOString() 
+                })
                 .select().single();
             if (gErr) throw gErr;
 
-            // Добавляем создателя
-            await this.supabase.from('group_members').insert({ group_id: group.id, user_id: currentUser.id, role: 'admin', joined_at: new Date().toISOString() });
+            await this.supabase.from('group_members').insert({ 
+                group_id: group.id, 
+                user_id: currentUser.id, 
+                role: 'admin', 
+                joined_at: new Date().toISOString() 
+            });
 
-            // Добавляем участников
             const valid = [];
             for (const uid of memberIds) {
                 if (uid === currentUser.id) continue;
-                const { error } = await this.supabase.from('group_members').insert({ group_id: group.id, user_id: uid, role: 'member', joined_at: new Date().toISOString() });
+                const { error } = await this.supabase.from('group_members').insert({ 
+                    group_id: group.id, 
+                    user_id: uid, 
+                    role: 'member', 
+                    joined_at: new Date().toISOString() 
+                });
                 if (!error) valid.push(uid);
             }
 
             const participants = [currentUser.id, ...valid];
             const { data: chat, error: cErr } = await this.supabase
                 .from('chats')
-                .insert({ type: 'group', is_group: true, group_id: group.id, participants, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), last_message: `Группа «${name}» создана` })
+                .insert({ 
+                    type: 'group', 
+                    is_group: true, 
+                    group_id: group.id, 
+                    participants, 
+                    created_at: new Date().toISOString(), 
+                    updated_at: new Date().toISOString(), 
+                    last_message: `Группа «${name}» создана` 
+                })
                 .select().single();
             if (cErr) throw cErr;
 
-            await this.supabase.from('messages').insert({
-                chat_id: chat.id, user_id: BOT_USER_ID,
-                text: `🎉 Группа «${name}» создана!\n\n👥 Участников: ${participants.length}`,
-                is_system: true, created_at: new Date().toISOString()
-            });
+            await this._addSystemMessage(chat.id, `🎉 Группа «${name}» создана\n👥 Участников: ${participants.length}`);
 
             showToast(`Группа «${name}» создана!`);
 
-            // Закрываем модалку
             const m = document.getElementById('create-group-modal');
             if (m) m.style.display = 'none';
 
@@ -60,11 +79,20 @@ class GroupManager {
         try {
             const { data: group, error } = await this.supabase
                 .from('groups')
-                .select(`*, members:group_members(user_id, role, joined_at, profile:profiles!user_id(id, full_name, username, is_online, last_seen))`)
+                .select(`
+                    *,
+                    members:group_members(
+                        user_id,
+                        role,
+                        joined_at,
+                        profile:profiles(id, full_name, username, bio, is_online, last_seen, is_verified)
+                    )
+                `)
                 .eq('id', groupId).single();
             if (error) throw error;
             if (group.members) {
-                group.members.sort((a, b) => ({ admin: 0, moderator: 1, member: 2 }[a.role] - { admin: 0, moderator: 1, member: 2 }[b.role]));
+                const roleOrder = { admin: 0, moderator: 1, member: 2 };
+                group.members.sort((a, b) => roleOrder[a.role] - roleOrder[b.role]);
             }
             return group;
         } catch (err) {
@@ -78,21 +106,38 @@ class GroupManager {
             const ok = await this.checkPermission(groupId, currentUser.id, 'add_members');
             if (!ok) throw new Error('Недостаточно прав');
 
+            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
+            
             const added = [];
             for (const uid of userIds) {
                 const { data: ex } = await this.supabase.from('group_members').select('user_id').eq('group_id', groupId).eq('user_id', uid).maybeSingle();
                 if (!ex) {
-                    await this.supabase.from('group_members').insert({ group_id: groupId, user_id: uid, role: 'member', joined_at: new Date().toISOString() });
-                    added.push(uid);
-                    const { data: p } = await this.supabase.from('profiles').select('username').eq('id', uid).single();
-                    await this._systemMsg(groupId, `@${p?.username || uid} присоединился к группе`);
+                    const { error: insErr } = await this.supabase.from('group_members').insert({ 
+                        group_id: groupId, 
+                        user_id: uid, 
+                        role: 'member', 
+                        joined_at: new Date().toISOString() 
+                    });
+                    if (!insErr) {
+                        added.push(uid);
+                        const { data: p } = await this.supabase.from('profiles').select('username, full_name').eq('id', uid).single();
+                        const name = p?.full_name || p?.username || uid;
+                        await this._addSystemMessage(chat.id, `👤 ${name} присоединился к группе`);
+                    }
                 }
             }
-            await this.updateMemberCount(groupId);
-            await this.updateGroupChat(groupId);
-            showToast(`Добавлено участников: ${added.length}`);
+            
+            if (added.length > 0) {
+                await this.updateMemberCount(groupId);
+                await this.updateGroupChat(groupId);
+                showToast(`Добавлено участников: ${added.length}`);
+            } else {
+                showToast('Новых участников не добавлено', true);
+            }
+            
             return { success: true, added };
         } catch (err) {
+            console.error('addMembers error:', err);
             showToast('Ошибка: ' + err.message, true);
             return { success: false };
         }
@@ -102,11 +147,16 @@ class GroupManager {
         try {
             const ok = await this.checkPermission(groupId, currentUser.id, 'remove_members');
             if (!ok) throw new Error('Недостаточно прав');
+            
             const g = await this.getGroupInfo(groupId);
             if (g.created_by === userId) throw new Error('Нельзя удалить создателя');
-            const { data: p } = await this.supabase.from('profiles').select('username').eq('id', userId).single();
+            
+            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
+            const { data: p } = await this.supabase.from('profiles').select('username, full_name').eq('id', userId).single();
+            const name = p?.full_name || p?.username || userId;
+            
             await this.supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
-            await this._systemMsg(groupId, `@${p?.username || userId} удалён из группы`);
+            await this._addSystemMessage(chat.id, `❌ ${name} удалён из группы`);
             await this.updateMemberCount(groupId);
             await this.updateGroupChat(groupId);
             showToast('Участник удалён');
@@ -121,18 +171,22 @@ class GroupManager {
         try {
             const g = await this.getGroupInfo(groupId);
             if (!g) throw new Error('Группа не найдена');
+            
+            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
+            const name = currentProfile?.full_name || currentProfile?.username || 'Пользователь';
 
             if (g.created_by === currentUser.id) {
                 const others = g.members.filter(m => m.user_id !== currentUser.id);
                 if (others.length === 0) {
                     return await this.deleteGroup(groupId);
                 }
-                const nextAdmin = g.members.find(m => m.role === 'admin' && m.user_id !== currentUser.id) || others[0];
+                const nextAdmin = others[0];
                 await this.setRole(groupId, nextAdmin.user_id, 'admin');
+                await this._addSystemMessage(chat.id, `👑 Права администратора переданы ${nextAdmin.profile?.full_name || nextAdmin.profile?.username}`);
             }
 
             await this.supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', currentUser.id);
-            await this._systemMsg(groupId, `@${currentProfile?.username} покинул группу`);
+            await this._addSystemMessage(chat.id, `👋 ${name} покинул группу`);
             await this.updateMemberCount(groupId);
             await this.updateGroupChat(groupId);
 
@@ -172,11 +226,24 @@ class GroupManager {
     async setRole(groupId, userId, role) {
         try {
             const g = await this.getGroupInfo(groupId);
-            if (g.created_by !== currentUser.id) throw new Error('Только создатель назначает роли');
+            if (g.created_by !== currentUser.id && currentUser.id !== g.created_by) throw new Error('Только создатель назначает роли');
             if (userId === g.created_by) throw new Error('Нельзя изменить роль создателя');
+            
+            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
+            const { data: p } = await this.supabase.from('profiles').select('username, full_name').eq('id', userId).single();
+            const name = p?.full_name || p?.username || userId;
+            
+            let message = '';
+            if (role === 'admin') {
+                message = `👑 ${name} назначен администратором`;
+            } else if (role === 'moderator') {
+                message = `🛡️ ${name} назначен модератором`;
+            } else if (role === 'member') {
+                message = `📝 ${name} сняты права, теперь участник`;
+            }
+            
             await this.supabase.from('group_members').update({ role }).eq('group_id', groupId).eq('user_id', userId);
-            const names = { admin: 'администратором', moderator: 'модератором', member: 'участником' };
-            await this._systemMsg(groupId, `Пользователь назначен ${names[role]}`);
+            await this._addSystemMessage(chat.id, message);
             showToast(`Роль изменена`);
             return { success: true };
         } catch (err) {
@@ -190,17 +257,33 @@ class GroupManager {
             const { data: m } = await this.supabase.from('group_members').select('role').eq('group_id', groupId).eq('user_id', userId).single();
             if (!m) return false;
             if (m.role === 'admin') return true;
-            const perms = { add_members: ['moderator'], remove_members: ['moderator'], change_name: [], delete_group: [] };
+            const perms = { add_members: ['moderator'], remove_members: ['moderator'], change_name: ['moderator'], change_description: ['moderator'] };
             return perms[action]?.includes(m.role) || false;
         } catch { return false; }
     }
 
     async updateGroupInfo(groupId, updates) {
         try {
-            const ok = await this.checkPermission(groupId, currentUser.id, 'change_name');
-            if (!ok) throw new Error('Недостаточно прав');
-            await this.supabase.from('groups').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', groupId);
-            if (updates.name) await this._systemMsg(groupId, `Название изменено на «${updates.name}»`);
+            const group = await this.getGroupInfo(groupId);
+            const isAdmin = group.created_by === currentUser.id;
+            const isMod = group.members?.find(m => m.user_id === currentUser.id)?.role === 'moderator';
+            
+            if (!isAdmin && !isMod) throw new Error('Недостаточно прав');
+            
+            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
+            
+            if (updates.name && updates.name !== group.name) {
+                await this._addSystemMessage(chat.id, `✏️ Название группы изменено с «${group.name}» на «${updates.name}»`);
+            }
+            if (updates.description && updates.description !== group.description) {
+                await this._addSystemMessage(chat.id, `📝 Описание группы обновлено`);
+            }
+            
+            await this.supabase.from('groups').update({ 
+                ...updates, 
+                updated_at: new Date().toISOString() 
+            }).eq('id', groupId);
+            
             showToast('Группа обновлена');
             return { success: true };
         } catch (err) {
@@ -209,13 +292,23 @@ class GroupManager {
         }
     }
 
-    async _systemMsg(groupId, text) {
+    async _addSystemMessage(chatId, text) {
         try {
-            const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).maybeSingle();
-            if (chat) {
-                await this.supabase.from('messages').insert({ chat_id: chat.id, user_id: BOT_USER_ID, text: `📢 ${text}`, is_system: true, created_at: new Date().toISOString() });
+            // Очищаем текст от лишних эмодзи при рендере, но сохраняем их в БД
+            await this.supabase.from('messages').insert({ 
+                chat_id: chatId, 
+                user_id: BOT_USER_ID, 
+                text: text, 
+                is_system: true, 
+                created_at: new Date().toISOString() 
+            });
+            
+            if (currentChat?.id === chatId && typeof renderSystemMessage === 'function') {
+                renderSystemMessage(text, new Date().toISOString());
             }
-        } catch (err) { console.error('_systemMsg:', err); }
+        } catch (err) { 
+            console.error('_addSystemMessage:', err); 
+        }
     }
 
     async updateMemberCount(groupId) {
@@ -238,7 +331,7 @@ class GroupManager {
             const { data: members } = await this.supabase.from('group_members').select('user_id').eq('group_id', groupId);
             const memberIds = members.map(m => m.user_id);
             const { data: users } = await this.supabase.from('profiles')
-                .select('id, username, full_name')
+                .select('id, username, full_name, is_verified')
                 .or(`username.ilike.%${term}%,full_name.ilike.%${term}%`)
                 .not('id', 'in', `(${memberIds.join(',')})`)
                 .neq('id', currentUser.id)
@@ -251,10 +344,14 @@ class GroupManager {
 let groupManager = null;
 
 async function initGroups() {
+    if (!supabaseClient) {
+        console.error('Supabase not initialized');
+        return;
+    }
     groupManager = new GroupManager(supabaseClient);
     window.groupManager = groupManager;
+    console.log('GroupManager initialized');
 
-    // Вешаем обработчик на кнопку (она уже есть в HTML)
     const btn = document.getElementById('create-group-btn');
     if (btn) {
         btn.onclick = () => {
@@ -263,12 +360,6 @@ async function initGroups() {
     }
 }
 
-function debounce(fn, wait) {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
-}
-
 window.GroupManager = GroupManager;
 window.groupManager = groupManager;
 window.initGroups = initGroups;
-window.debounce = debounce;
