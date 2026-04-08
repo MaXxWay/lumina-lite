@@ -3,14 +3,14 @@
 (async function init() {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Если нет сессии — скрываем загрузчик и показываем регистрацию
     const { data: { session } } = await supabaseClient.auth.getSession();
 
     if (!session) {
         if (typeof hideLoader === 'function') hideLoader();
         showScreen('reg');
+        initAuth();
     } else {
-        // Инициализируем UI пока проверяем сессию
+        // Сначала инициализируем базовый UI
         initAuth();
         initProfileFooter();
         initEmojiPicker();
@@ -20,18 +20,23 @@
         initSendButton();
         initUserActivityTracking();
 
-        if (typeof initMobileOptimizations === 'function') initMobileOptimizations();
-
         window.addEventListener('resize', updateDvh);
         updateDvh();
 
         await handleSuccessfulLogin(session.user);
 
-        if (typeof initGroups === 'function') await initGroups();
-    }
-
-    // Для случая когда сессии нет — всё равно инициализируем обработчики форм
-    if (!session) {
-        initAuth();
+        // Инициализируем группы ПОСЛЕ загрузки пользователя
+        if (typeof initGroups === 'function') {
+            await initGroups();
+            console.log('Groups initialized after login');
+        }
+        
+        // Инициализируем мобильные оптимизации ПОСЛЕ загрузки всего
+        if (typeof initMobileOptimizations === 'function') {
+            initMobileOptimizations();
+        }
+        if (typeof initMobileGroupContextMenu === 'function') {
+            initMobileGroupContextMenu();
+        }
     }
 })();
