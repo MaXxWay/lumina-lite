@@ -326,3 +326,31 @@
         transform: scale(1.1);
     }
 }
+/* Зелёный статус онлайн в шапке чата */
+.chat-status.online {
+    color: #22c55e !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chat-status.online::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse-green 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
