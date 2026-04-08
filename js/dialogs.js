@@ -60,7 +60,6 @@ function renderDialogsList(container, filteredData) {
             </span>
         ` : '';
 
-        // Галочка верификации для пользователей (не бот, не группа, не избранное)
         const verifiedBadge = (!chat.isBot && !chat.isGroup && !chat.isSaved && chat.otherUser?.is_verified === true) 
             ? '<span class="verified-user-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' 
             : '';
