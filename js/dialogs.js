@@ -430,13 +430,13 @@ async function openGroupChat(chatId, groupInfo) {
                 if (typeof showGroupProfile === 'function') showGroupProfile(groupInfo.id);
             };
         }
-
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = `${groupInfo?.member_count || 0} участников`;
-            chatStatus.className = 'chat-status';
-        }
-
+const chatStatus = document.querySelector('.chat-status');
+if (chatStatus) {
+    chatStatus.textContent = `${groupInfo?.member_count || 0} участников`;
+    chatStatus.className = 'chat-status';
+    chatStatus.style.color = ''; // Сбрасываем цвет, не онлайн
+    chatStatus.removeAttribute('data-online');
+}
         const inputZone = document.querySelector('.input-zone');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('btn-send-msg');
