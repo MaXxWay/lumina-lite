@@ -222,3 +222,23 @@
     background: var(--glass-bg);
     backdrop-filter: blur(40px);
 }
+/* Единое размытие для всех модальных окон */
+.profile-modal-overlay,
+.custom-modal,
+#group-profile-modal,
+#create-group-modal,
+#add-members-modal,
+#edit-group-modal {
+    background: rgba(3, 8, 26, 0.18);
+    backdrop-filter: blur(14px);
+}
+
+.profile-modal-card,
+.custom-modal-container,
+#group-profile-modal .profile-modal-card,
+#create-group-modal .custom-modal-container,
+#add-members-modal .custom-modal-container,
+#edit-group-modal .custom-modal-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px);
+}
