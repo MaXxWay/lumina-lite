@@ -4,7 +4,14 @@ function renderDialogsList(container, filteredData) {
     container.innerHTML = '';
 
     if (filteredData.length === 0) {
-        container.innerHTML = '<div class="dialogs-empty">Нет диалогов.<br>Введите @username для поиска</div>';
+        container.innerHTML = `
+            <div class="dialogs-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <p>Нет диалогов.<br>Введите @username для поиска</p>
+            </div>
+        `;
         return;
     }
 
@@ -28,25 +35,47 @@ function renderDialogsList(container, filteredData) {
         if (chat.isBot) {
             avatarHtml = '<img src="lumina.svg" alt="Bot">';
         } else if (chat.isSaved) {
-            avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+            avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
         } else if (chat.isGroup) {
-            avatarHtml = `<span style="font-size:20px">${chat.avatarEmoji || '👥'}</span>`;
+            avatarHtml = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>`;
         } else {
             avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
         }
 
         const isOnline = chat.isOnline === true && !chat.isGroup && !chat.isBot && !chat.isSaved;
 
+        const groupBadgeHtml = chat.isGroup ? `
+            <span class="group-badge">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </span>
+        ` : '';
+
+        // Галочка верификации для пользователей (не бот, не группа, не избранное)
+        const verifiedBadge = (!chat.isBot && !chat.isGroup && !chat.isSaved && chat.otherUser?.is_verified === true) 
+            ? '<span class="verified-user-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' 
+            : '';
+
         div.innerHTML = `
-            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''} ${chat.isGroup ? 'group-avatar-icon' : ''}">
+            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''} ${chat.isGroup ? 'group-avatar' : ''}">
                 ${avatarHtml}
                 ${isOnline ? '<div class="online-dot"></div>' : ''}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
                     ${chat.isBot ? '<span class="bot-badge left-badge">Бот</span>' : ''}
-                    ${chat.isGroup ? '<span class="group-badge">Группа</span>' : ''}
+                    ${groupBadgeHtml}
                     ${escapeHtml(chat.name)}
+                    ${verifiedBadge}
                     ${chat.isBot ? '<span class="bot-verify-inline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
                     ${unreadBadge}
                 </div>
@@ -82,6 +111,7 @@ function updateChatHeaderAvatar(userProfile, options = {}) {
     const isHidden = options.hidden === true || !userProfile;
     const isBot = userProfile?.id === BOT_USER_ID;
     const isSaved = userProfile?.id === SAVED_CHAT_ID;
+    const isGroup = options.isGroup === true;
 
     if (isHidden || isSaved) {
         avatarBtn.style.display = 'none';
@@ -91,15 +121,29 @@ function updateChatHeaderAvatar(userProfile, options = {}) {
 
     avatarBtn.style.display = 'inline-flex';
     avatarBtn.classList.toggle('bot-avatar', isBot);
-    avatarBtn.title = 'Открыть профиль';
-    avatarBtn.innerHTML = isBot
-        ? '<img src="lumina.svg" alt="Bot">'
-        : escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
+    avatarBtn.classList.toggle('group-avatar', isGroup);
+    avatarBtn.title = isGroup ? 'Информация о группе' : 'Открыть профиль';
+    
+    if (isGroup) {
+        avatarBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>`;
+    } else if (isBot) {
+        avatarBtn.innerHTML = '<img src="lumina.svg" alt="Bot">';
+    } else {
+        avatarBtn.innerHTML = escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
+        avatarBtn.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
+    }
 
-    avatarBtn.onclick = () => {
-        if (typeof openProfileModal !== 'function') return;
-        openProfileModal(userProfile, { readOnly: userProfile.id !== currentUser?.id });
-    };
+    if (!isGroup) {
+        avatarBtn.onclick = () => {
+            if (typeof openProfileModal !== 'function') return;
+            openProfileModal(userProfile, { readOnly: userProfile.id !== currentUser?.id });
+        };
+    }
 }
 
 function setMessagesLoadingState(container, isLoading) {
@@ -129,7 +173,6 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
 
     try {
-        // Получаем все чаты (включая групповые)
         const { data: allChats, error } = await supabaseClient
             .from('chats')
             .select('id, type, participants, updated_at, created_at, last_message, is_group, group_id')
@@ -141,7 +184,6 @@ async function loadDialogs(searchTerm = '') {
             c.participants && c.participants.includes(currentUser.id)
         );
 
-        // Собираем все groupId
         const groupIds = chats.filter(c => c.is_group && c.group_id).map(c => c.group_id);
         let groupsMap = new Map();
         if (groupIds.length > 0) {
@@ -152,7 +194,6 @@ async function loadDialogs(searchTerm = '') {
             if (groups) groups.forEach(g => groupsMap.set(g.id, g));
         }
 
-        // Фильтруем невалидные приватные чаты
         const validChats = [];
         for (const chat of chats) {
             if (chat.is_group) {
@@ -179,7 +220,6 @@ async function loadDialogs(searchTerm = '') {
             return;
         }
 
-        // Непрочитанные
         const { data: unreadData } = await supabaseClient
             .from('messages')
             .select('chat_id')
@@ -192,7 +232,6 @@ async function loadDialogs(searchTerm = '') {
             unreadCounts.set(m.chat_id, (unreadCounts.get(m.chat_id) || 0) + 1);
         });
 
-        // Последние сообщения
         const lastMessages = new Map();
         for (const chat of validChats) {
             const cached = messagesCache.get(chat.id);
@@ -207,21 +246,25 @@ async function loadDialogs(searchTerm = '') {
 
             const { data: lastMsg } = await supabaseClient
                 .from('messages')
-                .select('text, user_id')
+                .select('text, user_id, is_system')
                 .eq('chat_id', chat.id)
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
 
             if (lastMsg) {
-                const isOwn = lastMsg.user_id === currentUser.id;
-                let text = lastMsg.text || '';
-                if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
-                lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
+                if (lastMsg.is_system) {
+                    let cleanText = lastMsg.text.replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️]/g, '').trim();
+                    lastMessages.set(chat.id, cleanText.slice(0, 40));
+                } else {
+                    const isOwn = lastMsg.user_id === currentUser.id;
+                    let text = lastMsg.text || '';
+                    if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
+                    lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
+                }
             }
         }
 
-        // Профили участников приватных чатов
         const privateParticipantIds = validChats
             .filter(c => !c.is_group)
             .flatMap(c => c.participants || []);
@@ -231,16 +274,14 @@ async function loadDialogs(searchTerm = '') {
         if (uniqueIds.length > 0) {
             const { data: profiles } = await supabaseClient
                 .from('profiles')
-                .select('id, full_name, username, last_seen, is_online')
+                .select('id, full_name, username, bio, last_seen, is_online, is_verified')
                 .in('id', uniqueIds);
             if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
         }
-        profileMap.set(BOT_USER_ID, BOT_PROFILE);
+        profileMap.set(BOT_USER_ID, { ...BOT_PROFILE, is_verified: true });
 
-        // Формируем данные для отображения
         const chatData = [];
         for (const chat of validChats) {
-            // Групповой чат
             if (chat.is_group) {
                 const group = groupsMap.get(chat.group_id);
                 if (!group) continue;
@@ -249,14 +290,12 @@ async function loadDialogs(searchTerm = '') {
                     isGroup: true,
                     groupInfo: { ...group, chat_id: chat.id },
                     name: group.name,
-                    avatarEmoji: group.avatar_emoji || '👥',
                     unreadCount: unreadCounts.get(chat.id) || 0,
                     lastMessage: lastMessages.get(chat.id) || `${group.member_count || 0} участников`
                 });
                 continue;
             }
 
-            // Избранное
             if (chat.id === SAVED_CHAT_ID) {
                 chatData.push({
                     id: chat.id,
@@ -322,16 +361,22 @@ async function loadUserSearchResults(searchTerm, container) {
 
     users.forEach(user => {
         const name = user.full_name || user.username;
+        const verifiedBadge = user.is_verified === true ? '<span class="verified-user-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' : '';
+        
         const div = document.createElement('div');
         div.className = 'dialog-item user-search-item';
         div.innerHTML = `
-            <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''}">
+            <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''} ${user.isSaved ? 'saved-avatar' : ''}" style="${!user.isBot && !user.isSaved ? 'background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));' : ''}">
                 ${user.isBot ? '<img src="lumina.svg" alt="Bot">'
                     : user.isSaved ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
                     : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
             </div>
             <div class="dialog-info">
-                <div class="dialog-name">${escapeHtml(name)}<span class="username-hint">@${escapeHtml(user.username)}</span></div>
+                <div class="dialog-name">
+                    ${escapeHtml(name)}
+                    ${verifiedBadge}
+                    <span class="username-hint">@${escapeHtml(user.username)}</span>
+                </div>
                 <div class="dialog-preview">Нажмите, чтобы открыть чат</div>
             </div>
         `;
@@ -367,7 +412,6 @@ async function openGroupChat(chatId, groupInfo) {
 
         currentChat = { id: chatId, type: 'group', is_group: true, group: groupInfo };
 
-        // Заголовок
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) chatTitle.textContent = groupInfo?.name || 'Группа';
 
@@ -375,7 +419,13 @@ async function openGroupChat(chatId, groupInfo) {
         if (avatarBtn) {
             avatarBtn.style.display = 'inline-flex';
             avatarBtn.classList.remove('bot-avatar');
-            avatarBtn.innerHTML = `<span style="font-size:18px">${groupInfo?.avatar_emoji || '👥'}</span>`;
+            avatarBtn.classList.add('group-avatar');
+            avatarBtn.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>`;
             avatarBtn.title = 'Информация о группе';
             avatarBtn.onclick = () => {
                 if (typeof showGroupProfile === 'function') showGroupProfile(groupInfo.id);
@@ -443,9 +493,10 @@ async function openChat(chatId, otherUserId, otherUser) {
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) {
             const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
+            const verifiedBadge = (!isBot && otherUser?.is_verified === true) ? '<span class="verified-user-badge" style="margin-left: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' : '';
             chatTitle.innerHTML = isBot
                 ? `<span class="bot-badge left-badge">Бот</span>${escapeHtml(name)}<span class="bot-verify-inline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>`
-                : escapeHtml(name);
+                : escapeHtml(name) + verifiedBadge;
         }
         updateChatHeaderAvatar(otherUser || (isBot ? BOT_PROFILE : null));
 
@@ -552,7 +603,6 @@ async function openSavedChat(chatId) {
     }
 }
 
-// Экспорт
 window.loadDialogs = loadDialogs;
 window.renderDialogsList = renderDialogsList;
 window.loadUserSearchResults = loadUserSearchResults;
