@@ -16,7 +16,7 @@ function initProfileFooter() {
     const info = footer.querySelector('.profile-footer-info');
     if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
     document.getElementById('footer-settings')?.addEventListener('click', () => { if (currentProfile) openProfileModal(); });
-    // Возвращаем кнопку "Выйти"
+    
     const logoutBtn = document.getElementById('footer-logout');
     if (logoutBtn) {
         logoutBtn.style.display = 'flex';
@@ -43,6 +43,7 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const groupName = options.groupName;
     const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
 
+    const modal = document.getElementById('profile-screen');
     const avatarLetter = document.getElementById('profile-avatar-letter');
     const fullname = document.getElementById('profile-fullname');
     const username = document.getElementById('profile-username');
@@ -57,27 +58,24 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const saveBtn = document.getElementById('btn-save-profile');
     const logoutBtn = document.getElementById('btn-logout-profile');
     
-    // Добавляем кнопку "Перейти в чат" если открыто из группы
-    let chatBtn = document.getElementById('profile-chat-btn');
-    if (fromGroup && !isOwnProfile) {
-        if (!chatBtn) {
-            chatBtn = document.createElement('button');
-            chatBtn.id = 'profile-chat-btn';
-            chatBtn.className = 'glass-button primary';
-            chatBtn.style.marginTop = '16px';
-            chatBtn.innerHTML = '<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-chat"/></svg>Перейти в чат';
-            const btnContainer = document.querySelector('.profile-modal-body');
-            if (btnContainer) btnContainer.appendChild(chatBtn);
-        }
+    const oldChatBtn = document.getElementById('profile-chat-btn');
+    if (oldChatBtn) oldChatBtn.remove();
+    
+    if (fromGroup && !isOwnProfile && profile.id !== BOT_USER_ID && profile.id !== SAVED_CHAT_ID) {
+        const chatBtn = document.createElement('button');
+        chatBtn.id = 'profile-chat-btn';
+        chatBtn.className = 'glass-button primary';
+        chatBtn.style.marginTop = '16px';
+        chatBtn.innerHTML = '<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-chat"/></svg>Перейти в чат';
+        const btnContainer = document.querySelector('.profile-modal-body');
+        if (btnContainer) btnContainer.appendChild(chatBtn);
+        
         chatBtn.onclick = async () => {
-            document.getElementById('profile-screen').style.display = 'none';
+            if (modal) modal.style.display = 'none';
             const chatId = await getOrCreatePrivateChat(profile.id);
             await openChat(chatId, profile.id, profile);
             showScreen('chat');
         };
-        chatBtn.style.display = 'block';
-    } else if (chatBtn) {
-        chatBtn.style.display = 'none';
     }
 
     if (avatarLetter) {
@@ -97,7 +95,7 @@ function openProfileModal(profile = currentProfile, options = {}) {
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
     if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
 
-    showScreen('profile');
+    if (modal) modal.style.display = 'flex';
 }
 
 function updateChatStatusFromProfile(profile) {
@@ -125,7 +123,6 @@ function initEmojiPicker() {
     document.addEventListener('click', e => { if (!picker.contains(e.target) && e.target !== btn) picker.style.display = 'none'; });
 }
 
-// ── КОНТЕКСТНОЕ МЕНЮ ─────────────────────────────────────────────────────────
 function initImprovedMessageMenu() {
     const menu = document.getElementById('message-menu');
     if (!menu) return;
@@ -384,7 +381,6 @@ function initProfileScreen() {
     if (backBtn) backBtn.onclick = () => showScreen('chat');
 }
 
-// Экспорт
 window.updateProfileFooter = updateProfileFooter;
 window.initProfileFooter = initProfileFooter;
 window.openProfileModal = openProfileModal;
