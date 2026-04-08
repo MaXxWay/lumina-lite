@@ -363,3 +363,11 @@ async function initGroups() {
 window.GroupManager = GroupManager;
 window.groupManager = groupManager;
 window.initGroups = initGroups;
+// Дополнительная гарантия, что groupManager доступен
+window.waitForGroupManager = function(callback) {
+    if (groupManager) {
+        callback();
+    } else {
+        setTimeout(() => window.waitForGroupManager(callback), 100);
+    }
+};
