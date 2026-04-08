@@ -16,23 +16,31 @@ function initProfileFooter() {
     const info = footer.querySelector('.profile-footer-info');
     if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
     document.getElementById('footer-settings')?.addEventListener('click', () => { if (currentProfile) openProfileModal(); });
-    document.getElementById('footer-logout')?.addEventListener('click', async () => {
-        const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
-        if (confirmed) {
-            stopOnlineHeartbeat();
-            if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
-            await supabaseClient.auth.signOut();
-            currentUser = null; currentProfile = null; currentChat = null;
-            showScreen('reg');
-            showToast('Вы вышли из аккаунта');
-        }
-    });
+    // Возвращаем кнопку "Выйти"
+    const logoutBtn = document.getElementById('footer-logout');
+    if (logoutBtn) {
+        logoutBtn.style.display = 'flex';
+        logoutBtn.onclick = async () => {
+            const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
+            if (confirmed) {
+                stopOnlineHeartbeat();
+                if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
+                await supabaseClient.auth.signOut();
+                currentUser = null; currentProfile = null; currentChat = null;
+                showScreen('reg');
+                showToast('Вы вышли из аккаунта');
+            }
+        };
+    }
 }
 
 function openProfileModal(profile = currentProfile, options = {}) {
     if (!profile) return;
     const isOwnProfile = profile.id === currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
+    const fromGroup = options.fromGroup === true;
+    const groupId = options.groupId;
+    const groupName = options.groupName;
     const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
 
     const avatarLetter = document.getElementById('profile-avatar-letter');
@@ -48,9 +56,33 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const editBtn = document.getElementById('btn-edit-profile');
     const saveBtn = document.getElementById('btn-save-profile');
     const logoutBtn = document.getElementById('btn-logout-profile');
+    
+    // Добавляем кнопку "Перейти в чат" если открыто из группы
+    let chatBtn = document.getElementById('profile-chat-btn');
+    if (fromGroup && !isOwnProfile) {
+        if (!chatBtn) {
+            chatBtn = document.createElement('button');
+            chatBtn.id = 'profile-chat-btn';
+            chatBtn.className = 'glass-button primary';
+            chatBtn.style.marginTop = '16px';
+            chatBtn.innerHTML = '<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-chat"/></svg>Перейти в чат';
+            const btnContainer = document.querySelector('.profile-modal-body');
+            if (btnContainer) btnContainer.appendChild(chatBtn);
+        }
+        chatBtn.onclick = async () => {
+            document.getElementById('profile-screen').style.display = 'none';
+            const chatId = await getOrCreatePrivateChat(profile.id);
+            await openChat(chatId, profile.id, profile);
+            showScreen('chat');
+        };
+        chatBtn.style.display = 'block';
+    } else if (chatBtn) {
+        chatBtn.style.display = 'none';
+    }
 
     if (avatarLetter) {
         avatarLetter.innerHTML = profile.id === BOT_USER_ID ? '<img src="lumina.svg" alt="Bot">' : letter;
+        avatarLetter.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
     }
     if (nameView) nameView.textContent = profile.full_name || profile.username || 'Пользователь';
     if (usernameView) usernameView.textContent = `@${profile.username || 'username'}`;
@@ -102,7 +134,6 @@ function initImprovedMessageMenu() {
 
     function hideMenu() {
         if (isMobileDevice()) {
-            // bottom sheet — анимируем вниз
             const sheet = document.getElementById('msg-bottom-sheet');
             if (sheet) {
                 sheet.classList.remove('sheet-open');
@@ -133,9 +164,7 @@ function initImprovedMessageMenu() {
             return;
         }
 
-        // Desktop: контекстное меню
         menu.style.display = 'block';
-        // Скрываем/показываем пункты по владению
         menu.querySelectorAll('.menu-item[data-action="edit"], .menu-item[data-action="delete"]').forEach(el => {
             el.style.display = isOwn ? '' : 'none';
         });
