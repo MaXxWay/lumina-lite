@@ -1,4 +1,5 @@
-// Вспомогательные функции
+// utils.js — полный файл
+
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -74,6 +75,22 @@ function isMobileDevice() {
         || window.innerWidth <= 768;
 }
 
+function debounce(fn, wait) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+}
+
+function formatSystemMessage(text, type = 'info') {
+    // type: 'info', 'warning', 'success', 'danger'
+    const icons = {
+        info: 'ℹ️',
+        warning: '⚠️',
+        success: '✅',
+        danger: '❌'
+    };
+    return `<div class="system-message ${type}">${icons[type] || '📢'} ${escapeHtml(text)}</div>`;
+}
+
 // Экспорт
 window.escapeHtml = escapeHtml;
 window.showToast = showToast;
@@ -83,3 +100,5 @@ window.getUserStatusFromProfile = getUserStatusFromProfile;
 window.formatDateDivider = formatDateDivider;
 window.updateDvh = updateDvh;
 window.isMobileDevice = isMobileDevice;
+window.debounce = debounce;
+window.formatSystemMessage = formatSystemMessage;
