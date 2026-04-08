@@ -223,3 +223,13 @@
     background: var(--glass-bg);
     backdrop-filter: blur(40px);
 }
+/* Убеждаемся что профиль имеет такое же размытие */
+.profile-modal-overlay {
+    background: rgba(3, 8, 26, 0.18);
+    backdrop-filter: blur(14px);
+}
+
+.profile-modal-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px);
+}
