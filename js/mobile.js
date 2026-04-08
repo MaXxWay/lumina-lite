@@ -65,19 +65,16 @@ function openChatMobile(chatId) {
     chatArea.classList.add('chat-open');
     isChatOpen = true;
 
-    // Показываем поле ввода только для разрешённых чатов
     const inputZone = document.querySelector('.input-zone');
     const isBot = currentChat?.other_user?.id === BOT_USER_ID;
     if (inputZone) inputZone.style.display = isBot ? 'none' : 'block';
 
-    // Пушим в историю для кнопки "Назад"
     if (chatId && !window.location.search.includes(`chat=${chatId}`)) {
         const url = new URL(window.location);
         url.searchParams.set('chat', chatId);
         window.history.pushState({ chatId }, '', url);
     }
 
-    // Фокус на инпут
     setTimeout(() => {
         const input = document.getElementById('message-input');
         if (input && !input.disabled) input.focus();
@@ -102,7 +99,6 @@ function closeChat() {
 
     document.querySelectorAll('.dialog-item').forEach(el => el.classList.remove('active'));
 
-    // Закрываем bottom sheet если открыт
     const sheet = document.getElementById('msg-bottom-sheet');
     if (sheet) { sheet.classList.remove('sheet-open'); setTimeout(() => sheet.style.display = 'none', 280); }
 
@@ -154,21 +150,29 @@ function initMobileOptimizations() {
     initMobileNavigation();
     initMobileKeyboardHandler();
     initMobilePerformance();
-    patchOpenChat();
 }
 
-function patchOpenChat() {
+function initMobileGroupContextMenu() {
     if (!isMobileDevice()) return;
-    // openChatMobile вызывается изнутри openChat/openSavedChat/openGroupChat напрямую
-    // Дополнительный патч не нужен
+    const menu = document.getElementById('member-context-menu');
+    if (!menu) return;
+    menu.style.position = 'fixed';
+    menu.style.bottom = '0';
+    menu.style.left = '0';
+    menu.style.right = '0';
+    menu.style.top = 'auto';
+    menu.style.transform = 'translateY(100%)';
+    menu.style.borderRadius = '20px 20px 0 0';
+    menu.style.maxWidth = 'none';
+    menu.style.width = '100%';
 }
 
 // Экспорт
 window.initMobileOptimizations = initMobileOptimizations;
 window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
-window.patchOpenChat = patchOpenChat;
 window.isChatOpen = isChatOpen;
+window.initMobileGroupContextMenu = initMobileGroupContextMenu;
 
 // Автоинициализация
 if (document.readyState === 'loading') {
