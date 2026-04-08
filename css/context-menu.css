@@ -1,0 +1,116 @@
+/* ============================================
+   КОНТЕКСТНОЕ МЕНЮ И BOTTOM SHEET
+   ============================================ */
+
+/* Десктопное контекстное меню */
+.message-menu {
+    position: fixed;
+    background: rgba(20, 30, 50, 0.98);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 8px 0;
+    min-width: 200px;
+    z-index: 10000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.message-menu.menu-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+.message-menu .menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.15s;
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 500;
+}
+.message-menu .menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+.message-menu .menu-item.danger {
+    color: var(--danger);
+}
+
+/* Mobile bottom sheet */
+.msg-bottom-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    pointer-events: none;
+}
+.msg-bottom-sheet.sheet-open {
+    pointer-events: auto;
+}
+
+.sheet-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0);
+    transition: background 0.28s ease;
+}
+.msg-bottom-sheet.sheet-open .sheet-overlay {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.sheet-actions {
+    position: relative;
+    background: rgba(15, 20, 40, 0.97);
+    backdrop-filter: blur(30px);
+    border-top: 1px solid var(--glass-border);
+    border-radius: 20px 20px 0 0;
+    padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 16px);
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+}
+.msg-bottom-sheet.sheet-open .sheet-actions {
+    transform: translateY(0);
+}
+
+.sheet-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 10px auto 6px;
+    flex-shrink: 0;
+}
+
+.sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.88);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s;
+    text-align: left;
+    font-family: inherit;
+}
+.sheet-item:active {
+    background: rgba(255, 255, 255, 0.07);
+}
+.sheet-item.danger {
+    color: var(--danger);
+}
+.sheet-item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
