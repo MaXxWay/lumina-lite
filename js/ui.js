@@ -1,4 +1,4 @@
-// ui.js - UI компоненты и улучшенное контекстное меню
+// ui.js — UI компоненты, контекстное меню, профиль
 
 function updateProfileFooter() {
     if (!currentProfile) return;
@@ -15,22 +15,18 @@ function initProfileFooter() {
     if (!footer) return;
     const info = footer.querySelector('.profile-footer-info');
     if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
-    const settings = document.getElementById('footer-settings');
-    if (settings) settings.onclick = () => { if (currentProfile) openProfileModal(); };
-    const logout = document.getElementById('footer-logout');
-    if (logout) logout.onclick = async () => {
-        const confirmed = await modal.confirm('Вы действительно хотите выйти из аккаунта?', 'Выход из системы');
+    document.getElementById('footer-settings')?.addEventListener('click', () => { if (currentProfile) openProfileModal(); });
+    document.getElementById('footer-logout')?.addEventListener('click', async () => {
+        const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
         if (confirmed) {
             stopOnlineHeartbeat();
             if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
             await supabaseClient.auth.signOut();
-            currentUser = null;
-            currentProfile = null;
-            currentChat = null;
+            currentUser = null; currentProfile = null; currentChat = null;
             showScreen('reg');
             showToast('Вы вышли из аккаунта');
         }
-    };
+    });
 }
 
 function openProfileModal(profile = currentProfile, options = {}) {
@@ -38,6 +34,7 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const isOwnProfile = profile.id === currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
     const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
+
     const avatarLetter = document.getElementById('profile-avatar-letter');
     const fullname = document.getElementById('profile-fullname');
     const username = document.getElementById('profile-username');
@@ -53,29 +50,21 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const logoutBtn = document.getElementById('btn-logout-profile');
 
     if (avatarLetter) {
-        if (profile.id === BOT_USER_ID) avatarLetter.innerHTML = '<img src="lumina.svg" alt="Bot">';
-        else avatarLetter.textContent = letter;
+        avatarLetter.innerHTML = profile.id === BOT_USER_ID ? '<img src="lumina.svg" alt="Bot">' : letter;
     }
     if (nameView) nameView.textContent = profile.full_name || profile.username || 'Пользователь';
     if (usernameView) usernameView.textContent = `@${profile.username || 'username'}`;
     if (bioView) bioView.textContent = profile.bio || 'Пользователь пока ничего не рассказал о себе.';
-    if (fullname) {
-        fullname.value = profile.full_name || '';
-        fullname.readOnly = readOnly;
-        fullname.style.opacity = readOnly ? '0.75' : '1';
-    }
+    if (fullname) { fullname.value = profile.full_name || ''; fullname.readOnly = readOnly; }
     if (username) username.value = profile.username || '';
-    if (bio) {
-        bio.value = profile.bio || '';
-        bio.readOnly = readOnly;
-        bio.style.opacity = readOnly ? '0.75' : '1';
-    }
+    if (bio) { bio.value = profile.bio || ''; bio.readOnly = readOnly; }
     if (viewMode) viewMode.style.display = 'block';
     if (editMode) editMode.style.display = 'none';
     if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
     if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
     if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
+
     showScreen('profile');
 }
 
@@ -83,7 +72,7 @@ function updateChatStatusFromProfile(profile) {
     const cs = document.querySelector('.chat-status');
     if (!cs) return;
     if (currentChat?.other_user?.id === BOT_USER_ID) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; return; }
-    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status status-offline'; return; }
+    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status'; return; }
     const status = getUserStatusFromProfile(profile);
     cs.textContent = status.text;
     cs.className = `chat-status ${status.class}`;
@@ -93,458 +82,277 @@ function initEmojiPicker() {
     const btn = document.getElementById('btn-emoji');
     const picker = document.getElementById('emoji-picker');
     if (!btn || !picker) return;
-    btn.onclick = (e) => { e.stopPropagation(); picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex'; };
+    btn.onclick = e => { e.stopPropagation(); picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex'; };
     document.querySelectorAll('.emoji-item').forEach(emoji => {
-        emoji.onclick = () => { const input = document.getElementById('message-input'); if (input) { input.value += emoji.textContent; input.focus(); } picker.style.display = 'none'; };
+        emoji.onclick = () => {
+            const input = document.getElementById('message-input');
+            if (input) { input.value += emoji.textContent; input.focus(); }
+            picker.style.display = 'none';
+        };
     });
-    document.addEventListener('click', (e) => { if (!picker.contains(e.target) && e.target !== btn) picker.style.display = 'none'; });
+    document.addEventListener('click', e => { if (!picker.contains(e.target) && e.target !== btn) picker.style.display = 'none'; });
 }
 
-// Улучшенное контекстное меню
-function initMessageMenu() {
+// ── КОНТЕКСТНОЕ МЕНЮ ─────────────────────────────────────────────────────────
+function initImprovedMessageMenu() {
     const menu = document.getElementById('message-menu');
     if (!menu) return;
-    
-    let currentMessageId = null;
-    let currentMessageText = null;
-    let currentIsOwn = false;
-    
-    function hideMenu() { 
-        menu.style.display = 'none'; 
-        menu.classList.remove('menu-visible');
-        document.removeEventListener('click', hideMenu);
-        document.removeEventListener('touchstart', hideMenu);
-        currentMessageId = null;
-        currentMessageText = null;
-        currentIsOwn = false;
-    }
-    
-    window.showMessageMenu = function(e, msgId, msgText, isOwn) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        currentMessageId = msgId;
-        currentMessageText = msgText;
-        currentIsOwn = isOwn;
-        
-        // Получаем координаты
-        let x = e.clientX;
-        let y = e.clientY;
-        
-        // Для мобильных устройств
-        if (isMobileDevice() && e.touches && e.touches[0]) {
-            const touch = e.touches[0];
-            x = touch.clientX;
-            y = touch.clientY;
-            
-            // Виброотклик для лучшего UX
-            if (window.navigator.vibrate) {
-                window.navigator.vibrate(50);
+
+    let currentMsgId = null, currentMsgText = null, currentIsOwn = false;
+
+    function hideMenu() {
+        if (isMobileDevice()) {
+            // bottom sheet — анимируем вниз
+            const sheet = document.getElementById('msg-bottom-sheet');
+            if (sheet) {
+                sheet.classList.remove('sheet-open');
+                setTimeout(() => sheet.style.display = 'none', 280);
             }
+        } else {
+            menu.style.display = 'none';
+            menu.classList.remove('menu-visible');
         }
-        
+        document.removeEventListener('click', hideMenuOutside);
+        currentMsgId = null; currentMsgText = null; currentIsOwn = false;
+    }
+
+    function hideMenuOutside(e) {
+        const sheet = document.getElementById('msg-bottom-sheet');
+        if (sheet && sheet.contains(e.target)) return;
+        if (menu.contains(e.target)) return;
+        hideMenu();
+    }
+
+    window.showMessageMenu = function(e, msgId, msgText, isOwn) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        currentMsgId = msgId; currentMsgText = msgText; currentIsOwn = isOwn;
+
+        if (isMobileDevice()) {
+            showBottomSheet(msgId, msgText, isOwn, hideMenu);
+            return;
+        }
+
+        // Desktop: контекстное меню
         menu.style.display = 'block';
-        
-        // Позиционирование с учетом границ экрана
+        // Скрываем/показываем пункты по владению
+        menu.querySelectorAll('.menu-item[data-action="edit"], .menu-item[data-action="delete"]').forEach(el => {
+            el.style.display = isOwn ? '' : 'none';
+        });
+
         setTimeout(() => {
-            const menuRect = menu.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            
-            let left = x;
-            let top = y;
-            
-            // Если меню выходит за правый край
-            if (x + menuRect.width > viewportWidth - 10) {
-                left = x - menuRect.width;
-            }
-            
-            // Если меню выходит за левый край
-            if (left < 10) {
-                left = 10;
-            }
-            
-            // Если меню выходит за нижний край
-            if (y + menuRect.height > viewportHeight - 10) {
-                top = y - menuRect.height;
-            }
-            
-            // Если меню выходит за верхний край
-            if (top < 10) {
-                top = 10;
-            }
-            
-            menu.style.left = `${left}px`;
-            menu.style.top = `${top}px`;
+            const rect = menu.getBoundingClientRect();
+            const vw = window.innerWidth, vh = window.innerHeight;
+            let x = e.clientX || 0, y = e.clientY || 0;
+            if (x + rect.width > vw - 10) x = x - rect.width;
+            if (x < 10) x = 10;
+            if (y + rect.height > vh - 10) y = y - rect.height;
+            if (y < 10) y = 10;
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
             menu.style.transform = 'none';
-            
             menu.classList.add('menu-visible');
         }, 0);
-        
-        // Назначаем действия
-        const menuItems = menu.querySelectorAll('.menu-item');
-        menuItems.forEach(item => {
-            const newItem = item.cloneNode(true);
-            item.parentNode.replaceChild(newItem, item);
-            newItem.onclick = (e) => {
-                e.stopPropagation();
-                handleAction(newItem.dataset.action, currentMessageId, currentMessageText, currentIsOwn);
+
+        menu.querySelectorAll('.menu-item').forEach(item => {
+            const ni = item.cloneNode(true);
+            item.parentNode.replaceChild(ni, item);
+            ni.onclick = e2 => {
+                e2.stopPropagation();
+                handleMenuAction(ni.dataset.action, currentMsgId, currentMsgText, currentIsOwn);
                 hideMenu();
             };
         });
-        
-        // Закрываем при клике вне меню
-        setTimeout(() => {
-            document.addEventListener('click', hideMenu);
-            document.addEventListener('touchstart', hideMenu);
-        }, 10);
+
+        setTimeout(() => document.addEventListener('click', hideMenuOutside), 10);
     };
-    
-    async function handleAction(action, msgId, msgText, isOwn) {
-        switch (action) {
-            case 'reply': 
-                const inp = document.getElementById('message-input'); 
-                if (inp && currentChat?.id !== SAVED_CHAT_ID) { 
-                    inp.value = `> ${msgText}\n\n`; 
-                    inp.focus(); 
-                    showToast('Текст для ответа вставлен');
-                } else {
-                    showToast('Нельзя ответить на это сообщение', true);
-                }
-                break;
-                
-            case 'copy': 
-                try {
-                    await navigator.clipboard.writeText(msgText);
-                    showToast('✓ Текст скопирован в буфер обмена');
-                } catch (err) {
-                    // Fallback для старых браузеров
-                    const textarea = document.createElement('textarea');
-                    textarea.value = msgText;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                    showToast('✓ Текст скопирован');
-                }
-                break;
-                
-            case 'edit':
-                if (isOwn && currentChat?.id !== SAVED_CHAT_ID) {
-                    const newText = await modal.prompt(
-                        'Изменить сообщение:',
-                        'Редактирование',
-                        msgText,
-                        'Введите новый текст'
-                    );
-                    
-                    if (newText && newText.trim() && newText.trim() !== msgText) {
-                        try {
-                            const { error } = await supabaseClient
-                                .from('messages')
-                                .update({ text: newText.trim(), is_edited: true })
-                                .eq('id', msgId);
-                            
-                            if (error) throw error;
-                            
-                            // Обновляем отображение
-                            const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
-                            if (msgDiv) {
-                                const textDiv = msgDiv.querySelector('.text');
-                                if (textDiv) {
-                                    textDiv.textContent = newText.trim();
-                                    showToast('✓ Сообщение изменено');
-                                }
-                            }
-                            
-                            // Обновляем кэш
-                            if (messagesCache.has(currentChat?.id)) {
-                                const cached = messagesCache.get(currentChat.id);
-                                const idx = cached.findIndex(m => m.id === msgId);
-                                if (idx !== -1) {
-                                    cached[idx].text = newText.trim();
-                                    messagesCache.set(currentChat.id, cached);
-                                }
-                            }
-                        } catch (error) {
-                            showToast('Ошибка при редактировании', true);
-                        }
-                    } else if (newText && newText.trim() === msgText) {
-                        showToast('Текст не изменен');
-                    }
-                } else {
-                    showToast('Можно редактировать только свои сообщения', true);
-                }
-                break;
-                
-            case 'delete':
-                if (isOwn) {
-                    const confirmed = await modal.confirm(
-                        'Вы уверены, что хотите удалить это сообщение? Это действие нельзя отменить.',
-                        'Удаление сообщения'
-                    );
-                    
-                    if (confirmed) {
-                        try {
-                            const { error } = await supabaseClient
-                                .from('messages')
-                                .delete()
-                                .eq('id', msgId);
-                            
-                            if (error) throw error;
-                            
-                            showToast('✓ Сообщение удалено');
-                            
-                            // Удаляем из DOM
-                            const msgDiv = document.querySelector(`.message[data-id="${msgId}"]`);
-                            if (msgDiv) msgDiv.remove();
-                            
-                            // Обновляем кэш
-                            if (messagesCache.has(currentChat?.id)) {
-                                const cached = messagesCache.get(currentChat.id);
-                                messagesCache.set(
-                                    currentChat.id,
-                                    cached.filter(m => m.id !== msgId)
-                                );
-                            }
-                            
-                            // Если сообщений не осталось, показываем заглушку
-                            const container = document.getElementById('messages');
-                            if (container && container.querySelectorAll('.message').length === 0) {
-                                container.innerHTML = '<div class="msg-stub">Начните переписку</div>';
-                            }
-                        } catch (error) {
-                            showToast('Ошибка при удалении', true);
-                        }
-                    }
-                } else {
-                    showToast('Можно удалять только свои сообщения', true);
-                }
-                break;
-                
-            default: 
-                showToast('Функция в разработке');
-        }
+}
+
+function showBottomSheet(msgId, msgText, isOwn, onClose) {
+    let sheet = document.getElementById('msg-bottom-sheet');
+    if (!sheet) {
+        sheet = document.createElement('div');
+        sheet.id = 'msg-bottom-sheet';
+        sheet.className = 'msg-bottom-sheet';
+        document.body.appendChild(sheet);
     }
+
+    sheet.innerHTML = `
+        <div class="sheet-handle"></div>
+        <div class="sheet-actions">
+            <button class="sheet-item" data-action="reply">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a8 8 0 0 1 8 8v2"/><path d="M3 10l4-4m-4 4l4 4"/></svg>
+                Ответить
+            </button>
+            <button class="sheet-item" data-action="copy">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Копировать
+            </button>
+            ${isOwn ? `
+            <button class="sheet-item" data-action="edit">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3l4 4-7 7H10v-4l7-7z"/><path d="M4 20h16"/></svg>
+                Изменить
+            </button>
+            <button class="sheet-item danger" data-action="delete">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Удалить
+            </button>` : ''}
+        </div>
+        <div class="sheet-overlay"></div>
+    `;
+
+    sheet.querySelectorAll('.sheet-item').forEach(btn => {
+        btn.onclick = () => {
+            handleMenuAction(btn.dataset.action, msgId, msgText, isOwn);
+            onClose();
+        };
+    });
+    sheet.querySelector('.sheet-overlay').onclick = onClose;
+
+    sheet.style.display = 'flex';
+    requestAnimationFrame(() => sheet.classList.add('sheet-open'));
 }
 
-// Мобильное долгое нажатие
-function initMobileLongPress() {
-    if (!isMobileDevice()) return;
-    
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
-    
-    let pressTimer = null;
-    let pressTarget = null;
-    let startY = 0;
-    let startX = 0;
-    
-    messagesContainer.addEventListener('touchstart', (e) => {
-        const messageDiv = e.target.closest('.message');
-        if (!messageDiv) return;
-        
-        // Сохраняем начальные координаты для определения скролла
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        pressTarget = messageDiv;
-        
-        // Устанавливаем таймер на 500ms
-        pressTimer = setTimeout(() => {
-            if (pressTarget && pressTarget.isConnected) {
-                // Получаем данные сообщения
-                const msgId = pressTarget.dataset.id;
-                const msgText = pressTarget.dataset.text;
-                const isOwn = pressTarget.classList.contains('own');
-                
-                if (msgId && typeof showMessageMenu === 'function') {
-                    // Создаем событие с координатами касания
-                    const fakeEvent = {
-                        clientX: startX,
-                        clientY: startY,
-                        touches: [{ clientX: startX, clientY: startY }],
-                        preventDefault: () => {}
-                    };
-                    
-                    showMessageMenu(fakeEvent, msgId, msgText, isOwn);
-                    
-                    // Визуальный фидбек
-                    pressTarget.style.transform = 'scale(0.98)';
-                    pressTarget.style.transition = 'transform 0.1s ease';
-                    setTimeout(() => {
-                        if (pressTarget && pressTarget.isConnected) {
-                            pressTarget.style.transform = '';
+async function handleMenuAction(action, msgId, msgText, isOwn) {
+    switch (action) {
+        case 'reply':
+            const inp = document.getElementById('message-input');
+            if (inp && currentChat?.id !== SAVED_CHAT_ID) {
+                inp.value = `> ${msgText}\n\n`;
+                inp.focus();
+            } else showToast('Нельзя ответить', true);
+            break;
+
+        case 'copy':
+            try {
+                await navigator.clipboard.writeText(msgText);
+            } catch {
+                const ta = document.createElement('textarea');
+                ta.value = msgText;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            showToast('Скопировано');
+            break;
+
+        case 'edit':
+            if (!isOwn) { showToast('Можно редактировать только свои сообщения', true); return; }
+            const newText = await modal.prompt('Изменить сообщение:', 'Редактирование', msgText, 'Новый текст');
+            if (newText && newText.trim() && newText.trim() !== msgText) {
+                try {
+                    const { error } = await supabaseClient.from('messages').update({ text: newText.trim(), is_edited: true }).eq('id', msgId);
+                    if (error) throw error;
+                    const el = document.querySelector(`.message[data-id="${msgId}"]`);
+                    if (el) {
+                        el.querySelector('.text').textContent = newText.trim();
+                        const time = el.querySelector('.msg-time');
+                        if (time && !time.querySelector('.edited-mark')) {
+                            const em = document.createElement('span');
+                            em.className = 'edited-mark';
+                            em.textContent = 'ред.';
+                            time.insertBefore(em, time.querySelector('.read-status'));
                         }
-                    }, 150);
-                }
+                    }
+                    if (messagesCache.has(currentChat?.id)) {
+                        const idx = messagesCache.get(currentChat.id).findIndex(m => m.id === msgId);
+                        if (idx !== -1) messagesCache.get(currentChat.id)[idx].text = newText.trim();
+                    }
+                    showToast('Сообщение изменено');
+                } catch { showToast('Ошибка редактирования', true); }
             }
-            pressTimer = null;
-        }, 500);
-    });
-    
-    messagesContainer.addEventListener('touchmove', (e) => {
-        if (!pressTarget) return;
-        
-        // Проверяем, не уехал ли палец слишком далеко
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-        const deltaX = Math.abs(currentX - startX);
-        const deltaY = Math.abs(currentY - startY);
-        
-        // Если палец переместился более чем на 10px - отменяем долгое нажатие
-        if (deltaX > 10 || deltaY > 10) {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                pressTimer = null;
+            break;
+
+        case 'delete':
+            if (!isOwn) return;
+            const ok = await modal.confirm('Удалить сообщение?', 'Удаление');
+            if (ok) {
+                try {
+                    const { error } = await supabaseClient.from('messages').delete().eq('id', msgId);
+                    if (error) throw error;
+                    document.querySelector(`.message[data-id="${msgId}"]`)?.remove();
+                    if (messagesCache.has(currentChat?.id)) {
+                        messagesCache.set(currentChat.id, messagesCache.get(currentChat.id).filter(m => m.id !== msgId));
+                    }
+                    showToast('Сообщение удалено');
+                    loadDialogs();
+                } catch { showToast('Ошибка удаления', true); }
             }
-            pressTarget = null;
-        }
-    });
-    
-    messagesContainer.addEventListener('touchend', () => {
-        if (pressTimer) {
-            clearTimeout(pressTimer);
-            pressTimer = null;
-        }
-        if (pressTarget) {
-            // Убираем фидбек
-            setTimeout(() => {
-                if (pressTarget && pressTarget.isConnected) {
-                    pressTarget.style.transform = '';
-                }
-            }, 100);
-        }
-        pressTarget = null;
-    });
-    
-    messagesContainer.addEventListener('touchcancel', () => {
-        if (pressTimer) {
-            clearTimeout(pressTimer);
-            pressTimer = null;
-        }
-        pressTarget = null;
-    });
-}
-
-function initImprovedMessageMenu() {
-    initMessageMenu();
-    initMobileLongPress();
-}
-
-function initProfileScreen() {
-    const back = document.getElementById('btn-profile-back');
-    if (back) back.onclick = () => showScreen('chat');
-    const editBtn = document.getElementById('btn-edit-profile');
-    const cancelEditBtn = document.getElementById('btn-cancel-edit-profile');
-    const viewMode = document.getElementById('profile-view-mode');
-    const editMode = document.getElementById('profile-edit-mode');
-    if (editBtn) editBtn.onclick = () => {
-        if (viewMode) viewMode.style.display = 'none';
-        if (editMode) editMode.style.display = 'block';
-    };
-    if (cancelEditBtn) cancelEditBtn.onclick = () => {
-        if (viewMode) viewMode.style.display = 'block';
-        if (editMode) editMode.style.display = 'none';
-    };
-    const logout = document.getElementById('btn-logout-profile');
-    if (logout) logout.onclick = async () => {
-        const confirmed = await modal.confirm('Вы действительно хотите выйти из аккаунта?', 'Выход из системы');
-        if (confirmed) {
-            stopOnlineHeartbeat();
-            if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
-            await supabaseClient.auth.signOut();
-            currentUser = null;
-            currentProfile = null;
-            currentChat = null;
-            showScreen('reg');
-            showToast('Вы вышли из аккаунта');
-        }
-    };
-    const save = document.getElementById('btn-save-profile');
-    if (save) save.onclick = async () => {
-        const full = document.getElementById('profile-fullname').value.trim();
-        const bio = document.getElementById('profile-bio').value.trim();
-        if (!full) return showToast('Имя не может быть пустым', true);
-        
-        try {
-            const { error } = await supabaseClient
-                .from('profiles')
-                .update({ full_name: full, bio })
-                .eq('id', currentUser.id);
-            
-            if (error) throw error;
-            
-            currentProfile.full_name = full;
-            currentProfile.bio = bio;
-            
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = full;
-            
-            const avatarLetter = document.getElementById('profile-avatar-letter');
-            if (avatarLetter) avatarLetter.textContent = full[0].toUpperCase();
-            
-            updateProfileFooter();
-            if (viewMode) viewMode.style.display = 'block';
-            if (editMode) editMode.style.display = 'none';
-            showScreen('chat');
-            setTimeout(() => showToast('✓ Профиль сохранён'), 120);
-        } catch (error) {
-            showToast('Ошибка сохранения профиля', true);
-        }
-    };
+            break;
+    }
 }
 
 function initSearchDialogs() {
     const input = document.getElementById('search-dialogs');
     if (!input) return;
-    let timeout;
-    input.oninput = (e) => { clearTimeout(timeout); timeout = setTimeout(() => loadDialogs(e.target.value), 300); };
+    let timer;
+    input.addEventListener('input', e => {
+        clearTimeout(timer);
+        timer = setTimeout(() => loadDialogs(e.target.value.trim()), 250);
+    });
 }
 
 function initSendButton() {
     const btn = document.getElementById('btn-send-msg');
-    if (btn) btn.onclick = sendMsg;
     const input = document.getElementById('message-input');
-    if (input) input.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+    if (btn) btn.onclick = sendMsg;
+    if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
 }
 
 function initUserActivityTracking() {
-    let timeout = null, last = Date.now();
-    const reset = () => {
-        if (!currentUser) return;
-        last = Date.now();
-        if (timeout) clearTimeout(timeout);
-        if (!isUserOnline) setUserOnlineStatus(true);
-        timeout = setTimeout(async () => { if (Date.now() - last >= 15000 && isUserOnline) await setUserOnlineStatus(false); }, 1000);
-    };
-    window.addEventListener('mousemove', reset); 
-    window.addEventListener('keydown', reset); 
-    window.addEventListener('click', reset); 
-    window.addEventListener('scroll', reset);
-    window.addEventListener('beforeunload', () => { 
-        if (currentUser) navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/rpc/force_set_offline`, JSON.stringify({ user_id: currentUser.id })); 
-    });
-    document.addEventListener('visibilitychange', async () => {
-        if (!currentUser) return;
-        if (document.hidden) { 
-            await setUserOnlineStatus(false); 
-            if (timeout) clearTimeout(timeout); 
-        } else { 
-            await setUserOnlineStatus(true); 
-            reset(); 
-            if (currentChat) { 
-                await markChatMessagesAsRead(currentChat.id); 
-                if (window.readStatusObservers) { 
-                    window.readStatusObservers.observer?.disconnect(); 
-                    window.readStatusObservers.mutationObserver?.disconnect(); 
-                } 
-                window.readStatusObservers = setupReadStatusObserver(); 
-            } 
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            setUserOnlineStatus(true);
+            if (currentChat) {
+                const chatId = currentChat.id;
+                markChatMessagesAsRead(chatId);
+            }
+        } else {
+            setUserOnlineStatus(false);
         }
     });
-    window.addEventListener('pagehide', () => { 
-        if (currentUser) navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/rpc/force_set_offline`, JSON.stringify({ user_id: currentUser.id })); 
-    });
+}
+
+function initProfileScreen() {
+    const editBtn = document.getElementById('btn-edit-profile');
+    const saveBtn = document.getElementById('btn-save-profile');
+    const logoutBtn = document.getElementById('btn-logout-profile');
+    const backBtn = document.getElementById('btn-back-profile');
+    const viewMode = document.getElementById('profile-view-mode');
+    const editMode = document.getElementById('profile-edit-mode');
+
+    if (editBtn) editBtn.onclick = () => {
+        if (viewMode) viewMode.style.display = 'none';
+        if (editMode) editMode.style.display = 'block';
+    };
+
+    if (saveBtn) saveBtn.onclick = async () => {
+        const fn = document.getElementById('profile-fullname')?.value.trim();
+        const bio = document.getElementById('profile-bio')?.value.trim();
+        if (!fn) { showToast('Введите имя', true); return; }
+        try {
+            const { error } = await supabaseClient.from('profiles').update({ full_name: fn, bio }).eq('id', currentUser.id);
+            if (error) throw error;
+            currentProfile.full_name = fn;
+            currentProfile.bio = bio;
+            updateProfileFooter();
+            showToast('Профиль сохранён');
+            showScreen('chat');
+        } catch { showToast('Ошибка сохранения', true); }
+    };
+
+    if (logoutBtn) logoutBtn.onclick = async () => {
+        const ok = await modal.confirm('Выйти из аккаунта?', 'Выход');
+        if (ok) {
+            stopOnlineHeartbeat();
+            await supabaseClient.auth.signOut();
+            currentUser = null; currentProfile = null; currentChat = null;
+            showScreen('reg');
+        }
+    };
+
+    if (backBtn) backBtn.onclick = () => showScreen('chat');
 }
 
 // Экспорт
@@ -554,7 +362,9 @@ window.openProfileModal = openProfileModal;
 window.updateChatStatusFromProfile = updateChatStatusFromProfile;
 window.initEmojiPicker = initEmojiPicker;
 window.initImprovedMessageMenu = initImprovedMessageMenu;
-window.initProfileScreen = initProfileScreen;
 window.initSearchDialogs = initSearchDialogs;
 window.initSendButton = initSendButton;
 window.initUserActivityTracking = initUserActivityTracking;
+window.initProfileScreen = initProfileScreen;
+window.handleMenuAction = handleMenuAction;
+window.showBottomSheet = showBottomSheet;
