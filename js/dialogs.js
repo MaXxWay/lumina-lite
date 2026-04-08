@@ -1,59 +1,76 @@
+// dialogs.js — диалоги + группы + плавная загрузка
+
 function renderDialogsList(container, filteredData) {
     container.innerHTML = '';
-    
+
     if (filteredData.length === 0) {
-        container.innerHTML = '<div class="dialogs-loading">Нет диалогов. Введите @username для поиска</div>';
+        container.innerHTML = '<div class="dialogs-empty">Нет диалогов.<br>Введите @username для поиска</div>';
         return;
     }
-    
-    filteredData.forEach(chat => {
+
+    filteredData.forEach((chat, i) => {
         const div = document.createElement('div');
-        div.className = `dialog-item ${currentChat?.id === chat.id ? 'active' : ''} ${chat.unreadCount > 0 ? 'unread-dialog' : ''} ${chat.isSaved ? 'saved-dialog' : ''}`;
+        div.className = [
+            'dialog-item',
+            currentChat?.id === chat.id ? 'active' : '',
+            chat.unreadCount > 0 ? 'unread-dialog' : '',
+            chat.isSaved ? 'saved-dialog' : '',
+            chat.isGroup ? 'group-dialog' : ''
+        ].filter(Boolean).join(' ');
         div.dataset.chatId = chat.id;
         div.dataset.otherUserId = chat.otherId || '';
-        
-        const unreadBadge = chat.unreadCount > 0 ? 
-            `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
-        
-        const isOnline = chat.isOnline === true;
-        
+        div.style.animationDelay = `${i * 30}ms`;
+
+        const unreadBadge = chat.unreadCount > 0
+            ? `<span class="unread-badge-count">${chat.unreadCount > 99 ? '99+' : chat.unreadCount}</span>` : '';
+
         let avatarHtml = '';
         if (chat.isBot) {
             avatarHtml = '<img src="lumina.svg" alt="Bot">';
         } else if (chat.isSaved) {
-            // Избранное - синяя аватарка с иконкой закладки
-            avatarHtml = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+            avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+        } else if (chat.isGroup) {
+            avatarHtml = `<span style="font-size:20px">${chat.avatarEmoji || '👥'}</span>`;
         } else {
             avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
         }
-        
+
+        const isOnline = chat.isOnline === true && !chat.isGroup && !chat.isBot && !chat.isSaved;
+
         div.innerHTML = `
-            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''}">
+            <div class="dialog-avatar ${chat.isBot ? 'bot-avatar' : ''} ${chat.isSaved ? 'saved-avatar' : ''} ${chat.isGroup ? 'group-avatar-icon' : ''}">
                 ${avatarHtml}
-                ${!chat.isBot && !chat.isSaved ? `<div class="online-dot ${isOnline ? '' : 'hidden'}"></div>` : ''}
+                ${isOnline ? '<div class="online-dot"></div>' : ''}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
                     ${chat.isBot ? '<span class="bot-badge left-badge">Бот</span>' : ''}
+                    ${chat.isGroup ? '<span class="group-badge">Группа</span>' : ''}
                     ${escapeHtml(chat.name)}
-                    ${chat.isBot ? '<span class="bot-verify-inline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}
+                    ${chat.isBot ? '<span class="bot-verify-inline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
                     ${unreadBadge}
                 </div>
                 <div class="dialog-preview">${escapeHtml(chat.lastMessage || '')}</div>
             </div>
         `;
-        
+
         div.onclick = async () => {
+            document.querySelectorAll('.dialog-item').forEach(el => el.classList.remove('active'));
+            div.classList.add('active');
+
             if (chat.isSaved) {
                 await openSavedChat(chat.id);
+            } else if (chat.isGroup) {
+                await openGroupChat(chat.id, chat.groupInfo);
             } else {
                 await openChat(chat.id, chat.otherId, chat.otherUser);
             }
+
             if (chat.unreadCount > 0 && !chat.isSaved) {
                 await markChatMessagesAsRead(chat.id);
             }
         };
-        
+
         container.appendChild(div);
     });
 }
@@ -69,15 +86,16 @@ function updateChatHeaderAvatar(userProfile, options = {}) {
     if (isHidden || isSaved) {
         avatarBtn.style.display = 'none';
         avatarBtn.onclick = null;
-        avatarBtn.classList.remove('bot-avatar');
-        avatarBtn.textContent = '?';
         return;
     }
 
     avatarBtn.style.display = 'inline-flex';
     avatarBtn.classList.toggle('bot-avatar', isBot);
     avatarBtn.title = 'Открыть профиль';
-    avatarBtn.innerHTML = isBot ? '<img src="lumina.svg" alt="Bot">' : escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
+    avatarBtn.innerHTML = isBot
+        ? '<img src="lumina.svg" alt="Bot">'
+        : escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
+
     avatarBtn.onclick = () => {
         if (typeof openProfileModal !== 'function') return;
         openProfileModal(userProfile, { readOnly: userProfile.id !== currentUser?.id });
@@ -91,83 +109,102 @@ function setMessagesLoadingState(container, isLoading) {
 
 async function smoothLoadChatMessages(chatId, container) {
     setMessagesLoadingState(container, true);
-    // Let CSS transition start before replacing message list.
-    await new Promise(resolve => setTimeout(resolve, 90));
+    await new Promise(r => setTimeout(r, 80));
     await loadMessages(chatId);
-    // Keep a tiny tail so fade-in feels continuous.
-    await new Promise(resolve => setTimeout(resolve, 70));
+    await new Promise(r => setTimeout(r, 60));
     setMessagesLoadingState(container, false);
 }
 
 async function loadDialogs(searchTerm = '') {
     const container = document.getElementById('dialogs-list');
     if (!container) return;
-    
+
     const isUserSearch = searchTerm && searchTerm.startsWith('@');
-    
     if (isUserSearch && searchTerm.length > 1) {
         await loadUserSearchResults(searchTerm, container);
         return;
     }
-    
+
     if (isUpdatingDialogs) return;
     isUpdatingDialogs = true;
-    
+
     try {
-        const { data: allChats, error: chatsError } = await supabaseClient
+        // Получаем все чаты (включая групповые)
+        const { data: allChats, error } = await supabaseClient
             .from('chats')
-            .select('id, type, participants, updated_at, created_at, last_message');
-        
-        if (chatsError) throw chatsError;
-        
-        const chats = (allChats || []).filter(chat => 
-            chat.participants && chat.participants.includes(currentUser.id)
+            .select('id, type, participants, updated_at, created_at, last_message, is_group, group_id')
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+
+        const chats = (allChats || []).filter(c =>
+            c.participants && c.participants.includes(currentUser.id)
         );
-        
-        chats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        
+
+        // Собираем все groupId
+        const groupIds = chats.filter(c => c.is_group && c.group_id).map(c => c.group_id);
+        let groupsMap = new Map();
+        if (groupIds.length > 0) {
+            const { data: groups } = await supabaseClient
+                .from('groups')
+                .select('id, name, description, member_count, avatar_emoji')
+                .in('id', groupIds);
+            if (groups) groups.forEach(g => groupsMap.set(g.id, g));
+        }
+
+        // Фильтруем невалидные приватные чаты
         const validChats = [];
         for (const chat of chats) {
-            const otherId = chat.participants?.find(id => id !== currentUser.id);
-            
-            if (otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
+            if (chat.is_group) {
                 validChats.push(chat);
                 continue;
             }
-            
-            if (otherId) {
-                const userExists = await checkUserExists(otherId);
-                if (userExists) {
-                    validChats.push(chat);
-                } else {
-                    await supabaseClient.from('chats').delete().eq('id', chat.id);
-                    await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
-                }
+            const otherId = chat.participants?.find(id => id !== currentUser.id);
+            if (!otherId || otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
+                validChats.push(chat);
+                continue;
+            }
+            const userExists = await checkUserExists(otherId);
+            if (userExists) {
+                validChats.push(chat);
+            } else {
+                await supabaseClient.from('chats').delete().eq('id', chat.id);
+                await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
             }
         }
-        
+
         if (validChats.length === 0) {
-            container.innerHTML = '<div class="dialogs-loading">Нет диалогов</div>';
+            container.innerHTML = '<div class="dialogs-empty">Нет диалогов</div>';
             isUpdatingDialogs = false;
             return;
         }
-        
-        let unreadCounts = new Map();
+
+        // Непрочитанные
         const { data: unreadData } = await supabaseClient
             .from('messages')
             .select('chat_id')
             .eq('is_read', false)
             .neq('user_id', currentUser.id)
             .in('chat_id', validChats.map(c => c.id));
-        
-        if (unreadData) {
-            unreadData.forEach(msg => {
-                unreadCounts.set(msg.chat_id, (unreadCounts.get(msg.chat_id) || 0) + 1);
-            });
-        }
-        
+
+        const unreadCounts = new Map();
+        (unreadData || []).forEach(m => {
+            unreadCounts.set(m.chat_id, (unreadCounts.get(m.chat_id) || 0) + 1);
+        });
+
+        // Последние сообщения
         const lastMessages = new Map();
         for (const chat of validChats) {
+            const cached = messagesCache.get(chat.id);
+            if (cached && cached.length > 0) {
+                const last = cached[cached.length - 1];
+                const isOwn = last.user_id === currentUser.id;
+                let text = last.text || '';
+                if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
+                lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
+                continue;
+            }
+
             const { data: lastMsg } = await supabaseClient
                 .from('messages')
                 .select('text, user_id')
@@ -175,38 +212,51 @@ async function loadDialogs(searchTerm = '') {
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
-            
+
             if (lastMsg) {
                 const isOwn = lastMsg.user_id === currentUser.id;
-                const prefix = isOwn ? 'Вы: ' : '';
                 let text = lastMsg.text || '';
-                if (text.length > window.MAX_MESSAGE_PREVIEW_LENGTH) {
-                    text = text.slice(0, window.MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
-                }
-                lastMessages.set(chat.id, prefix + text);
+                if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
+                lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
             }
         }
-        
-        const allParticipantIds = validChats.flatMap(c => c.participants || []);
-        const uniqueIds = [...new Set(allParticipantIds)];
-        
+
+        // Профили участников приватных чатов
+        const privateParticipantIds = validChats
+            .filter(c => !c.is_group)
+            .flatMap(c => c.participants || []);
+        const uniqueIds = [...new Set(privateParticipantIds)];
         const profileMap = new Map();
+
         if (uniqueIds.length > 0) {
             const { data: profiles } = await supabaseClient
                 .from('profiles')
                 .select('id, full_name, username, last_seen, is_online')
                 .in('id', uniqueIds);
-            
-            if (profiles) {
-                profiles.forEach(p => profileMap.set(p.id, p));
-            }
+            if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
         }
         profileMap.set(BOT_USER_ID, BOT_PROFILE);
-        
+
+        // Формируем данные для отображения
         const chatData = [];
         for (const chat of validChats) {
-            const otherId = chat.participants?.find(id => id !== currentUser.id);
-            
+            // Групповой чат
+            if (chat.is_group) {
+                const group = groupsMap.get(chat.group_id);
+                if (!group) continue;
+                chatData.push({
+                    id: chat.id,
+                    isGroup: true,
+                    groupInfo: { ...group, chat_id: chat.id },
+                    name: group.name,
+                    avatarEmoji: group.avatar_emoji || '👥',
+                    unreadCount: unreadCounts.get(chat.id) || 0,
+                    lastMessage: lastMessages.get(chat.id) || `${group.member_count || 0} участников`
+                });
+                continue;
+            }
+
+            // Избранное
             if (chat.id === SAVED_CHAT_ID) {
                 chatData.push({
                     id: chat.id,
@@ -214,48 +264,43 @@ async function loadDialogs(searchTerm = '') {
                     otherUser: SAVED_CHAT,
                     name: 'Избранное',
                     isSaved: true,
-                    isBot: false,
                     unreadCount: 0,
-                    lastMessage: lastMessages.get(chat.id) || 'Сохраненные сообщения',
-                    isOnline: false
+                    lastMessage: lastMessages.get(chat.id) || 'Сохранённые сообщения'
                 });
                 continue;
             }
-            
+
+            const otherId = chat.participants?.find(id => id !== currentUser.id);
             const otherUser = profileMap.get(otherId);
             if (!otherUser && otherId !== BOT_USER_ID) continue;
-            
-            const name = otherUser?.full_name || otherUser?.username || 'Пользователь';
+
             const isBot = otherId === BOT_USER_ID;
-            const unreadCount = unreadCounts.get(chat.id) || 0;
             const status = otherUser ? getUserStatusFromProfile(otherUser) : { class: '' };
-            const isOnline = status.class === 'status-online';
-            
+
             chatData.push({
                 id: chat.id,
                 otherId,
                 otherUser,
-                name,
+                name: otherUser?.full_name || otherUser?.username || 'Пользователь',
                 isBot,
                 isSaved: false,
-                unreadCount,
+                unreadCount: unreadCounts.get(chat.id) || 0,
                 lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
-                isOnline: isOnline
+                isOnline: status.class === 'status-online'
             });
         }
-        
+
         let filteredData = chatData;
         if (searchTerm && !isUserSearch) {
-            filteredData = chatData.filter(chat => 
-                chat.name.toLowerCase().includes(searchTerm.toLowerCase())
+            filteredData = chatData.filter(c =>
+                c.name.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
-        
+
         renderDialogsList(container, filteredData);
-        
     } catch (err) {
-        console.error('Ошибка:', err);
-        container.innerHTML = '<div class="dialogs-loading">Ошибка загрузки</div>';
+        console.error('Ошибка loadDialogs:', err);
+        container.innerHTML = '<div class="dialogs-empty">Ошибка загрузки</div>';
     } finally {
         isUpdatingDialogs = false;
     }
@@ -263,45 +308,31 @@ async function loadDialogs(searchTerm = '') {
 
 async function loadUserSearchResults(searchTerm, container) {
     const users = await searchUsersByUsername(searchTerm);
-    
+
     container.innerHTML = `
         <div class="search-header">
-            <span class="search-title search-title-with-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                Найдено пользователей: ${users.length}
-            </span>
+            <span class="search-title">Найдено: ${users.length}</span>
         </div>
     `;
-    
+
     if (users.length === 0) {
-        container.innerHTML += '<div class="dialogs-loading">Пользователи не найдены</div>';
+        container.innerHTML += '<div class="dialogs-empty">Пользователи не найдены</div>';
         return;
     }
-    
-    for (const user of users) {
+
+    users.forEach(user => {
         const name = user.full_name || user.username;
         const div = document.createElement('div');
         div.className = 'dialog-item user-search-item';
-        div.dataset.userId = user.id;
         div.innerHTML = `
-            <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''} ${user.isSaved ? 'saved-avatar' : ''}">
-                ${user.isBot
-                    ? '<img src="lumina.svg" alt="Bot">'
-                    : (user.isSaved
-                        ? '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
-                        : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`)}
+            <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''}">
+                ${user.isBot ? '<img src="lumina.svg" alt="Bot">'
+                    : user.isSaved ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
+                    : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
             </div>
             <div class="dialog-info">
-                <div class="dialog-name">
-                    ${escapeHtml(name)}
-                    <span class="username-hint">@${escapeHtml(user.username)}</span>
-                </div>
-                <div class="dialog-preview">Нажмите, чтобы начать чат</div>
+                <div class="dialog-name">${escapeHtml(name)}<span class="username-hint">@${escapeHtml(user.username)}</span></div>
+                <div class="dialog-preview">Нажмите, чтобы открыть чат</div>
             </div>
         `;
         div.onclick = async () => {
@@ -313,14 +344,74 @@ async function loadUserSearchResults(searchTerm, container) {
                     const chatId = await getOrCreatePrivateChat(user.id);
                     await openChat(chatId, user.id, user);
                 }
-                const searchInputElem = document.getElementById('search-dialogs');
-                if (searchInputElem) searchInputElem.value = '';
+                const si = document.getElementById('search-dialogs');
+                if (si) si.value = '';
                 loadDialogs();
-            } catch (err) {
+            } catch {
                 showToast('Ошибка создания чата', true);
             }
         };
         container.appendChild(div);
+    });
+}
+
+async function openGroupChat(chatId, groupInfo) {
+    if (isOpeningChat) { pendingChatId = chatId; return; }
+    if (currentChat?.id === chatId) return;
+
+    isOpeningChat = true;
+    const messagesContainer = document.getElementById('messages');
+
+    try {
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, true);
+
+        currentChat = { id: chatId, type: 'group', is_group: true, group: groupInfo };
+
+        // Заголовок
+        const chatTitle = document.getElementById('chat-title');
+        if (chatTitle) chatTitle.textContent = groupInfo?.name || 'Группа';
+
+        const avatarBtn = document.getElementById('chat-user-avatar');
+        if (avatarBtn) {
+            avatarBtn.style.display = 'inline-flex';
+            avatarBtn.classList.remove('bot-avatar');
+            avatarBtn.innerHTML = `<span style="font-size:18px">${groupInfo?.avatar_emoji || '👥'}</span>`;
+            avatarBtn.title = 'Информация о группе';
+            avatarBtn.onclick = () => {
+                if (typeof showGroupProfile === 'function') showGroupProfile(groupInfo.id);
+            };
+        }
+
+        const chatStatus = document.querySelector('.chat-status');
+        if (chatStatus) {
+            chatStatus.textContent = `${groupInfo?.member_count || 0} участников`;
+            chatStatus.className = 'chat-status';
+        }
+
+        const inputZone = document.querySelector('.input-zone');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('btn-send-msg');
+        if (inputZone) inputZone.style.display = 'block';
+        if (messageInput) { messageInput.disabled = false; messageInput.placeholder = 'Написать в группу...'; }
+        if (sendButton) sendButton.disabled = false;
+
+        setupTypingIndicator();
+        await smoothLoadChatMessages(chatId, messagesContainer);
+        subscribeToMessages(chatId);
+        subscribeToTyping(chatId);
+
+        setTimeout(() => markChatMessagesAsRead(chatId), 500);
+
+        document.querySelectorAll('.dialog-item').forEach(el => {
+            el.classList.remove('active');
+            if (el.dataset.chatId === chatId) el.classList.add('active');
+        });
+
+        if (isMobileDevice()) openChatMobile(chatId);
+
+    } finally {
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, false);
+        isOpeningChat = false;
     }
 }
 
@@ -328,172 +419,146 @@ async function openChat(chatId, otherUserId, otherUser) {
     if (otherUserId && otherUserId !== BOT_USER_ID) {
         const userExists = await checkUserExists(otherUserId);
         if (!userExists) {
-            showToast('Пользователь удален, чат будет закрыт', true);
+            showToast('Пользователь удалён', true);
             await supabaseClient.from('chats').delete().eq('id', chatId);
-            await supabaseClient.from('messages').delete().eq('chat_id', chatId);
             await loadDialogs();
             return;
         }
     }
-    if (isOpeningChat) {
-        pendingChatId = chatId;
+    if (isOpeningChat) { pendingChatId = chatId; return; }
+    if (currentChat?.id === chatId) {
+        if (isMobileDevice()) openChatMobile(chatId);
         return;
     }
-    if (currentChat?.id === chatId) return;
-    
+
     isOpeningChat = true;
-    
+    const messagesContainer = document.getElementById('messages');
+
     try {
-        const isBot = otherUserId === BOT_USER_ID;
-        
-        const messagesContainer = document.getElementById('messages');
         if (messagesContainer) setMessagesLoadingState(messagesContainer, true);
-        
-        currentChat = {
-            id: chatId,
-            type: 'private',
-            other_user: otherUser || (isBot ? BOT_PROFILE : null)
-        };
-        
+
+        const isBot = otherUserId === BOT_USER_ID;
+        currentChat = { id: chatId, type: 'private', other_user: otherUser || (isBot ? BOT_PROFILE : null) };
+
         const chatTitle = document.getElementById('chat-title');
         if (chatTitle) {
             const name = otherUser?.full_name || otherUser?.username || (isBot ? 'Lumina Bot' : 'Чат');
             chatTitle.innerHTML = isBot
-                ? `<span class="bot-badge left-badge">Бот</span>${escapeHtml(name)}<span class="bot-verify-inline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>`
+                ? `<span class="bot-badge left-badge">Бот</span>${escapeHtml(name)}<span class="bot-verify-inline"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>`
                 : escapeHtml(name);
         }
         updateChatHeaderAvatar(otherUser || (isBot ? BOT_PROFILE : null));
-        
+
         if (!isBot && otherUserId) {
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .eq('id', otherUserId)
-                .maybeSingle();
-            
+            const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', otherUserId).maybeSingle();
             if (profile) {
                 if (typeof updateChatStatusFromProfile === 'function') updateChatStatusFromProfile(profile);
                 subscribeToUserStatus(otherUserId);
                 subscribeToTyping(chatId);
             }
         } else if (isBot) {
-            const chatStatus = document.querySelector('.chat-status');
-            if (chatStatus) {
-                chatStatus.textContent = 'бот';
-                chatStatus.className = 'chat-status status-bot';
-            }
+            const cs = document.querySelector('.chat-status');
+            if (cs) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; }
         }
-        
+
+        const inputZone = document.querySelector('.input-zone');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
+
         if (isBot) {
             if (inputZone) inputZone.style.display = 'none';
             if (messageInput) messageInput.disabled = true;
             if (sendButton) sendButton.disabled = true;
         } else {
             if (inputZone) inputZone.style.display = 'block';
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.placeholder = 'Написать сообщение...';
-                setTimeout(() => messageInput.focus(), 100);
-            }
+            if (messageInput) { messageInput.disabled = false; messageInput.placeholder = 'Написать сообщение...'; }
             if (sendButton) sendButton.disabled = false;
             setupTypingIndicator();
         }
-        
+
         await smoothLoadChatMessages(chatId, messagesContainer);
         subscribeToMessages(chatId);
-        
+
         setTimeout(async () => {
             await markChatMessagesAsRead(chatId);
-            
             if (window.readStatusObservers) {
                 window.readStatusObservers.observer?.disconnect();
                 window.readStatusObservers.mutationObserver?.disconnect();
             }
             window.readStatusObservers = setupReadStatusObserver();
         }, 500);
-        
+
         document.querySelectorAll('.dialog-item').forEach(el => {
             el.classList.remove('active');
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
-        
+
+        if (isMobileDevice()) openChatMobile(chatId);
+
     } finally {
-        const messagesContainer = document.getElementById('messages');
-        setMessagesLoadingState(messagesContainer, false);
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, false);
         isOpeningChat = false;
         if (pendingChatId && pendingChatId !== chatId) {
             const pending = pendingChatId;
             pendingChatId = null;
-            const pendingDialog = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
-            if (pendingDialog) {
-                const otherId = pendingDialog.dataset.otherUserId;
-                await openChat(pending, otherId, null);
-            }
+            const el = document.querySelector(`.dialog-item[data-chat-id="${pending}"]`);
+            if (el) await openChat(pending, el.dataset.otherUserId, null);
         }
     }
 }
 
 async function openSavedChat(chatId) {
     if (isOpeningChat) return;
-    if (currentChat?.id === chatId) return;
-    
+    if (currentChat?.id === chatId) {
+        if (isMobileDevice()) openChatMobile(chatId);
+        return;
+    }
+
     isOpeningChat = true;
-    
+    const messagesContainer = document.getElementById('messages');
+
     try {
-        const messagesContainer = document.getElementById('messages');
         if (messagesContainer) setMessagesLoadingState(messagesContainer, true);
-        
-        currentChat = {
-            id: chatId,
-            type: 'saved',
-            other_user: SAVED_CHAT
-        };
-        
+
+        currentChat = { id: chatId, type: 'saved', other_user: SAVED_CHAT };
+
         const chatTitle = document.getElementById('chat-title');
-        if (chatTitle) {
-            chatTitle.innerHTML = 'Избранное';
-        }
+        if (chatTitle) chatTitle.textContent = 'Избранное';
         updateChatHeaderAvatar(SAVED_CHAT, { hidden: true });
-        
-        const chatStatus = document.querySelector('.chat-status');
-        if (chatStatus) {
-            chatStatus.textContent = 'личное';
-            chatStatus.className = 'chat-status status-offline';
-        }
-        
+
+        const cs = document.querySelector('.chat-status');
+        if (cs) { cs.textContent = 'личное'; cs.className = 'chat-status'; }
+
+        const inputZone = document.querySelector('.input-zone');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('btn-send-msg');
-        const inputZone = document.querySelector('.input-zone');
-        
         if (inputZone) inputZone.style.display = 'block';
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = 'Сохранить сообщение...';
-            setTimeout(() => messageInput.focus(), 100);
-        }
+        if (messageInput) { messageInput.disabled = false; messageInput.placeholder = 'Сохранить сообщение...'; }
         if (sendButton) sendButton.disabled = false;
-        
+
         await smoothLoadChatMessages(chatId, messagesContainer);
         subscribeToMessages(chatId);
-        
+
         document.querySelectorAll('.dialog-item').forEach(el => {
             el.classList.remove('active');
             if (el.dataset.chatId === chatId) el.classList.add('active');
         });
-        
+
+        if (isMobileDevice()) openChatMobile(chatId);
+
     } finally {
-        const messagesContainer = document.getElementById('messages');
-        setMessagesLoadingState(messagesContainer, false);
+        if (messagesContainer) setMessagesLoadingState(messagesContainer, false);
         isOpeningChat = false;
     }
 }
 
+// Экспорт
 window.loadDialogs = loadDialogs;
 window.renderDialogsList = renderDialogsList;
 window.loadUserSearchResults = loadUserSearchResults;
 window.openChat = openChat;
 window.openSavedChat = openSavedChat;
+window.openGroupChat = openGroupChat;
+window.updateChatHeaderAvatar = updateChatHeaderAvatar;
+window.setMessagesLoadingState = setMessagesLoadingState;
+window.smoothLoadChatMessages = smoothLoadChatMessages;
