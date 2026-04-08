@@ -91,7 +91,6 @@ async function loadMessages(chatId) {
     const container = document.getElementById('messages');
     if (!container) return;
 
-    // Из кэша
     if (messagesCache.has(chatId) && messagesCache.get(chatId).length > 0) {
         renderMessagesList(container, messagesCache.get(chatId));
         return;
@@ -108,7 +107,7 @@ async function loadMessages(chatId) {
         const userIds = [...new Set((msgs || []).map(m => m.user_id))];
         const profilesMap = new Map();
         if (userIds.length > 0) {
-            const { data: profiles } = await supabaseClient.from('profiles').select('id, full_name, username').in('id', userIds);
+            const { data: profiles } = await supabaseClient.from('profiles').select('id, full_name, username, bio').in('id', userIds);
             if (profiles) profiles.forEach(p => profilesMap.set(p.id, p));
         }
         profilesMap.set(BOT_USER_ID, BOT_PROFILE);
@@ -139,9 +138,35 @@ function renderMessagesList(container, list) {
             container.appendChild(div);
             lastDate = d;
         }
-        renderMessage(msg, false);
+        
+        if (msg.is_system) {
+            renderSystemMessage(msg.text, msg.created_at);
+        } else {
+            renderMessage(msg, false);
+        }
     });
     container.scrollTop = container.scrollHeight;
+}
+
+function renderSystemMessage(text, timestamp = null) {
+    const container = document.getElementById('messages');
+    if (!container) return;
+    
+    // Убираем смайлики из текста
+    let cleanText = text
+        .replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️]/g, '')
+        .replace(/^\s+/, '')
+        .trim();
+    
+    const div = document.createElement('div');
+    div.className = 'system-message-wrapper';
+    div.innerHTML = `
+        <div class="system-message">
+            <span class="system-text">${escapeHtml(cleanText)}</span>
+        </div>
+    `;
+    container.appendChild(div);
+    setTimeout(() => container.scrollTop = container.scrollHeight, 50);
 }
 
 function renderMessage(msg, isNewMessage = false) {
@@ -163,7 +188,6 @@ function renderMessage(msg, isNewMessage = false) {
     const isRead = msg.is_read === true;
     const formattedDate = formatDateDivider(msg.created_at);
 
-    // Дата-разделитель при новых сообщениях
     if (isNewMessage) {
         const lastChild = container.lastElementChild;
         let lastDate = lastChild?.dataset?.date || lastChild?.querySelector('.date-divider-text')?.textContent;
@@ -189,12 +213,18 @@ function renderMessage(msg, isNewMessage = false) {
     const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID)
         ? `<span class="read-status ${isRead ? 'read' : 'unread'}">${getReadIcon(isRead)}</span>` : '';
 
-    // В группах показываем имя для чужих сообщений
     const showSender = !isOwn && (isGroup || !isOwn);
+
+    let avatarContent = '';
+    if (isBot) {
+        avatarContent = '<img src="lumina.svg" alt="Bot">';
+    } else {
+        avatarContent = `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
+    }
 
     divMsg.innerHTML = `
         <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
-            ${isBot ? '<img src="lumina.svg" alt="Bot">' : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
+            ${avatarContent}
         </div>
         <div class="msg-bubble">
             ${showSender ? `<div class="msg-sender">${escapeHtml(name)}</div>` : ''}
@@ -203,19 +233,39 @@ function renderMessage(msg, isNewMessage = false) {
         </div>
     `;
 
-    // Контекстное меню (ПК: правая кнопка, телефон: долгое нажатие)
     attachMessageContextMenu(divMsg, msg, isOwn);
 
-    // Аватар → профиль
-    const msgAvatar = divMsg.querySelector('.msg-avatar');
-    if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
-        const profile = isBot ? BOT_PROFILE : (isOwn ? currentProfile : (msg.profiles || currentChat?.other_user));
+// Клик по аватарке — открываем профиль
+const msgAvatar = divMsg.querySelector('.msg-avatar');
+if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
+    // Для своих сообщений
+    if (isOwn) {
+        msgAvatar.classList.add('clickable-avatar');
+        msgAvatar.onclick = e => { 
+            e.stopPropagation(); 
+            openProfileModal(currentProfile, { readOnly: false });
+        };
+    }
+    // Для групповых чатов — показываем профиль отправителя
+    else if (isGroup && !isOwn && !isBot && msg.profiles) {
+        msgAvatar.classList.add('clickable-avatar');
+        msgAvatar.onclick = e => { 
+            e.stopPropagation(); 
+            openProfileModal(msg.profiles, { readOnly: true });
+        };
+    } 
+    // Для личных чатов
+    else if (!isGroup && !isOwn) {
+        const profile = isBot ? BOT_PROFILE : (msg.profiles || currentChat?.other_user);
         if (profile) {
             msgAvatar.classList.add('clickable-avatar');
-            msgAvatar.onclick = e => { e.stopPropagation(); openProfileModal(profile, { readOnly: profile.id !== currentUser?.id }); };
+            msgAvatar.onclick = e => { 
+                e.stopPropagation(); 
+                openProfileModal(profile, { readOnly: profile.id !== currentUser?.id });
+            };
         }
     }
-
+}
     container.appendChild(divMsg);
 
     if (isNewMessage) {
@@ -226,14 +276,13 @@ function renderMessage(msg, isNewMessage = false) {
 }
 
 function attachMessageContextMenu(el, msg, isOwn) {
-    // ПК: правая кнопка мыши
     el.oncontextmenu = e => {
         if (typeof showMessageMenu === 'function') showMessageMenu(e, msg.id, msg.text, isOwn);
         return false;
     };
 
-    // Мобильный: долгое нажатие (500 мс)
     let lt = null;
+    
     el.addEventListener('touchstart', e => {
         lt = setTimeout(() => {
             if (window.navigator.vibrate) window.navigator.vibrate(40);
@@ -250,15 +299,27 @@ function attachMessageContextMenu(el, msg, isOwn) {
             lt = null;
         }, 500);
     }, { passive: true });
-    el.addEventListener('touchend', () => { if (lt) { clearTimeout(lt); lt = null; } });
-    el.addEventListener('touchmove', () => { if (lt) { clearTimeout(lt); lt = null; } });
+    
+    el.addEventListener('touchend', () => { 
+        if (lt) { 
+            clearTimeout(lt); 
+            lt = null; 
+        } 
+    }, { passive: true });
+    
+    el.addEventListener('touchmove', () => { 
+        if (lt) { 
+            clearTimeout(lt); 
+            lt = null; 
+        } 
+    }, { passive: true });
 }
 
 function getReadIcon(isRead) {
     if (isRead) {
-        return `<svg class="read-icon double-check" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 7L5 11L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7L12 11L19 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        return `<svg class="read-icon double-check" viewBox="0 0 20 14" fill="none"><path d="M1 7L5 11L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7L12 11L19 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
-    return `<svg class="read-icon single-check" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 5L4 8L11 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `<svg class="read-icon single-check" viewBox="0 0 12 10" fill="none"><path d="M1 5L4 8L11 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 function setMessageReadStatus(readSpan, isRead) {
@@ -272,11 +333,20 @@ function subscribeToMessages(chatId) {
     realtimeChannel = supabaseClient.channel(`chat-${chatId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, async payload => {
             if (document.querySelector(`.message[data-id="${payload.new.id}"]`)) return;
+            
+            if (payload.new.is_system) {
+                if (currentChat?.id === chatId) {
+                    renderSystemMessage(payload.new.text, payload.new.created_at);
+                }
+                loadDialogs();
+                return;
+            }
+            
             let profile = currentProfile;
             if (payload.new.user_id !== currentUser?.id) {
                 if (payload.new.user_id === BOT_USER_ID) profile = BOT_PROFILE;
                 else {
-                    const { data } = await supabaseClient.from('profiles').select('full_name, username').eq('id', payload.new.user_id).single();
+                    const { data } = await supabaseClient.from('profiles').select('full_name, username, bio').eq('id', payload.new.user_id).single();
                     if (data) profile = data;
                 }
             }
@@ -402,13 +472,13 @@ function updateDialogLastMessage(chatId, text, isOwn) {
     item.parentNode?.insertBefore(item, item.parentNode.firstChild);
 }
 
-// Экспорт
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
 window.loadMessages = loadMessages;
 window.renderMessage = renderMessage;
 window.renderMessagesList = renderMessagesList;
+window.renderSystemMessage = renderSystemMessage;
 window.subscribeToMessages = subscribeToMessages;
 window.setupTypingIndicator = setupTypingIndicator;
 window.sendTypingStatus = sendTypingStatus;
