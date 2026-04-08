@@ -10,13 +10,23 @@ async function setUserOnlineStatus(isOnline) {
     } catch {}
 }
 
+// В startOnlineHeartbeat, добавьте немедленную установку статуса
 function startOnlineHeartbeat() {
     if (onlineInterval) clearInterval(onlineInterval);
+    
+    // Немедленно устанавливаем онлайн
     setUserOnlineStatus(true);
-    // Heartbeat каждые 4 минуты (сервер считает онлайном при last_seen < 7 мин)
+    
+    // Heartbeat каждые 3 минуты
     onlineInterval = setInterval(() => {
-        if (currentUser && isUserOnline) setUserOnlineStatus(true);
-    }, 240000);
+        if (currentUser && isUserOnline) {
+            setUserOnlineStatus(true);
+        }
+    }, 180000);
+    
+    window.addEventListener('beforeunload', () => {
+        setUserOnlineStatus(false);
+    });
 }
 
 function stopOnlineHeartbeat() {
