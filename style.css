@@ -1719,3 +1719,314 @@ body {
         opacity: 1;
     }
 }
+/* Стили для групп */
+.create-group-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.create-group-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.05);
+}
+
+.group-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    margin-right: 8px;
+}
+
+.group-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.group-info-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 12px;
+}
+
+.glass-button-small {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.glass-button-small.danger {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.member-role.admin {
+    background: #f59e0b;
+    color: #000;
+}
+
+.member-role.moderator {
+    background: #3b82f6;
+}
+
+.selected-member-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 4px 8px 4px 12px;
+    font-size: 12px;
+}
+
+.selected-member-tag .remove-member {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+/* ══════════════════════════════════════════════════════════
+   ДОПОЛНЕНИЯ: плавная загрузка, группы, bottom-sheet,
+   онлайн в группах, контекстное меню, edited-mark
+   ══════════════════════════════════════════════════════════ */
+
+/* Плавная загрузка сообщений */
+.messages-container { transition: opacity 0.18s ease; }
+.messages-container.chat-loading { opacity: 0; pointer-events: none; }
+.message { animation: msgFadeIn 0.22s ease both; }
+@keyframes msgFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.dialog-item { animation: dialogFadeIn 0.2s ease both; }
+@keyframes dialogFadeIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Пустые состояния */
+.dialogs-empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: rgba(255,255,255,0.35);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* Индикатор "ред." */
+.edited-mark {
+    font-size: 10px;
+    opacity: 0.5;
+    margin-right: 4px;
+    font-style: italic;
+}
+
+/* Группы: badge в списке диалогов */
+.group-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(124, 77, 255, 0.25);
+    color: #b39dff;
+    border: 1px solid rgba(124, 77, 255, 0.3);
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* Аватар группы в списке */
+.group-avatar-icon {
+    background: rgba(124, 77, 255, 0.18) !important;
+    color: #c5b8ff;
+}
+
+/* Онлайн-статус участников группы */
+.member-avatar { position: relative; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.member-online-dot {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(3,8,26,0.9);
+    transition: background 0.3s;
+}
+.member-online-dot.online { background: #4cde8f; }
+
+/* Участники группы — строка */
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    transition: background 0.15s;
+}
+.member-item:hover { background: rgba(255,255,255,0.05); }
+.member-info { flex: 1; min-width: 0; }
+.member-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-username { font-size: 11px; opacity: .45; }
+.member-role { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.08); text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; }
+.member-role.admin { background: rgba(255,200,0,0.18); color: #ffd54f; }
+.member-role.moderator { background: rgba(100,200,255,0.18); color: #81d4fa; }
+.member-role.member { background: rgba(255,255,255,0.08); color: rgba(255,255,255,.5); }
+.member-actions { display: flex; gap: 5px; flex-shrink: 0; }
+.promote-btn, .danger-btn {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+.promote-btn { background: rgba(255,255,255,0.1); color: rgba(255,255,255,.8); }
+.promote-btn:hover { background: rgba(255,255,255,0.18); }
+.danger-btn { background: rgba(255,70,70,0.2); color: #ff7070; }
+.danger-btn:hover { background: rgba(255,70,70,0.35); }
+
+/* Bottom sheet (мобильное контекстное меню) */
+.msg-bottom-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
+    pointer-events: none;
+}
+.msg-bottom-sheet.sheet-open { pointer-events: auto; }
+
+.sheet-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0);
+    transition: background 0.28s ease;
+}
+.msg-bottom-sheet.sheet-open .sheet-overlay { background: rgba(0,0,0,0.5); }
+
+.sheet-actions {
+    position: relative;
+    background: rgba(15, 20, 40, 0.97);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px 20px 0 0;
+    padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 16px);
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+}
+.msg-bottom-sheet.sheet-open .sheet-actions { transform: translateY(0); }
+
+.sheet-handle {
+    position: relative;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.2);
+    margin: 10px auto 6px;
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+.sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.88);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s;
+    text-align: left;
+    font-family: inherit;
+}
+.sheet-item:active { background: rgba(255,255,255,0.07); }
+.sheet-item.danger { color: #ff6b6b; }
+.sheet-item svg { flex-shrink: 0; opacity: .7; }
+
+/* Убираем online-dot.hidden, теперь скрываем через отсутствие класса online */
+.online-dot { transition: opacity 0.3s, transform 0.3s; }
+.online-dot.hidden { display: none; }
+
+/* Групп-аватар в хедере чата */
+#chat-user-avatar span { line-height: 1; }
+
+/* Состояния загрузки без текста */
+.loading-members {
+    padding: 24px;
+    text-align: center;
+    color: rgba(255,255,255,0.3);
+    font-size: 13px;
+}
+
+
+/* ── ЭКРАН ЗАГРУЗКИ ────────────────────────────────────────── */
+.app-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-deep, #03081a);
+    gap: 28px;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+.app-loader.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+.loader-logo {
+    animation: loaderPulse 1.8s ease-in-out infinite;
+}
+@keyframes loaderPulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.06); }
+}
+.loader-dots {
+    display: flex;
+    gap: 8px;
+}
+.loader-dots span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+    animation: dotBounce 1.2s ease-in-out infinite;
+}
+.loader-dots span:nth-child(2) { animation-delay: 0.15s; }
+.loader-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes dotBounce {
+    0%, 80%, 100% { transform: translateY(0); background: rgba(255,255,255,0.35); }
+    40%           { transform: translateY(-8px); background: rgba(255,255,255,0.75); }
+}
