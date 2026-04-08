@@ -1,9 +1,19 @@
+// auth.js — авторизация и экраны
+
 const screens = {
     reg: document.getElementById('step-register'),
     login: document.getElementById('step-login'),
     chat: document.getElementById('chat-screen'),
     profile: document.getElementById('profile-screen')
 };
+
+function hideLoader() {
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => loader.remove(), 600);
+    }
+}
 
 function showScreen(key) {
     Object.values(screens).forEach(s => {
@@ -23,7 +33,7 @@ async function logout() {
     if (statusSubscription) await supabaseClient.removeChannel(statusSubscription);
     if (typingChannel) await supabaseClient.removeChannel(typingChannel);
     if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
-    
+
     messagesCache.clear();
     dialogCache.clear();
     observedMessages.clear();
@@ -32,18 +42,24 @@ async function logout() {
         window.readStatusObservers.mutationObserver?.disconnect();
     }
     await supabaseClient.auth.signOut();
-    currentUser = null;
-    currentProfile = null;
-    currentChat = null;
+    currentUser = null; currentProfile = null; currentChat = null;
     showScreen('reg');
 }
 
 function initAuth() {
-    const toLogin = document.getElementById('to-login');
-    const toRegister = document.getElementById('to-register');
-    if (toLogin) toLogin.onclick = () => showScreen('login');
-    if (toRegister) toRegister.onclick = () => showScreen('reg');
-    
+    document.getElementById('to-login')?.addEventListener('click', () => showScreen('login'));
+    document.getElementById('to-register')?.addEventListener('click', () => showScreen('reg'));
+
+    // Кнопка «Назад» в профиле
+    document.getElementById('btn-profile-back')?.addEventListener('click', () => showScreen('chat'));
+    document.getElementById('btn-back-profile')?.addEventListener('click', () => showScreen('chat'));
+    document.getElementById('btn-cancel-edit-profile')?.addEventListener('click', () => {
+        const viewMode = document.getElementById('profile-view-mode');
+        const editMode = document.getElementById('profile-edit-mode');
+        if (viewMode) viewMode.style.display = 'block';
+        if (editMode) editMode.style.display = 'none';
+    });
+
     const regBtn = document.getElementById('btn-do-reg');
     if (regBtn) {
         regBtn.onclick = async () => {
@@ -51,10 +67,10 @@ function initAuth() {
             const pass = document.getElementById('reg-password').value.trim();
             const name = document.getElementById('reg-full-name').value.trim();
             if (!user || !pass) return showToast('Заполните все поля', true);
-            
+
             const { data, error } = await supabaseClient.auth.signUp({ email: getEmail(user), password: pass });
             if (error) return showToast(error.message, true);
-            
+
             if (data.user) {
                 await supabaseClient.from('profiles').upsert({
                     id: data.user.id,
@@ -67,7 +83,7 @@ function initAuth() {
             }
         };
     }
-    
+
     const loginBtn = document.getElementById('btn-do-login');
     if (loginBtn) {
         loginBtn.onclick = async () => {
@@ -82,63 +98,59 @@ function initAuth() {
 
 async function handleSuccessfulLogin(user) {
     currentUser = user;
-    
+
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
     if (!p) {
         const username = user.email.split('@')[0].replace(/@lumina\.local$/, '');
         const { data: newProfile } = await supabaseClient.from('profiles').insert({
-            id: currentUser.id,
-            username: username,
-            full_name: username,
-            last_seen: new Date().toISOString()
+            id: currentUser.id, username, full_name: username, last_seen: new Date().toISOString()
         }).select().maybeSingle();
         currentProfile = newProfile;
     } else {
         currentProfile = p;
     }
-    
+
     if (currentProfile) {
         const badge = document.getElementById('current-user-badge');
         if (badge) badge.textContent = currentProfile.full_name;
         if (typeof updateProfileFooter === 'function') updateProfileFooter();
         if (typeof initProfileFooter === 'function') initProfileFooter();
     }
-    
+
     if (typeof loadAllUsers === 'function') await loadAllUsers();
     if (typeof ensureBotChat === 'function') await ensureBotChat();
     if (typeof ensureSavedChat === 'function') await ensureSavedChat();
-    
-    if (typeof showScreen === 'function') showScreen('chat');
-    if (typeof loadDialogs === 'function') await loadDialogs();
-    
+
+    showScreen('chat');
+
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle) chatTitle.textContent = 'Lumina Lite';
     const chatAvatar = document.getElementById('chat-user-avatar');
     if (chatAvatar) chatAvatar.style.display = 'none';
-    
     const chatStatus = document.querySelector('.chat-status');
     if (chatStatus) chatStatus.textContent = 'выберите диалог';
-    
     const inputZone = document.querySelector('.input-zone');
     if (inputZone) inputZone.style.display = 'none';
-    
     const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {
         messagesContainer.innerHTML = `
             <div class="msg-stub">
-                <svg width="48" height="48" style="margin-bottom: 16px; opacity: 0.3;"><use href="#icon-chat"/></svg>
+                <svg width="48" height="48" style="margin-bottom:16px;opacity:.3"><use href="#icon-chat"/></svg>
                 <p>Выберите диалог, чтобы начать общение</p>
-            </div>
-        `;
+            </div>`;
     }
-    
     currentChat = null;
-    
+
+    // Скрываем загрузочный экран с задержкой для плавности
+    setTimeout(hideLoader, 300);
+
+    if (typeof loadDialogs === 'function') await loadDialogs();
+
     document.addEventListener('click', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
     document.addEventListener('keypress', () => { if (typeof updateLastSeen === 'function') updateLastSeen(); });
     setInterval(() => { if (typeof updateLastSeen === 'function') updateLastSeen(); }, 30000);
     if (typeof updateLastSeen === 'function') updateLastSeen();
-    
+
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (window.deletionChannel && supabaseClient) {
         await supabaseClient.removeChannel(window.deletionChannel);
@@ -149,8 +161,8 @@ async function handleSuccessfulLogin(user) {
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
 }
 
-// Экспорт
 window.initAuth = initAuth;
 window.showScreen = showScreen;
 window.logout = logout;
 window.handleSuccessfulLogin = handleSuccessfulLogin;
+window.hideLoader = hideLoader;
