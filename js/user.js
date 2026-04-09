@@ -10,14 +10,11 @@ async function setUserOnlineStatus(isOnline) {
     } catch {}
 }
 
-// В startOnlineHeartbeat, добавьте немедленную установку статуса
 function startOnlineHeartbeat() {
     if (onlineInterval) clearInterval(onlineInterval);
     
-    // Немедленно устанавливаем онлайн
     setUserOnlineStatus(true);
     
-    // Heartbeat каждые 3 минуты
     onlineInterval = setInterval(() => {
         if (currentUser && isUserOnline) {
             setUserOnlineStatus(true);
@@ -78,7 +75,7 @@ function subscribeToUserDeletion() {
 async function loadAllUsers() {
     try {
         const { data } = await supabaseClient.from('profiles')
-            .select('id, username, full_name')
+            .select('id, username, full_name, avatar_url')
             .neq('id', currentUser.id)
             .neq('id', BOT_USER_ID);
         allUsers = data || [];
@@ -98,7 +95,7 @@ async function searchUsersByUsername(username) {
     const clean = username.replace(/^@/, '').trim();
     try {
         const { data } = await supabaseClient.from('profiles')
-            .select('id, username, full_name')
+            .select('id, username, full_name, avatar_url')
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
             .neq('id', currentUser.id)
             .limit(10);
@@ -112,23 +109,6 @@ async function searchUsersByUsername(username) {
         }
         return users;
     } catch { return []; }
-}
-
-async function ensureBotChat() {
-    try {
-        const { data: existing } = await supabaseClient.from('chats')
-            .select('id').eq('type', 'private').contains('participants', [currentUser.id, BOT_USER_ID]).maybeSingle();
-        if (existing) return;
-        const { data: chat } = await supabaseClient.from('chats')
-            .insert({ type: 'private', participants: [currentUser.id, BOT_USER_ID], created_at: new Date().toISOString(), updated_at: new Date().toISOString(), is_bot_chat: true })
-            .select().single();
-        if (chat) {
-            await supabaseClient.from('messages').insert({
-                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль\n\nПриятного общения! 🚀',
-                user_id: BOT_USER_ID, chat_id: chat.id, is_welcome: true, is_system: true
-            });
-        }
-    } catch (err) { console.error('ensureBotChat:', err); }
 }
 
 async function ensureSavedChat() {
@@ -164,7 +144,6 @@ async function cleanupDeadChats() {
     } catch {}
 }
 
-// Экспорт
 window.setUserOnlineStatus = setUserOnlineStatus;
 window.startOnlineHeartbeat = startOnlineHeartbeat;
 window.stopOnlineHeartbeat = stopOnlineHeartbeat;
@@ -174,6 +153,5 @@ window.subscribeToUserDeletion = subscribeToUserDeletion;
 window.loadAllUsers = loadAllUsers;
 window.checkUserExists = checkUserExists;
 window.searchUsersByUsername = searchUsersByUsername;
-window.ensureBotChat = ensureBotChat;
 window.ensureSavedChat = ensureSavedChat;
 window.cleanupDeadChats = cleanupDeadChats;
