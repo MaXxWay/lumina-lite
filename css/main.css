@@ -70,6 +70,12 @@
     justify-content: center;
     cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    overflow: hidden;
+}
+.chat-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 .chat-user-avatar:hover {
     transform: translateY(-1px);
@@ -77,13 +83,6 @@
 }
 .chat-user-avatar.bot-avatar {
     background: #12141D;
-    overflow: hidden;
-}
-.chat-user-avatar.bot-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
 }
 .chat-user-avatar.group-avatar {
     background: linear-gradient(135deg, #667eea, #764ba2);
@@ -130,8 +129,28 @@
     animation: messageAppear 0.3s ease-out;
     position: relative;
 }
-.message.own { justify-content: flex-end; }
-.message.other { justify-content: flex-start; }
+
+/* Аватарка слева - для получателя */
+.message.other {
+    flex-direction: row;
+    justify-content: flex-start;
+}
+.message.other .msg-avatar {
+    order: 1;
+    margin-right: 8px;
+    margin-left: 0;
+}
+
+/* Аватарка справа - для отправителя */
+.message.own {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+}
+.message.own .msg-avatar {
+    order: 2;
+    margin-left: 8px;
+    margin-right: 0;
+}
 
 .msg-avatar {
     width: 35px;
@@ -146,19 +165,26 @@
     flex-shrink: 0;
     position: relative;
     background: #1e293b;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.1s ease;
 }
-.msg-avatar.clickable-avatar { cursor: pointer; }
+.msg-avatar:active {
+    transform: scale(0.95);
+}
 .msg-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 50%;
 }
 .message.own .msg-avatar {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
 }
 .msg-avatar.group-avatar {
     background: linear-gradient(135deg, #667eea, #764ba2);
+}
+.msg-avatar.bot-avatar {
+    background: #12141D;
 }
 
 .msg-bubble {
@@ -291,49 +317,13 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
-/* Статус в шапке чата */
-.chat-status {
-    font-size: 12px;
-    color: var(--text-dim);
-    opacity: 0.7;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
 
-.chat-status.online {
-    color: #22c55e;
-    opacity: 1;
-}
-
-.chat-status.online::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    background: #22c55e;
-    border-radius: 50%;
-    display: inline-block;
-    animation: pulse-green 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-green {
-    0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.6;
-        transform: scale(1.1);
-    }
-}
-/* Зелёный статус онлайн в шапке чата */
 .chat-status.online {
     color: #22c55e !important;
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
-
 .chat-status.online::before {
     content: '';
     width: 8px;
