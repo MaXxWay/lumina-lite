@@ -33,7 +33,7 @@ function renderDialogsList(container, filteredData) {
 
         let avatarHtml = '';
         if (chat.isBot) {
-            avatarHtml = '<img src="lumina.svg" alt="Bot">';
+            avatarHtml = '<img src="lumina.svg" alt="Bot" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
         } else if (chat.isSaved) {
             avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
         } else if (chat.isGroup) {
@@ -43,6 +43,8 @@ function renderDialogsList(container, filteredData) {
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>`;
+        } else if (chat.otherUser?.avatar_url) {
+            avatarHtml = `<img src="${escapeHtml(chat.otherUser.avatar_url)}" alt="${escapeHtml(chat.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
             avatarHtml = `<div class="avatar-letter">${escapeHtml(chat.name.charAt(0))}</div>`;
         }
@@ -131,7 +133,9 @@ function updateChatHeaderAvatar(userProfile, options = {}) {
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>`;
     } else if (isBot) {
-        avatarBtn.innerHTML = '<img src="lumina.svg" alt="Bot">';
+        avatarBtn.innerHTML = '<img src="lumina.svg" alt="Bot" style="width:100%;height:100%;object-fit:cover;">';
+    } else if (userProfile.avatar_url) {
+        avatarBtn.innerHTML = `<img src="${escapeHtml(userProfile.avatar_url)}" alt="${escapeHtml(userProfile.full_name || userProfile.username)}" style="width:100%;height:100%;object-fit:cover;">`;
     } else {
         avatarBtn.innerHTML = escapeHtml((userProfile.full_name || userProfile.username || '?').charAt(0).toUpperCase());
         avatarBtn.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
@@ -273,7 +277,7 @@ async function loadDialogs(searchTerm = '') {
         if (uniqueIds.length > 0) {
             const { data: profiles } = await supabaseClient
                 .from('profiles')
-                .select('id, full_name, username, bio, last_seen, is_online, is_verified')
+                .select('id, full_name, username, bio, last_seen, is_online, is_verified, avatar_url')
                 .in('id', uniqueIds);
             if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
         }
@@ -362,13 +366,22 @@ async function loadUserSearchResults(searchTerm, container) {
         const name = user.full_name || user.username;
         const verifiedBadge = user.is_verified === true ? '<span class="verified-user-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>' : '';
         
+        let avatarHtml = '';
+        if (user.isBot) {
+            avatarHtml = '<img src="lumina.svg" alt="Bot" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+        } else if (user.isSaved) {
+            avatarHtml = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+        } else if (user.avatar_url) {
+            avatarHtml = `<img src="${escapeHtml(user.avatar_url)}" alt="${escapeHtml(name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatarHtml = `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
+        }
+        
         const div = document.createElement('div');
         div.className = 'dialog-item user-search-item';
         div.innerHTML = `
             <div class="dialog-avatar ${user.isBot ? 'bot-avatar' : ''} ${user.isSaved ? 'saved-avatar' : ''}" style="${!user.isBot && !user.isSaved ? 'background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));' : ''}">
-                ${user.isBot ? '<img src="lumina.svg" alt="Bot">'
-                    : user.isSaved ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
-                    : `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`}
+                ${avatarHtml}
             </div>
             <div class="dialog-info">
                 <div class="dialog-name">
@@ -430,13 +443,15 @@ async function openGroupChat(chatId, groupInfo) {
                 if (typeof showGroupProfile === 'function') showGroupProfile(groupInfo.id);
             };
         }
-const chatStatus = document.querySelector('.chat-status');
-if (chatStatus) {
-    chatStatus.textContent = `${groupInfo?.member_count || 0} участников`;
-    chatStatus.className = 'chat-status';
-    chatStatus.style.color = ''; // Сбрасываем цвет, не онлайн
-    chatStatus.removeAttribute('data-online');
-}
+        
+        const chatStatus = document.querySelector('.chat-status');
+        if (chatStatus) {
+            chatStatus.textContent = `${groupInfo?.member_count || 0} участников`;
+            chatStatus.className = 'chat-status';
+            chatStatus.style.color = '';
+            chatStatus.removeAttribute('data-online');
+        }
+        
         const inputZone = document.querySelector('.input-zone');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('btn-send-msg');
