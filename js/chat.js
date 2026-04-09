@@ -107,7 +107,7 @@ async function loadMessages(chatId) {
         const userIds = [...new Set((msgs || []).map(m => m.user_id))];
         const profilesMap = new Map();
         if (userIds.length > 0) {
-            const { data: profiles } = await supabaseClient.from('profiles').select('id, full_name, username, bio').in('id', userIds);
+            const { data: profiles } = await supabaseClient.from('profiles').select('id, full_name, username, bio, avatar_url').in('id', userIds);
             if (profiles) profiles.forEach(p => profilesMap.set(p.id, p));
         }
         profilesMap.set(BOT_USER_ID, BOT_PROFILE);
@@ -152,7 +152,6 @@ function renderSystemMessage(text, timestamp = null) {
     const container = document.getElementById('messages');
     if (!container) return;
     
-    // Удаляем ВСЕ эмодзи из системных сообщений
     let cleanText = text
         .replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️💾👥]/g, '')
         .replace(/\s+/g, ' ')
@@ -215,9 +214,14 @@ function renderMessage(msg, isNewMessage = false) {
 
     const showSender = !isOwn && (isGroup || !isOwn);
 
+    // Формируем аватар
     let avatarContent = '';
+    const avatarUrl = msg.profiles?.avatar_url;
+    
     if (isBot) {
         avatarContent = '<img src="lumina.svg" alt="Bot">';
+    } else if (avatarUrl) {
+        avatarContent = `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}">`;
     } else {
         avatarContent = `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
     }
@@ -342,7 +346,7 @@ function subscribeToMessages(chatId) {
             if (payload.new.user_id !== currentUser?.id) {
                 if (payload.new.user_id === BOT_USER_ID) profile = BOT_PROFILE;
                 else {
-                    const { data } = await supabaseClient.from('profiles').select('full_name, username, bio').eq('id', payload.new.user_id).single();
+                    const { data } = await supabaseClient.from('profiles').select('full_name, username, bio, avatar_url').eq('id', payload.new.user_id).single();
                     if (data) profile = data;
                 }
             }
@@ -488,14 +492,12 @@ function updateChatStatusFromProfile(profile) {
     cs.textContent = status.text;
     cs.className = `chat-status ${status.class}`;
     
-    // Добавляем стиль для онлайн статуса
     if (status.isOnline) {
         cs.style.color = '#22c55e';
     } else {
         cs.style.color = '';
     }
 }
-// В user.js, замените функцию ensureBotChat на эту:
 
 async function ensureBotChat() {
     try {
@@ -506,7 +508,6 @@ async function ensureBotChat() {
             .maybeSingle();
         
         if (existing) {
-            // Проверяем есть ли сообщения от бота
             const { data: botMessages } = await supabaseClient.from('messages')
                 .select('id')
                 .eq('chat_id', existing.id)
@@ -514,12 +515,10 @@ async function ensureBotChat() {
                 .limit(1);
             
             if (!botMessages || botMessages.length === 0) {
-                // Отправляем приветственное сообщение
                 await supabaseClient.from('messages').insert({
-                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль\n\nПриятного общения! 🚀',
+                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
-                    is_welcome: true,
                     is_system: false,
                     created_at: new Date().toISOString()
                 });
@@ -541,10 +540,9 @@ async function ensureBotChat() {
         
         if (chat) {
             await supabaseClient.from('messages').insert({
-                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль\n\nПриятного общения! 🚀',
+                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
                 user_id: BOT_USER_ID,
                 chat_id: chat.id,
-                is_welcome: true,
                 is_system: false,
                 created_at: new Date().toISOString()
             });
@@ -570,3 +568,4 @@ window.updateDialogLastMessage = updateDialogLastMessage;
 window.setMessageReadStatus = setMessageReadStatus;
 window.attachMessageContextMenu = attachMessageContextMenu;
 window.updateChatStatusFromProfile = updateChatStatusFromProfile;
+window.ensureBotChat = ensureBotChat;
