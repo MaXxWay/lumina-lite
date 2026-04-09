@@ -48,8 +48,47 @@ function subscribeToUserStatus(userId) {
             if (payload.new && currentChat?.other_user?.id === userId && typeof updateChatStatusFromProfile === 'function') {
                 updateChatStatusFromProfile(payload.new);
             }
+            // Обновляем аватар если он изменился
+            if (payload.new && payload.new.avatar_url !== payload.old?.avatar_url) {
+                updateUserAvatarInUI(userId, payload.new.avatar_url);
+            }
         })
         .subscribe();
+}
+
+function updateUserAvatarInUI(userId, avatarUrl) {
+    // Обновляем аватар в списке диалогов
+    document.querySelectorAll(`.dialog-item[data-other-user-id="${userId}"] .dialog-avatar`).forEach(avatar => {
+        if (avatarUrl) {
+            avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            const name = avatar.closest('.dialog-item')?.querySelector('.dialog-name')?.textContent || '?';
+            avatar.innerHTML = `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
+        }
+    });
+    
+    // Обновляем аватар в сообщениях
+    document.querySelectorAll(`.message .msg-avatar`).forEach(avatar => {
+        const msg = avatar.closest('.message');
+        if (msg && msg.dataset.userId === userId) {
+            if (avatarUrl) {
+                avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
+            }
+        }
+    });
+    
+    // Обновляем аватар в шапке чата
+    if (currentChat?.other_user?.id === userId) {
+        const chatAvatar = document.getElementById('chat-user-avatar');
+        if (chatAvatar) {
+            if (avatarUrl) {
+                chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
+            } else {
+                const name = currentChat.other_user?.full_name || currentChat.other_user?.username || '?';
+                chatAvatar.textContent = name.charAt(0).toUpperCase();
+            }
+        }
+    }
 }
 
 function subscribeToUserDeletion() {
@@ -75,7 +114,7 @@ function subscribeToUserDeletion() {
 async function loadAllUsers() {
     try {
         const { data } = await supabaseClient.from('profiles')
-            .select('id, username, full_name, avatar_url')
+            .select('id, username, full_name, avatar_url, bio, is_verified')
             .neq('id', currentUser.id)
             .neq('id', BOT_USER_ID);
         allUsers = data || [];
@@ -95,7 +134,7 @@ async function searchUsersByUsername(username) {
     const clean = username.replace(/^@/, '').trim();
     try {
         const { data } = await supabaseClient.from('profiles')
-            .select('id, username, full_name, avatar_url')
+            .select('id, username, full_name, avatar_url, bio, is_verified')
             .or(`username.ilike.%${clean}%,full_name.ilike.%${clean}%`)
             .neq('id', currentUser.id)
             .limit(10);
@@ -109,6 +148,59 @@ async function searchUsersByUsername(username) {
         }
         return users;
     } catch { return []; }
+}
+
+async function ensureBotChat() {
+    try {
+        const { data: existing } = await supabaseClient.from('chats')
+            .select('id')
+            .eq('type', 'private')
+            .contains('participants', [currentUser.id, BOT_USER_ID])
+            .maybeSingle();
+        
+        if (existing) {
+            const { data: botMessages } = await supabaseClient.from('messages')
+                .select('id')
+                .eq('chat_id', existing.id)
+                .eq('user_id', BOT_USER_ID)
+                .limit(1);
+            
+            if (!botMessages || botMessages.length === 0) {
+                await supabaseClient.from('messages').insert({
+                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
+                    user_id: BOT_USER_ID,
+                    chat_id: existing.id,
+                    is_system: false,
+                    created_at: new Date().toISOString()
+                });
+            }
+            return;
+        }
+        
+        const { data: chat, error } = await supabaseClient.from('chats')
+            .insert({ 
+                type: 'private', 
+                participants: [currentUser.id, BOT_USER_ID], 
+                created_at: new Date().toISOString(), 
+                updated_at: new Date().toISOString(), 
+                is_bot_chat: true 
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        
+        if (chat) {
+            await supabaseClient.from('messages').insert({
+                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
+                user_id: BOT_USER_ID,
+                chat_id: chat.id,
+                is_system: false,
+                created_at: new Date().toISOString()
+            });
+        }
+    } catch (err) { 
+        console.error('ensureBotChat:', err); 
+    }
 }
 
 async function ensureSavedChat() {
@@ -149,9 +241,11 @@ window.startOnlineHeartbeat = startOnlineHeartbeat;
 window.stopOnlineHeartbeat = stopOnlineHeartbeat;
 window.updateLastSeen = updateLastSeen;
 window.subscribeToUserStatus = subscribeToUserStatus;
+window.updateUserAvatarInUI = updateUserAvatarInUI;
 window.subscribeToUserDeletion = subscribeToUserDeletion;
 window.loadAllUsers = loadAllUsers;
 window.checkUserExists = checkUserExists;
 window.searchUsersByUsername = searchUsersByUsername;
+window.ensureBotChat = ensureBotChat;
 window.ensureSavedChat = ensureSavedChat;
 window.cleanupDeadChats = cleanupDeadChats;
