@@ -1,4 +1,4 @@
-// auth.js — упрощённая версия с ОДНИМ полем для кода
+// auth.js — регистрация и вход по OTP-коду
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -229,18 +229,15 @@ async function handleSuccessfulLogin(user) {
 
     console.log('currentProfile загружен:', window.currentProfile);
 
-    // Обновляем UI
+    // Обновляем UI сразу
     if (window.currentProfile) {
         const badge = document.getElementById('current-user-badge');
         if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
         
-        // Принудительно обновляем футер несколько раз для надёжности
-        setTimeout(() => {
-            if (typeof updateProfileFooter === 'function') updateProfileFooter();
-        }, 100);
-        setTimeout(() => {
-            if (typeof updateProfileFooter === 'function') updateProfileFooter();
-        }, 500);
+        // Вызываем обновление футера
+        if (typeof updateProfileFooter === 'function') {
+            updateProfileFooter();
+        }
     }
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
@@ -267,6 +264,13 @@ async function handleSuccessfulLogin(user) {
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
+    
+    // Ещё раз обновляем футер после загрузки всего
+    setTimeout(() => {
+        if (typeof updateProfileFooter === 'function') {
+            updateProfileFooter();
+        }
+    }, 500);
 }
 
 async function logout() {
