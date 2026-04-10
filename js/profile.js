@@ -104,18 +104,32 @@ async function optimizeImage(file) {
 }
 
 function updateAllAvatars() {
-    if (!currentProfile) return;
+    if (!window.currentProfile) {
+        console.log('updateAllAvatars: currentProfile не найден');
+        return;
+    }
     
-    const avatarUrl = currentProfile.avatar_url;
+    const avatarUrl = window.currentProfile.avatar_url;
+    console.log('updateAllAvatars: avatarUrl =', avatarUrl);
     
     const footerAvatar = document.getElementById('footer-avatar');
     if (footerAvatar) {
         if (avatarUrl) {
             footerAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            footerAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
+            footerAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
         }
     }
+    
+    const profileAvatar = document.getElementById('profile-avatar-letter');
+    if (profileAvatar) {
+        if (avatarUrl) {
+            profileAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            profileAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+        }
+    }
+}
     
     const profileAvatar = document.getElementById('profile-avatar-letter');
     if (profileAvatar) {
