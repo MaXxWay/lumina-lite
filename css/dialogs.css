@@ -275,7 +275,7 @@
     transform: scale(1.05);
 }
 
-/* Выплывающее меню */
+/* Выплывающее меню с анимацией и размытием */
 .side-menu {
     position: fixed;
     inset: 0;
@@ -288,9 +288,11 @@
 .side-menu-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .side-menu.visible .side-menu-overlay {
     opacity: 1;
@@ -299,15 +301,17 @@
     position: relative;
     width: 280px;
     height: 100%;
-    background: rgba(3, 8, 26, 0.98);
+    background: rgba(3, 8, 26, 0.95);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--glass-border);
     border-radius: 0 var(--radius-card) var(--radius-card) 0;
     padding: 20px;
     display: flex;
     flex-direction: column;
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 4px 0 30px rgba(0, 0, 0, 0.3);
 }
 .side-menu.visible .side-menu-content {
     transform: translateX(0);
@@ -317,6 +321,7 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 24px;
+    animation: slideInFromLeft 0.4s ease-out 0.1s both;
 }
 .side-menu-header h3 {
     font-size: 18px;
@@ -339,6 +344,7 @@
 .side-menu-close:hover {
     background: rgba(255, 255, 255, 0.15);
     color: white;
+    transform: rotate(90deg);
 }
 .side-menu-items {
     display: flex;
@@ -352,19 +358,43 @@
     padding: 14px 16px;
     border-radius: 12px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
     color: var(--text-main);
+    animation: slideInFromLeft 0.4s ease-out both;
+    transform-origin: left;
 }
+.side-menu-item:nth-child(1) { animation-delay: 0.15s; }
+.side-menu-item:nth-child(2) { animation-delay: 0.25s; }
 .side-menu-item:hover {
     background: rgba(255, 255, 255, 0.08);
+    transform: translateX(4px);
+}
+.side-menu-item:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.12);
 }
 .side-menu-item svg {
     stroke: var(--accent-cyan);
     flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+.side-menu-item:hover svg {
+    transform: scale(1.1);
 }
 .side-menu-item span {
     font-size: 15px;
     font-weight: 500;
+}
+
+@keyframes slideInFromLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @media (max-width: 480px) {
