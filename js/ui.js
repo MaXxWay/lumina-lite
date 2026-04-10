@@ -1,14 +1,16 @@
 // ui.js — UI компоненты, контекстное меню, профиль
-
 function updateProfileFooter() {
     const profile = window.currentProfile;
-    if (!profile) return;
+    if (!profile) {
+        console.log('updateProfileFooter: profile не найден');
+        return;
+    }
     
     const avatar = document.getElementById('footer-avatar');
     const name = document.getElementById('footer-name');
     const uname = document.getElementById('footer-username');
     
-    console.log('updateProfileFooter: профиль =', profile);
+    console.log('updateProfileFooter: обновляем футер с профилем:', profile.full_name, profile.username);
     
     if (avatar) {
         if (profile.avatar_url) {
@@ -18,8 +20,14 @@ function updateProfileFooter() {
             avatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     }
-    if (name) name.textContent = profile.full_name || profile.username || 'Пользователь';
-    if (uname) uname.textContent = `@${profile.username || 'username'}`;
+    
+    if (name) {
+        name.textContent = profile.full_name || profile.username || 'Пользователь';
+    }
+    
+    if (uname) {
+        uname.textContent = `@${profile.username || 'username'}`;
+    }
 }
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
