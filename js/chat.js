@@ -501,10 +501,16 @@ function updateChatStatusFromProfile(profile) {
 
 async function ensureBotChat() {
     try {
+        const userId = window.currentUser?.id || currentUser?.id;
+        if (!userId) {
+            console.error('ensureBotChat: currentUser не определён');
+            return;
+        }
+        
         const { data: existing } = await supabaseClient.from('chats')
             .select('id')
             .eq('type', 'private')
-            .contains('participants', [currentUser.id, BOT_USER_ID])
+            .contains('participants', [userId, BOT_USER_ID])
             .maybeSingle();
         
         if (existing) {
@@ -516,7 +522,7 @@ async function ensureBotChat() {
             
             if (!botMessages || botMessages.length === 0) {
                 await supabaseClient.from('messages').insert({
-                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
+                    text: 'Добро пожаловать в Lumina Lite! Приятного общения!',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_system: false,
@@ -529,7 +535,7 @@ async function ensureBotChat() {
         const { data: chat, error } = await supabaseClient.from('chats')
             .insert({ 
                 type: 'private', 
-                participants: [currentUser.id, BOT_USER_ID], 
+                participants: [userId, BOT_USER_ID], 
                 created_at: new Date().toISOString(), 
                 updated_at: new Date().toISOString(), 
                 is_bot_chat: true 
