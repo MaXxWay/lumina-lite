@@ -1,4 +1,4 @@
-// auth.js — регистрация и вход по OTP-коду (6 полей)
+// auth.js — упрощённая версия с ОДНИМ полем для кода
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -33,15 +33,14 @@ function showScreen(key) {
     
     if (key === 'login') resetLoginForm();
     if (key === 'reg') resetRegForm();
-    
-    setTimeout(() => setupOtpInputs(), 50);
 }
 
 function resetLoginForm() {
     document.getElementById('login-step-email').style.display = 'block';
     document.getElementById('login-step-code').style.display = 'none';
     document.getElementById('login-email').value = '';
-    clearOtpInputs();
+    const otpInput = document.getElementById('login-otp-code');
+    if (otpInput) otpInput.value = '';
     currentLoginEmail = '';
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
 }
@@ -52,93 +51,25 @@ function resetRegForm() {
     document.getElementById('reg-username').value = '';
     document.getElementById('reg-full-name').value = '';
     document.getElementById('reg-email').value = '';
-    clearOtpInputs();
+    const otpInput = document.getElementById('reg-otp-code');
+    if (otpInput) otpInput.value = '';
     pendingRegistration = null;
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
 }
 
-function clearOtpInputs() {
-    for (let i = 1; i <= 6; i++) {
-        const input = document.getElementById(`otp-${i}`);
-        if (input) input.value = '';
-    }
-}
-
-function getOtpCode() {
-    let code = '';
-    for (let i = 1; i <= 6; i++) {
-        const input = document.getElementById(`otp-${i}`);
-        if (input) code += input.value;
-    }
-    return code;
-}
-
-function setupOtpInputs() {
-    const inputs = [];
-    for (let i = 1; i <= 6; i++) {
-        const el = document.getElementById(`otp-${i}`);
-        if (el) el.disabled = false;
-        inputs.push(el);
-    }
-    
-    inputs.forEach((input, index) => {
-        if (!input) return;
-        
-        const newInput = input.cloneNode(true);
-        input.parentNode.replaceChild(newInput, input);
-        inputs[index] = newInput;
-    });
-    
-    inputs.forEach((input, index) => {
-        if (!input) return;
-        
-        input.addEventListener('focus', (e) => e.target.select());
-        
-        input.addEventListener('input', (e) => {
-            let value = e.target.value.replace(/\D/g, '');
-            e.target.value = value;
-            
-            if (value && index < 5) inputs[index + 1].focus();
-            
-            if (getOtpCode().length === 6) {
-                setTimeout(() => {
-                    if (pendingRegistration) verifyRegCode();
-                    else verifyCode();
-                }, 100);
-            }
-        });
-        
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !e.target.value && index > 0) {
-                inputs[index - 1].focus();
-                inputs[index - 1].value = '';
-                e.preventDefault();
-            }
-        });
-        
-        input.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const paste = (e.clipboardData || window.clipboardData).getData('text');
-            const digits = paste.replace(/\D/g, '').slice(0, 6).split('');
-            digits.forEach((digit, i) => { if (inputs[i]) inputs[i].value = digit; });
-            if (digits.length === 6) {
-                setTimeout(() => {
-                    if (pendingRegistration) verifyRegCode();
-                    else verifyCode();
-                }, 100);
-            } else if (digits.length > 0) {
-                inputs[Math.min(digits.length, 5)].focus();
-            }
-        });
-    });
-    
-    setTimeout(() => inputs[0]?.focus(), 100);
-}
-
 async function verifyCode() {
-    const code = getOtpCode();
-    if (code.length !== 6) return showToast('Введите 6 цифр', true);
-    if (!currentLoginEmail) return showToast('Ошибка', true);
+    const otpInput = document.getElementById('login-otp-code');
+    const code = otpInput ? otpInput.value.trim() : '';
+    
+    if (code.length !== 6) {
+        showToast('Введите 6 цифр', true);
+        return;
+    }
+    
+    if (!currentLoginEmail) {
+        showToast('Ошибка: email не найден', true);
+        return;
+    }
 
     const btn = document.getElementById('btn-verify-code');
     btn.disabled = true;
@@ -154,8 +85,6 @@ async function verifyCode() {
         if (data.user) await handleSuccessfulLogin(data.user);
     } catch (error) {
         showToast('Неверный код', true);
-        clearOtpInputs();
-        document.getElementById('otp-1')?.focus();
     } finally {
         btn.disabled = false;
         btn.textContent = 'Подтвердить код';
@@ -163,9 +92,18 @@ async function verifyCode() {
 }
 
 async function verifyRegCode() {
-    const code = getOtpCode();
-    if (code.length !== 6) return showToast('Введите 6 цифр', true);
-    if (!pendingRegistration) return showToast('Ошибка', true);
+    const otpInput = document.getElementById('reg-otp-code');
+    const code = otpInput ? otpInput.value.trim() : '';
+    
+    if (code.length !== 6) {
+        showToast('Введите 6 цифр', true);
+        return;
+    }
+    
+    if (!pendingRegistration) {
+        showToast('Ошибка: данные не найдены', true);
+        return;
+    }
 
     const btn = document.getElementById('btn-verify-reg-code');
     btn.disabled = true;
@@ -194,8 +132,6 @@ async function verifyRegCode() {
         }
     } catch (error) {
         showToast('Неверный код', true);
-        clearOtpInputs();
-        document.getElementById('otp-1')?.focus();
     } finally {
         btn.disabled = false;
         btn.textContent = 'Подтвердить код';
@@ -214,8 +150,6 @@ async function resendCode(type) {
         const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
         if (error) throw error;
         showToast('📧 Код отправлен!');
-        clearOtpInputs();
-        document.getElementById('otp-1')?.focus();
         startResendTimer(type);
     } catch (error) {
         showToast('Ошибка: ' + error.message, true);
@@ -308,8 +242,6 @@ function isValidEmail(email) {
 }
 
 function initAuth() {
-    setupOtpInputs();
-    
     document.getElementById('to-login')?.addEventListener('click', () => showScreen('login'));
     document.getElementById('to-register')?.addEventListener('click', () => showScreen('reg'));
     document.getElementById('btn-change-email-login')?.addEventListener('click', resetLoginForm);
@@ -341,9 +273,7 @@ function initAuth() {
             document.getElementById('reg-step-form').style.display = 'none';
             document.getElementById('reg-step-code').style.display = 'block';
             document.getElementById('reg-code-email-display').textContent = email;
-            
-            clearOtpInputs();
-            document.getElementById('otp-1')?.focus();
+            document.getElementById('reg-otp-code').focus();
             
             showToast('📧 Код отправлен!');
             startResendTimer('reg');
@@ -374,9 +304,7 @@ function initAuth() {
             document.getElementById('login-step-email').style.display = 'none';
             document.getElementById('login-step-code').style.display = 'block';
             document.getElementById('code-email-display').textContent = email;
-            
-            clearOtpInputs();
-            document.getElementById('otp-1')?.focus();
+            document.getElementById('login-otp-code').focus();
             
             showToast('📧 Код отправлен!');
             startResendTimer('login');
@@ -398,4 +326,3 @@ window.showScreen = showScreen;
 window.logout = logout;
 window.handleSuccessfulLogin = handleSuccessfulLogin;
 window.hideLoader = hideLoader;
-window.getOtpCode = getOtpCode;
