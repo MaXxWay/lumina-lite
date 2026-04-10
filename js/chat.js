@@ -212,9 +212,8 @@ function renderMessage(msg, isNewMessage = false) {
     const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID)
         ? `<span class="read-status ${isRead ? 'read' : 'unread'}">${getReadIcon(isRead)}</span>` : '';
 
-    const showSender = !isOwn && (isGroup || !isOwn);
+    const showSender = !isOwn && isGroup;
 
-    // Формируем аватар
     let avatarContent = '';
     const avatarUrl = msg.profiles?.avatar_url;
     
