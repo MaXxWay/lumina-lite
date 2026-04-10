@@ -82,23 +82,16 @@
                 <button id="btn-do-reg" class="glass-button primary">Зарегистрироваться</button>
             </div>
             
-            <div id="reg-step-code" style="display:none;">
-                <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
-                    <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
-                    <p style="color: var(--accent-cyan); font-weight: 600;" id="reg-code-email-display"></p>
-                    <button id="btn-change-email-reg" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить данные</button>
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;">
-                    <input type="text" id="otp-1" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" autofocus>
-                    <input type="text" id="otp-2" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-3" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-4" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-5" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-6" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                </div>
-                <button id="btn-verify-reg-code" class="glass-button primary">Подтвердить код</button>
-                <button id="btn-resend-reg-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
-            </div>
+<div id="reg-step-code" style="display:none;">
+    <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
+        <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
+        <p style="color: var(--accent-cyan); font-weight: 600;" id="reg-code-email-display"></p>
+        <button id="btn-change-email-reg" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить данные</button>
+    </div>
+    <input type="text" id="reg-otp-code" class="glass-input" placeholder="Введите 6-значный код" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 20px; letter-spacing: 4px;">
+    <button id="btn-verify-reg-code" class="glass-button primary" style="margin-top: 16px;">Подтвердить код</button>
+    <button id="btn-resend-reg-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
+</div>
             
             <p class="auth-footer">Есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
         </div>
@@ -118,23 +111,16 @@
                 <button id="btn-send-code" class="glass-button primary">Отправить код</button>
             </div>
             
-            <div id="login-step-code" style="display:none;">
-                <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
-                    <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
-                    <p style="color: var(--accent-cyan); font-weight: 600;" id="code-email-display"></p>
-                    <button id="btn-change-email-login" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить email</button>
-                </div>
-                <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;">
-                    <input type="text" id="otp-1" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" autofocus>
-                    <input type="text" id="otp-2" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-3" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-4" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-5" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                    <input type="text" id="otp-6" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]">
-                </div>
-                <button id="btn-verify-code" class="glass-button primary">Подтвердить код</button>
-                <button id="btn-resend-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
-            </div>
+<div id="login-step-code" style="display:none;">
+    <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
+        <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
+        <p style="color: var(--accent-cyan); font-weight: 600;" id="code-email-display"></p>
+        <button id="btn-change-email-login" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить email</button>
+    </div>
+    <input type="text" id="login-otp-code" class="glass-input" placeholder="Введите 6-значный код" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 20px; letter-spacing: 4px;">
+    <button id="btn-verify-code" class="glass-button primary" style="margin-top: 16px;">Подтвердить код</button>
+    <button id="btn-resend-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
+</div>
             
             <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Создать</span></p>
         </div>
