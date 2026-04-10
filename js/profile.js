@@ -4,26 +4,20 @@ async function uploadAvatar(file) {
     if (!file || !currentUser) return null;
     
     try {
-        // Проверка размера (макс 5MB)
         if (file.size > 5 * 1024 * 1024) {
             showToast('Файл слишком большой (макс 5MB)', true);
             return null;
         }
         
-        // Проверка типа
         if (!file.type.startsWith('image/')) {
             showToast('Можно загружать только изображения', true);
             return null;
         }
         
-        // Оптимизация изображения
         const optimizedFile = await optimizeImage(file);
-        
-        // Генерируем имя файла
         const fileExt = file.name.split('.').pop();
         const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
         
-        // Загружаем в Supabase Storage
         const { data, error } = await supabaseClient.storage
             .from('avatars')
             .upload(fileName, optimizedFile, {
@@ -33,12 +27,10 @@ async function uploadAvatar(file) {
             
         if (error) throw error;
         
-        // Получаем публичный URL
         const { data: { publicUrl } } = supabaseClient.storage
             .from('avatars')
             .getPublicUrl(fileName);
             
-        // Обновляем профиль
         const { error: updateError } = await supabaseClient
             .from('profiles')
             .update({ 
@@ -49,7 +41,6 @@ async function uploadAvatar(file) {
             
         if (updateError) throw updateError;
         
-        // Удаляем старый аватар если есть
         if (currentProfile?.avatar_url) {
             try {
                 const oldPath = currentProfile.avatar_url.split('/').pop();
@@ -63,10 +54,7 @@ async function uploadAvatar(file) {
             }
         }
         
-        // Обновляем локальный профиль
         currentProfile.avatar_url = publicUrl;
-        
-        // Обновляем UI
         updateAllAvatars();
         
         showToast('Аватар обновлен');
@@ -86,7 +74,6 @@ async function optimizeImage(file) {
         const ctx = canvas.getContext('2d');
         
         img.onload = () => {
-            // Максимальные размеры
             const MAX_SIZE = 400;
             let width = img.width;
             let height = img.height;
@@ -121,7 +108,6 @@ function updateAllAvatars() {
     
     const avatarUrl = currentProfile.avatar_url;
     
-    // Обновляем аватар в футере
     const footerAvatar = document.getElementById('footer-avatar');
     if (footerAvatar) {
         if (avatarUrl) {
@@ -131,7 +117,6 @@ function updateAllAvatars() {
         }
     }
     
-    // Обновляем большой аватар в профиле
     const profileAvatar = document.getElementById('profile-avatar-letter');
     if (profileAvatar) {
         if (avatarUrl) {
@@ -141,7 +126,6 @@ function updateAllAvatars() {
         }
     }
     
-    // Обновляем аватар в шапке чата если это наш профиль
     const chatAvatar = document.getElementById('chat-user-avatar');
     if (chatAvatar && currentChat?.other_user?.id === currentUser.id) {
         if (avatarUrl) {
@@ -151,7 +135,6 @@ function updateAllAvatars() {
         }
     }
     
-    // Обновляем аватары в сообщениях
     document.querySelectorAll('.message.own .msg-avatar').forEach(avatar => {
         if (avatarUrl) {
             avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
@@ -166,7 +149,6 @@ async function removeAvatar() {
     if (!confirmed) return;
     
     try {
-        // Удаляем из хранилища
         const oldPath = currentProfile.avatar_url.split('/').pop();
         if (oldPath) {
             await supabaseClient.storage
@@ -174,7 +156,6 @@ async function removeAvatar() {
                 .remove([`${currentUser.id}/${oldPath}`]);
         }
         
-        // Обновляем профиль
         await supabaseClient
             .from('profiles')
             .update({ 
@@ -237,8 +218,7 @@ function createAvatarUploader() {
                 </svg>
                 Загрузить фото
             `;
-            // Обновляем кнопки
-            location.reload(); // Простой способ обновить UI
+            location.reload();
         }
     };
     
@@ -252,14 +232,14 @@ function createAvatarUploader() {
     return container;
 }
 
-// Расширяем openProfileModal для поддержки аватаров
 const originalOpenProfileModal = window.openProfileModal;
 window.openProfileModal = function(profile = currentProfile, options = {}) {
     if (!profile) return;
     
-    originalOpenProfileModal(profile, options);
+    if (typeof originalOpenProfileModal === 'function') {
+        originalOpenProfileModal(profile, options);
+    }
     
-    // Добавляем загрузчик аватара если это свой профиль в режиме редактирования
     const isOwnProfile = profile.id === currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
     
@@ -277,7 +257,6 @@ window.openProfileModal = function(profile = currentProfile, options = {}) {
         }
     }
     
-    // Отображаем аватар в режиме просмотра
     const avatarBig = document.getElementById('profile-avatar-letter');
     if (avatarBig && profile.avatar_url) {
         avatarBig.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
