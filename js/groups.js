@@ -354,7 +354,6 @@ let groupManager = null;
 window.GroupManager = GroupManager;
 window.groupManager = groupManager;
 window.initGroups = initGroups;
-// Дополнительная гарантия, что groupManager доступен
 window.waitForGroupManager = function(callback) {
     if (groupManager) {
         callback();
@@ -362,3 +361,4 @@ window.waitForGroupManager = function(callback) {
         setTimeout(() => window.waitForGroupManager(callback), 100);
     }
 };
+// БОЛЬШЕ НИЧЕГО ПОСЛЕ ЭТОГО!
