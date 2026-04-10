@@ -247,20 +247,19 @@ async function handleSuccessfulLogin(user) {
 
     // Обновляем UI профиля с задержкой для гарантии загрузки DOM
     setTimeout(() => {
-        if (window.currentProfile) {
-            const badge = document.getElementById('current-user-badge');
-            if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
-            
-            if (typeof updateProfileFooter === 'function') {
-                updateProfileFooter();
-            }
-            if (typeof initProfileFooter === 'function') {
-                initProfileFooter();
-            }
-            if (typeof updateAllAvatars === 'function') {
-                updateAllAvatars();
-            }
-        }
+// В функции handleSuccessfulLogin, после загрузки профиля:
+if (window.currentProfile) {
+    const badge = document.getElementById('current-user-badge');
+    if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
+    
+    // Принудительно обновляем футер
+    if (typeof updateProfileFooter === 'function') {
+        setTimeout(() => updateProfileFooter(), 200);
+    }
+    if (typeof initProfileFooter === 'function') {
+        setTimeout(() => initProfileFooter(), 200);
+    }
+}
     }, 100);
 
     // Загружаем пользователей
