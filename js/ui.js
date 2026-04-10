@@ -147,24 +147,27 @@ function initProfileScreen() {
     const viewMode = document.getElementById('profile-view-mode');
     const editMode = document.getElementById('profile-edit-mode');
 
-    if (editBtn) editBtn.onclick = () => {
-        if (viewMode) viewMode.style.display = 'none';
-        if (editMode) editMode.style.display = 'block';
-        
-        // Заполняем поля текущими данными
-        const fullname = document.getElementById('profile-fullname');
-        const username = document.getElementById('profile-username');
-        const bio = document.getElementById('profile-bio');
-        
-        if (fullname && window.currentProfile) fullname.value = window.currentProfile.full_name || '';
-        if (username && window.currentProfile) {
-            username.value = window.currentProfile.username || '';
-            username.disabled = false;
-            username.style.opacity = '1';
-            username.style.cursor = 'text';
-        }
-        if (bio && window.currentProfile) bio.value = window.currentProfile.bio || '';
-    };
+if (editBtn) editBtn.onclick = () => {
+    if (viewMode) viewMode.style.display = 'none';
+    if (editMode) editMode.style.display = 'block';
+    
+    const fullname = document.getElementById('profile-fullname');
+    const username = document.getElementById('profile-username');
+    const bio = document.getElementById('profile-bio');
+    
+    if (fullname && window.currentProfile) {
+        fullname.value = window.currentProfile.full_name || '';
+    }
+    if (username && window.currentProfile) {
+        username.value = window.currentProfile.username || '';
+        username.disabled = false;
+        username.style.opacity = '1';
+        username.style.cursor = 'text';
+    }
+    if (bio && window.currentProfile) {
+        bio.value = window.currentProfile.bio || '';
+    }
+};
 
     if (saveBtn) saveBtn.onclick = async () => {
         const fn = document.getElementById('profile-fullname')?.value.trim();
