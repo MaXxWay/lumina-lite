@@ -35,8 +35,12 @@ function initProfileFooter() {
 }
 
 function openProfileModal(profile = currentProfile, options = {}) {
-    if (!profile) return;
-    const isOwnProfile = profile.id === currentUser?.id;
+    if (!profile) {
+        profile = window.currentProfile;
+        if (!profile) return;
+    }
+    
+    const isOwnProfile = profile.id === window.currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
     const fromGroup = options.fromGroup === true;
     const groupId = options.groupId;
@@ -44,6 +48,8 @@ function openProfileModal(profile = currentProfile, options = {}) {
     const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
 
     const modal = document.getElementById('profile-screen');
+    if (!modal) return;
+    
     const avatarLetter = document.getElementById('profile-avatar-letter');
     const fullname = document.getElementById('profile-fullname');
     const username = document.getElementById('profile-username');
@@ -95,7 +101,7 @@ function openProfileModal(profile = currentProfile, options = {}) {
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
     if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
 
-    if (modal) modal.style.display = 'flex';
+    modal.style.display = 'flex';
 }
 
 function updateChatStatusFromProfile(profile) {
