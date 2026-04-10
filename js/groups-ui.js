@@ -281,6 +281,7 @@ function attachMemberContextMenu(element, groupId, userId, currentRole, fullname
 }
 
 async function showMemberContextMenu(event, groupId, userId, currentRole, fullname) {
+    // Создаём меню, если его нет
     let menu = document.getElementById('member-context-menu');
     if (!menu) {
         const menuHTML = `
@@ -337,12 +338,8 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.style.maxWidth = '280px';
         menu.style.width = 'auto';
         
-        const rect = menu.getBoundingClientRect();
-        const vw = window.innerWidth;
         let left = x;
-        if (left + 280 > vw - 10) {
-            left = vw - 290;
-        }
+        if (left + 280 > window.innerWidth - 10) left = window.innerWidth - 290;
         if (left < 10) left = 10;
         
         menu.style.left = `${left}px`;
@@ -352,8 +349,7 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.style.right = 'auto';
         menu.classList.add('menu-visible');
     }
-    const menu = document.getElementById('member-context-menu');
-if (!menu) return;
+    
     const promoteModerator = menu.querySelector('[data-action="promote-moderator"]');
     const promoteAdmin = menu.querySelector('[data-action="promote-admin"]');
     const demoteBtn = menu.querySelector('[data-action="demote"]');
@@ -474,8 +470,8 @@ async function showAddMembersToGroup(groupId) {
 }
 
 async function showEditGroupModal(groupId, group) {
-    const m = document.getElementById('edit-group-modal');
-    if (!m) {
+    let modal = document.getElementById('edit-group-modal');
+    if (!modal) {
         const modalHTML = `
             <div id="edit-group-modal" class="custom-modal" style="display:none;">
                 <div class="custom-modal-overlay"></div>
@@ -504,9 +500,9 @@ async function showEditGroupModal(groupId, group) {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHTML);
+        modal = document.getElementById('edit-group-modal');
     }
 
-    const modal = document.getElementById('edit-group-modal');
     modal.style.display = 'flex';
 
     const nameInput = document.getElementById('edit-group-name');
