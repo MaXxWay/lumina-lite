@@ -204,132 +204,59 @@ async function handleSuccessfulLogin(user) {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
     pendingRegistration = null;
     
-    // Устанавливаем currentUser глобально
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    // Загружаем профиль
-    const { data: p, error } = await supabaseClient.from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-    
-    if (error) {
-        console.error('Ошибка загрузки профиля:', error);
-    }
-    
+    const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (!p) {
-        // Создаём профиль, если его нет
         const username = user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
-        
-        const { data: newProfile, error: insertError } = await supabaseClient.from('profiles')
-            .insert({
-                id: user.id, 
-                username: user.user_metadata?.username || username,
-                full_name: fullName,
-                email: user.email, 
-                last_seen: new Date().toISOString()
-            })
-            .select()
-            .maybeSingle();
-            
-        if (insertError) {
-            console.error('Ошибка создания профиля:', insertError);
-        }
-        
+        const { data: newProfile } = await supabaseClient.from('profiles').insert({
+            id: user.id, 
+            username: user.user_metadata?.username || username,
+            full_name: fullName,
+            email: user.email, 
+            last_seen: new Date().toISOString()
+        }).select().maybeSingle();
         window.currentProfile = newProfile;
     } else {
         window.currentProfile = p;
     }
-    
+
     console.log('currentProfile загружен:', window.currentProfile);
 
-    // Обновляем UI профиля с задержкой для гарантии загрузки DOM
-    setTimeout(() => {
-// В функции handleSuccessfulLogin, после загрузки профиля:
-if (window.currentProfile) {
-    const badge = document.getElementById('current-user-badge');
-    if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
-    
-    // Принудительно обновляем футер
-    if (typeof updateProfileFooter === 'function') {
-        setTimeout(() => updateProfileFooter(), 200);
+    if (window.currentProfile) {
+        document.getElementById('current-user-badge').textContent = window.currentProfile.full_name || 'Пользователь';
+        setTimeout(() => {
+            if (typeof updateProfileFooter === 'function') updateProfileFooter();
+            if (typeof initProfileFooter === 'function') initProfileFooter();
+        }, 100);
     }
-    if (typeof initProfileFooter === 'function') {
-        setTimeout(() => initProfileFooter(), 200);
-    }
-}
-    }, 100);
 
-    // Загружаем пользователей
-    if (typeof loadAllUsers === 'function') {
-        try {
-            await loadAllUsers();
-        } catch (e) {
-            console.error('loadAllUsers error:', e);
-        }
-    }
+    if (typeof loadAllUsers === 'function') await loadAllUsers();
     
-    // Создаём чаты
     if (typeof ensureBotChat === 'function') {
-        try {
-            await ensureBotChat();
-        } catch (e) {
-            console.error('ensureBotChat error:', e);
-        }
+        try { await ensureBotChat(); } catch (e) { console.error('ensureBotChat error:', e); }
     }
     
     if (typeof ensureSavedChat === 'function') {
-        try {
-            await ensureSavedChat();
-        } catch (e) {
-            console.error('ensureSavedChat error:', e);
-        }
+        try { await ensureSavedChat(); } catch (e) { console.error('ensureSavedChat error:', e); }
     }
 
     showScreen('chat');
-    
-    // Сбрасываем интерфейс чата
-    const chatTitle = document.getElementById('chat-title');
-    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
-    
-    const chatAvatar = document.getElementById('chat-user-avatar');
-    if (chatAvatar) chatAvatar.style.display = 'none';
-    
-    const chatStatus = document.querySelector('.chat-status');
-    if (chatStatus) chatStatus.textContent = 'выберите диалог';
-    
-    const inputZone = document.querySelector('.input-zone');
-    if (inputZone) inputZone.style.display = 'none';
-    
-    const messagesContainer = document.getElementById('messages');
-    if (messagesContainer) {
-        messagesContainer.innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
-    }
-    
+    document.getElementById('chat-title').textContent = 'Lumina Lite';
+    document.getElementById('chat-user-avatar').style.display = 'none';
+    document.querySelector('.chat-status').textContent = 'выберите диалог';
+    document.querySelector('.input-zone').style.display = 'none';
+    document.getElementById('messages').innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
     window.currentChat = null;
 
     setTimeout(hideLoader, 300);
-    
-    if (typeof loadDialogs === 'function') {
-        try {
-            await loadDialogs();
-        } catch (e) {
-            console.error('loadDialogs error:', e);
-        }
-    }
-    
+    if (typeof loadDialogs === 'function') await loadDialogs();
     if (typeof updateLastSeen === 'function') updateLastSeen();
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
-    if (typeof cleanupDeadChats === 'function') {
-        try {
-            await cleanupDeadChats();
-        } catch (e) {
-            console.error('cleanupDeadChats error:', e);
-        }
-    }
+    if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
 }
 
 async function logout() {
