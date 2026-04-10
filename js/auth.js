@@ -207,9 +207,9 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
+    // Загружаем профиль
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (!p) {
-        // Берём данные из метаданных пользователя (то, что ввели при регистрации)
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
         
@@ -229,12 +229,18 @@ async function handleSuccessfulLogin(user) {
 
     console.log('currentProfile загружен:', window.currentProfile);
 
+    // Обновляем UI
     if (window.currentProfile) {
-        document.getElementById('current-user-badge').textContent = window.currentProfile.full_name || 'Пользователь';
+        const badge = document.getElementById('current-user-badge');
+        if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
+        
+        // Принудительно обновляем футер несколько раз для надёжности
         setTimeout(() => {
             if (typeof updateProfileFooter === 'function') updateProfileFooter();
-            if (typeof initProfileFooter === 'function') initProfileFooter();
         }, 100);
+        setTimeout(() => {
+            if (typeof updateProfileFooter === 'function') updateProfileFooter();
+        }, 500);
     }
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
