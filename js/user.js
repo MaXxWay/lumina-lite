@@ -205,19 +205,38 @@ async function ensureBotChat() {
 
 async function ensureSavedChat() {
     try {
+        const userId = window.currentUser?.id || currentUser?.id;
+        if (!userId) {
+            console.error('ensureSavedChat: currentUser не определён');
+            return;
+        }
+        
         const { data: existing } = await supabaseClient.from('chats')
-            .select('id').eq('type', 'saved').contains('participants', [currentUser.id]).maybeSingle();
+            .select('id').eq('type', 'saved').contains('participants', [userId]).maybeSingle();
         if (existing) return;
+        
         const { data: chat } = await supabaseClient.from('chats')
-            .insert({ type: 'saved', participants: [currentUser.id], created_at: new Date().toISOString(), updated_at: new Date().toISOString(), is_saved_chat: true })
+            .insert({ 
+                type: 'saved', 
+                participants: [userId], 
+                created_at: new Date().toISOString(), 
+                updated_at: new Date().toISOString(), 
+                is_saved_chat: true 
+            })
             .select().single();
         if (chat) {
             await supabaseClient.from('messages').insert({
                 text: '💾 Избранное\n\nЗдесь хранятся ваши сохранённые сообщения.',
-                user_id: currentUser.id, chat_id: chat.id, is_system: true, is_read: true
+                user_id: userId, 
+                chat_id: chat.id, 
+                is_system: true, 
+                is_read: true,
+                created_at: new Date().toISOString()
             });
         }
-    } catch (err) { console.error('ensureSavedChat:', err); }
+    } catch (err) { 
+        console.error('ensureSavedChat:', err); 
+    }
 }
 
 async function cleanupDeadChats() {
