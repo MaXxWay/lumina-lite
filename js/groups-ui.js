@@ -167,14 +167,11 @@ async function showGroupProfile(groupId) {
                 const memberData = group.members?.find(m => m.user_id === userId);
                 const memberProfileData = memberData?.profile || {};
                 
-                // Обработчик открытия профиля ПОВЕРХ группы
                 const openProfileHandler = (e) => {
                     e.stopPropagation();
-                    // Скрываем окно группы
                     const groupModal = document.getElementById('group-profile-modal');
                     if (groupModal) groupModal.style.display = 'none';
                     
-                    // Сохраняем ID группы для возврата
                     window.lastOpenedGroupId = groupId;
                     
                     const profile = {
@@ -184,7 +181,6 @@ async function showGroupProfile(groupId) {
                         bio: memberProfileData.bio || ''
                     };
                     
-                    // Открываем профиль
                     openProfileModal(profile, { 
                         readOnly: true,
                         fromGroup: true,
@@ -284,7 +280,6 @@ function attachMemberContextMenu(element, groupId, userId, currentRole, fullname
     });
 }
 
-// В showMemberContextMenu, добавьте проверку на выход за границы экрана
 async function showMemberContextMenu(event, groupId, userId, currentRole, fullname) {
     let menu = document.getElementById('member-context-menu');
     if (!menu) {
@@ -342,7 +337,6 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.style.maxWidth = '280px';
         menu.style.width = 'auto';
         
-        // Проверяем выход за правый край
         const rect = menu.getBoundingClientRect();
         const vw = window.innerWidth;
         let left = x;
@@ -358,10 +352,6 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.style.right = 'auto';
         menu.classList.add('menu-visible');
     }
-    
-    // ... остальной код без изменений
-}
-
     
     const promoteModerator = menu.querySelector('[data-action="promote-moderator"]');
     const promoteAdmin = menu.querySelector('[data-action="promote-admin"]');
@@ -433,7 +423,7 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
     });
     
     setTimeout(() => document.addEventListener('click', closeMenu), 10);
-
+}
 
 async function showAddMembersToGroup(groupId) {
     const m = document.getElementById('add-members-modal');
