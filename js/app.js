@@ -5,7 +5,6 @@
 
     const { data: { session } } = await supabaseClient.auth.getSession();
 
-    // Слушатель изменений авторизации
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user && !window.currentUser) {
             await handleSuccessfulLogin(session.user);
@@ -25,6 +24,7 @@
         initSearchDialogs();
         initSendButton();
         initUserActivityTracking();
+        if (typeof initSideMenu === 'function') initSideMenu();
 
         window.addEventListener('resize', updateDvh);
         updateDvh();
@@ -33,7 +33,6 @@
 
         if (typeof initGroups === 'function') {
             await initGroups();
-            console.log('Groups initialized after login');
         }
         
         if (typeof initMobileOptimizations === 'function') {
