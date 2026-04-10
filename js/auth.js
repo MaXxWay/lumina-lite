@@ -210,7 +210,6 @@ async function handleSuccessfulLogin(user) {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
     pendingRegistration = null;
     
-    // ВАЖНО: сначала устанавливаем currentUser глобально
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
@@ -233,6 +232,7 @@ async function handleSuccessfulLogin(user) {
         document.getElementById('current-user-badge').textContent = window.currentProfile.full_name;
         if (typeof updateProfileFooter === 'function') updateProfileFooter();
         if (typeof initProfileFooter === 'function') initProfileFooter();
+        if (typeof updateAllAvatars === 'function') updateAllAvatars();
     }
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
@@ -351,7 +351,7 @@ function initAuth() {
             document.getElementById('code-email-display').textContent = email;
             document.getElementById('login-otp-code').focus();
             
-            showToast('Код отправлен!');
+            showToast('📧 Код отправлен!');
             startResendTimer('login');
         } catch (error) {
             if (error.message.includes('user not found')) showToast('Пользователь не найден', true);
