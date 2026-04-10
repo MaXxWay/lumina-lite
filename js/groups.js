@@ -351,6 +351,8 @@ async function initGroups() {
     groupManager = new GroupManager(supabaseClient);
     window.groupManager = groupManager;
     console.log('GroupManager initialized');
+    // Старая кнопка больше не нужна — управление через меню
+}
 
     const btn = document.getElementById('create-group-btn');
     if (btn) {
