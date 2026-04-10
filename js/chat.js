@@ -214,83 +214,6 @@ function renderMessage(msg, isNewMessage = false) {
 
     const showSender = !isOwn && isGroup;
 
-    // Формируем аватар
-    let avatarContent = '';
-    const avatarUrl = msg.profiles?.avatar_url;
-    
-    if (isBot) {
-        avatarContent = '<img src="lumina.svg" alt="Bot">';
-    } else if (avatarUrl) {
-        avatarContent = `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}">`;
-    } else {
-        avatarContent = `<div class="avatar-letter">${escapeHtml(name.charAt(0))}</div>`;
-    }
-
-    divMsg.innerHTML = `
-        <div class="msg-avatar ${isBot ? 'bot-avatar' : ''}">
-            ${avatarContent}
-        </div>
-        <div class="msg-bubble">
-            ${showSender ? `<div class="msg-sender">${escapeHtml(name)}</div>` : ''}
-            <div class="text">${escapeHtml(msg.text)}</div>
-            <div class="msg-time">${timeStr}${msg.is_edited ? ' <span class="edited-mark">ред.</span>' : ''} ${readStatusHtml}</div>
-        </div>
-    `;
-
-    attachMessageContextMenu(divMsg, msg, isOwn);
-
-    const msgAvatar = divMsg.querySelector('.msg-avatar');
-    if (msgAvatar && typeof openProfileModal === 'function' && currentChat?.id !== SAVED_CHAT_ID) {
-        if (isOwn) {
-            msgAvatar.classList.add('clickable-avatar');
-            msgAvatar.onclick = e => { 
-                e.stopPropagation(); 
-                openProfileModal(currentProfile, { readOnly: false });
-            };
-        }
-        else if (isGroup && !isOwn && !isBot && msg.profiles) {
-            msgAvatar.classList.add('clickable-avatar');
-            msgAvatar.onclick = e => { 
-                e.stopPropagation(); 
-                openProfileModal(msg.profiles, { readOnly: true });
-            };
-        } 
-        else if (!isGroup && !isOwn) {
-            const profile = isBot ? BOT_PROFILE : (msg.profiles || currentChat?.other_user);
-            if (profile) {
-                msgAvatar.classList.add('clickable-avatar');
-                msgAvatar.onclick = e => { 
-                    e.stopPropagation(); 
-                    openProfileModal(profile, { readOnly: profile.id !== currentUser?.id });
-                };
-            }
-        }
-    }
-    container.appendChild(divMsg);
-
-    if (isNewMessage) {
-        setTimeout(() => container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' }), 50);
-    } else {
-        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 10);
-    }
-}
-
-    const divMsg = document.createElement('div');
-    divMsg.className = [
-        'message',
-        isOwn ? 'own' : 'other',
-        isBot ? 'bot-message' : '',
-        !isOwn && !isRead && currentChat?.id !== SAVED_CHAT_ID ? 'unread-message' : ''
-    ].filter(Boolean).join(' ');
-    divMsg.dataset.id = msg.id;
-    divMsg.dataset.text = msg.text;
-    divMsg.dataset.date = formattedDate;
-
-    const readStatusHtml = (isOwn && !isBot && currentChat?.id !== SAVED_CHAT_ID)
-        ? `<span class="read-status ${isRead ? 'read' : 'unread'}">${getReadIcon(isRead)}</span>` : '';
-
-    const showSender = !isOwn && isGroup;
-
     let avatarContent = '';
     const avatarUrl = msg.profiles?.avatar_url;
     
@@ -598,7 +521,7 @@ async function ensureBotChat() {
             
             if (!botMessages || botMessages.length === 0) {
                 await supabaseClient.from('messages').insert({
-                    text: 'Добро пожаловать в Lumina Lite! Приятного общения!',
+                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
                     user_id: BOT_USER_ID,
                     chat_id: existing.id,
                     is_system: false,
@@ -633,7 +556,7 @@ async function ensureBotChat() {
         console.error('ensureBotChat:', err); 
     }
 }
-window.sendMsg = sendMsg;
+
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
