@@ -61,6 +61,8 @@ async function verifyCode() {
     const otpInput = document.getElementById('login-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
     
+    console.log('verifyCode: код =', code, 'длина =', code.length);
+    
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
         return;
@@ -81,10 +83,15 @@ async function verifyCode() {
             token: code,
             type: 'email'
         });
+        
         if (error) throw error;
         if (data.user) await handleSuccessfulLogin(data.user);
+        
     } catch (error) {
-        showToast('Неверный код', true);
+        console.error('Ошибка verifyOtp:', error);
+        showToast('Неверный код: ' + error.message, true);
+        otpInput.value = '';
+        otpInput.focus();
     } finally {
         btn.disabled = false;
         btn.textContent = 'Подтвердить код';
@@ -94,6 +101,8 @@ async function verifyCode() {
 async function verifyRegCode() {
     const otpInput = document.getElementById('reg-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
+    
+    console.log('verifyRegCode: код =', code, 'длина =', code.length);
     
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
@@ -114,7 +123,12 @@ async function verifyRegCode() {
         const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
             email: pendingRegistration.email,
             password: password,
-            options: { data: { username: pendingRegistration.username, full_name: pendingRegistration.fullName } }
+            options: {
+                data: {
+                    username: pendingRegistration.username,
+                    full_name: pendingRegistration.fullName
+                }
+            }
         });
         
         if (signUpError) throw signUpError;
@@ -127,11 +141,15 @@ async function verifyRegCode() {
                 email: pendingRegistration.email,
                 last_seen: new Date().toISOString()
             });
+            
             showToast('✅ Аккаунт создан!');
             await handleSuccessfulLogin(signUpData.user);
         }
     } catch (error) {
-        showToast('Неверный код', true);
+        console.error('Ошибка verifyRegCode:', error);
+        showToast('Неверный код: ' + error.message, true);
+        otpInput.value = '';
+        otpInput.focus();
     } finally {
         btn.disabled = false;
         btn.textContent = 'Подтвердить код';
@@ -147,9 +165,20 @@ async function resendCode(type) {
     btn.textContent = 'Отправка...';
 
     try {
-        const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+        const { error } = await supabaseClient.auth.signInWithOtp({ 
+            email, 
+            options: { shouldCreateUser: false } 
+        });
         if (error) throw error;
         showToast('📧 Код отправлен!');
+        
+        // Очищаем поле ввода
+        const otpInput = type === 'login' ? document.getElementById('login-otp-code') : document.getElementById('reg-otp-code');
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.focus();
+        }
+        
         startResendTimer(type);
     } catch (error) {
         showToast('Ошибка: ' + error.message, true);
@@ -252,6 +281,7 @@ function initAuth() {
         document.getElementById('profile-edit-mode').style.display = 'none';
     });
 
+    // Регистрация
     document.getElementById('btn-do-reg')?.addEventListener('click', async () => {
         const username = document.getElementById('reg-username').value.trim();
         const fullName = document.getElementById('reg-full-name').value.trim();
@@ -288,6 +318,7 @@ function initAuth() {
     document.getElementById('btn-verify-reg-code')?.addEventListener('click', verifyRegCode);
     document.getElementById('btn-resend-reg-code')?.addEventListener('click', () => resendCode('reg'));
 
+    // Вход
     document.getElementById('btn-send-code')?.addEventListener('click', async () => {
         const email = document.getElementById('login-email').value.trim();
         if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
