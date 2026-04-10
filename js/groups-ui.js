@@ -352,7 +352,8 @@ async function showMemberContextMenu(event, groupId, userId, currentRole, fullna
         menu.style.right = 'auto';
         menu.classList.add('menu-visible');
     }
-    
+    const menu = document.getElementById('member-context-menu');
+if (!menu) return;
     const promoteModerator = menu.querySelector('[data-action="promote-moderator"]');
     const promoteAdmin = menu.querySelector('[data-action="promote-admin"]');
     const demoteBtn = menu.querySelector('[data-action="demote"]');
