@@ -172,7 +172,6 @@ async function resendCode(type) {
         if (error) throw error;
         showToast('📧 Код отправлен!');
         
-        // Очищаем поле ввода
         const otpInput = type === 'login' ? document.getElementById('login-otp-code') : document.getElementById('reg-otp-code');
         if (otpInput) {
             otpInput.value = '';
@@ -210,7 +209,10 @@ function startResendTimer(type) {
 async function handleSuccessfulLogin(user) {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
     pendingRegistration = null;
+    
+    // ВАЖНО: сначала устанавливаем currentUser глобально
     window.currentUser = user;
+    console.log('currentUser установлен:', window.currentUser.id);
 
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (!p) {
@@ -234,8 +236,22 @@ async function handleSuccessfulLogin(user) {
     }
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
-    if (typeof ensureBotChat === 'function') await ensureBotChat();
-    if (typeof ensureSavedChat === 'function') await ensureSavedChat();
+    
+    if (typeof ensureBotChat === 'function') {
+        try {
+            await ensureBotChat();
+        } catch (e) {
+            console.error('ensureBotChat error:', e);
+        }
+    }
+    
+    if (typeof ensureSavedChat === 'function') {
+        try {
+            await ensureSavedChat();
+        } catch (e) {
+            console.error('ensureSavedChat error:', e);
+        }
+    }
 
     showScreen('chat');
     document.getElementById('chat-title').textContent = 'Lumina Lite';
@@ -281,7 +297,6 @@ function initAuth() {
         document.getElementById('profile-edit-mode').style.display = 'none';
     });
 
-    // Регистрация
     document.getElementById('btn-do-reg')?.addEventListener('click', async () => {
         const username = document.getElementById('reg-username').value.trim();
         const fullName = document.getElementById('reg-full-name').value.trim();
@@ -318,7 +333,6 @@ function initAuth() {
     document.getElementById('btn-verify-reg-code')?.addEventListener('click', verifyRegCode);
     document.getElementById('btn-resend-reg-code')?.addEventListener('click', () => resendCode('reg'));
 
-    // Вход
     document.getElementById('btn-send-code')?.addEventListener('click', async () => {
         const email = document.getElementById('login-email').value.trim();
         if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
@@ -337,7 +351,7 @@ function initAuth() {
             document.getElementById('code-email-display').textContent = email;
             document.getElementById('login-otp-code').focus();
             
-            showToast('📧 Код отправлен!');
+            showToast('Код отправлен!');
             startResendTimer('login');
         } catch (error) {
             if (error.message.includes('user not found')) showToast('Пользователь не найден', true);
