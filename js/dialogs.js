@@ -176,6 +176,14 @@ async function loadDialogs(searchTerm = '') {
     isUpdatingDialogs = true;
 
     try {
+        const userId = window.currentUser?.id || currentUser?.id;
+        if (!userId) {
+            console.error('loadDialogs: currentUser не определён');
+            container.innerHTML = '<div class="dialogs-empty">Ошибка загрузки</div>';
+            isUpdatingDialogs = false;
+            return;
+        }
+
         const { data: allChats, error } = await supabaseClient
             .from('chats')
             .select('id, type, participants, updated_at, created_at, last_message, is_group, group_id')
@@ -184,7 +192,7 @@ async function loadDialogs(searchTerm = '') {
         if (error) throw error;
 
         const chats = (allChats || []).filter(c =>
-            c.participants && c.participants.includes(currentUser.id)
+            c.participants && c.participants.includes(userId)
         );
 
         const groupIds = chats.filter(c => c.is_group && c.group_id).map(c => c.group_id);
@@ -203,7 +211,7 @@ async function loadDialogs(searchTerm = '') {
                 validChats.push(chat);
                 continue;
             }
-            const otherId = chat.participants?.find(id => id !== currentUser.id);
+            const otherId = chat.participants?.find(id => id !== userId);
             if (!otherId || otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
                 validChats.push(chat);
                 continue;
@@ -227,7 +235,7 @@ async function loadDialogs(searchTerm = '') {
             .from('messages')
             .select('chat_id')
             .eq('is_read', false)
-            .neq('user_id', currentUser.id)
+            .neq('user_id', userId)
             .in('chat_id', validChats.map(c => c.id));
 
         const unreadCounts = new Map();
@@ -240,7 +248,7 @@ async function loadDialogs(searchTerm = '') {
             const cached = messagesCache.get(chat.id);
             if (cached && cached.length > 0) {
                 const last = cached[cached.length - 1];
-                const isOwn = last.user_id === currentUser.id;
+                const isOwn = last.user_id === userId;
                 let text = last.text || '';
                 if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
                 lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
@@ -260,7 +268,7 @@ async function loadDialogs(searchTerm = '') {
                     let cleanText = lastMsg.text.replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️]/g, '').trim();
                     lastMessages.set(chat.id, cleanText.slice(0, 40));
                 } else {
-                    const isOwn = lastMsg.user_id === currentUser.id;
+                    const isOwn = lastMsg.user_id === userId;
                     let text = lastMsg.text || '';
                     if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
                     lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
@@ -312,7 +320,7 @@ async function loadDialogs(searchTerm = '') {
                 continue;
             }
 
-            const otherId = chat.participants?.find(id => id !== currentUser.id);
+            const otherId = chat.participants?.find(id => id !== userId);
             const otherUser = profileMap.get(otherId);
             if (!otherUser && otherId !== BOT_USER_ID) continue;
 
