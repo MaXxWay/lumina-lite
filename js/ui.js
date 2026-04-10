@@ -1,21 +1,54 @@
-// ui.js — UI компоненты, контекстное меню, профиль
+// ui.js — исправленные функции для профиля
 
 function updateProfileFooter() {
-    if (!currentProfile) return;
+    const profile = window.currentProfile;
+    if (!profile) {
+        console.log('updateProfileFooter: currentProfile не найден');
+        return;
+    }
+    
     const avatar = document.getElementById('footer-avatar');
     const name = document.getElementById('footer-name');
     const uname = document.getElementById('footer-username');
-    if (avatar) avatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-    if (name) name.textContent = currentProfile.full_name || currentProfile.username || 'Пользователь';
-    if (uname) uname.textContent = `@${currentProfile.username || 'username'}`;
+    
+    console.log('updateProfileFooter: профиль =', profile.full_name);
+    
+    if (avatar) {
+        if (profile.avatar_url) {
+            avatar.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatar.textContent = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
+            avatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
+        }
+    }
+    
+    if (name) {
+        name.textContent = profile.full_name || profile.username || 'Пользователь';
+    }
+    
+    if (uname) {
+        uname.textContent = `@${profile.username || 'username'}`;
+    }
 }
 
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
+    
     const info = footer.querySelector('.profile-footer-info');
-    if (info) info.onclick = () => { if (currentProfile) openProfileModal(); };
-    document.getElementById('footer-settings')?.addEventListener('click', () => { if (currentProfile) openProfileModal(); });
+    if (info) {
+        info.onclick = () => { 
+            if (window.currentProfile) {
+                openProfileModal(window.currentProfile, { readOnly: false });
+            }
+        };
+    }
+    
+    document.getElementById('footer-settings')?.addEventListener('click', () => { 
+        if (window.currentProfile) {
+            openProfileModal(window.currentProfile, { readOnly: false });
+        }
+    });
     
     const logoutBtn = document.getElementById('footer-logout');
     if (logoutBtn) {
@@ -23,18 +56,25 @@ function initProfileFooter() {
         logoutBtn.onclick = async () => {
             const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
             if (confirmed) {
-                stopOnlineHeartbeat();
-                if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
+                if (typeof stopOnlineHeartbeat === 'function') stopOnlineHeartbeat();
+                if (window.realtimeChannel) await supabaseClient.removeChannel(window.realtimeChannel);
                 await supabaseClient.auth.signOut();
-                currentUser = null; currentProfile = null; currentChat = null;
-                showScreen('reg');
+                window.currentUser = null;
+                window.currentProfile = null;
+                window.currentChat = null;
+                showScreen('login');
                 showToast('Вы вышли из аккаунта');
             }
         };
     }
+    
+    // Сразу обновляем, если профиль уже загружен
+    if (window.currentProfile) {
+        updateProfileFooter();
+    }
 }
 
-function openProfileModal(profile = currentProfile, options = {}) {
+function openProfileModal(profile = window.currentProfile, options = {}) {
     if (!profile) {
         profile = window.currentProfile;
         if (!profile) return;
@@ -42,67 +82,37 @@ function openProfileModal(profile = currentProfile, options = {}) {
     
     const isOwnProfile = profile.id === window.currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
-    const fromGroup = options.fromGroup === true;
-    const groupId = options.groupId;
-    const groupName = options.groupName;
-    const letter = (profile.full_name || profile.username || '?')[0].toUpperCase();
+    const letter = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
 
     const modal = document.getElementById('profile-screen');
     if (!modal) return;
     
     const avatarLetter = document.getElementById('profile-avatar-letter');
-    const fullname = document.getElementById('profile-fullname');
-    const username = document.getElementById('profile-username');
-    const bio = document.getElementById('profile-bio');
-    const title = document.querySelector('.profile-modal-title');
-    const viewMode = document.getElementById('profile-view-mode');
-    const editMode = document.getElementById('profile-edit-mode');
     const nameView = document.getElementById('profile-name-view');
     const usernameView = document.getElementById('profile-username-view');
     const bioView = document.getElementById('profile-bio-view');
     const editBtn = document.getElementById('btn-edit-profile');
-    const saveBtn = document.getElementById('btn-save-profile');
-    const logoutBtn = document.getElementById('btn-logout-profile');
+    const title = document.querySelector('.profile-modal-title');
     
-    const oldChatBtn = document.getElementById('profile-chat-btn');
-    if (oldChatBtn) oldChatBtn.remove();
-    
-    if (fromGroup && !isOwnProfile && profile.id !== BOT_USER_ID && profile.id !== SAVED_CHAT_ID) {
-        const chatBtn = document.createElement('button');
-        chatBtn.id = 'profile-chat-btn';
-        chatBtn.className = 'glass-button primary';
-        chatBtn.style.marginTop = '16px';
-        chatBtn.innerHTML = '<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-chat"/></svg>Перейти в чат';
-        const btnContainer = document.querySelector('.profile-modal-body');
-        if (btnContainer) btnContainer.appendChild(chatBtn);
-        
-        chatBtn.onclick = async () => {
-            if (modal) modal.style.display = 'none';
-            const chatId = await getOrCreatePrivateChat(profile.id);
-            await openChat(chatId, profile.id, profile);
-            showScreen('chat');
-        };
-    }
-
     if (avatarLetter) {
-        avatarLetter.innerHTML = profile.id === BOT_USER_ID ? '<img src="lumina.svg" alt="Bot">' : letter;
+        if (profile.avatar_url) {
+            avatarLetter.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatarLetter.textContent = letter;
+        }
         avatarLetter.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
     }
+    
     if (nameView) nameView.textContent = profile.full_name || profile.username || 'Пользователь';
     if (usernameView) usernameView.textContent = `@${profile.username || 'username'}`;
     if (bioView) bioView.textContent = profile.bio || 'Пользователь пока ничего не рассказал о себе.';
-    if (fullname) { fullname.value = profile.full_name || ''; fullname.readOnly = readOnly; }
-    if (username) username.value = profile.username || '';
-    if (bio) { bio.value = profile.bio || ''; bio.readOnly = readOnly; }
-    if (viewMode) viewMode.style.display = 'block';
-    if (editMode) editMode.style.display = 'none';
     if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
     if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
-    if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
-    if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
 
     modal.style.display = 'flex';
 }
+
+// Остальные функции оставь без изменений
 
 function updateChatStatusFromProfile(profile) {
     const cs = document.querySelector('.chat-status');
