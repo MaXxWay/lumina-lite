@@ -408,6 +408,54 @@ function initProfileScreen() {
         }
     };
 }
+// Инициализация бургер-меню
+function initSideMenu() {
+    const menuBtn = document.getElementById('menu-btn');
+    const sideMenu = document.getElementById('side-menu');
+    const closeBtn = document.getElementById('close-menu-btn');
+    const overlay = document.querySelector('.side-menu-overlay');
+    const createGroupBtn = document.getElementById('create-group-menu-btn');
+    const createChannelBtn = document.getElementById('create-channel-menu-btn');
+    
+    if (!menuBtn || !sideMenu) return;
+    
+    // Открыть меню
+    menuBtn.addEventListener('click', () => {
+        sideMenu.classList.add('visible');
+    });
+    
+    // Закрыть меню
+    const closeMenu = () => {
+        sideMenu.classList.remove('visible');
+    };
+    
+    closeBtn?.addEventListener('click', closeMenu);
+    overlay?.addEventListener('click', closeMenu);
+    
+    // Создать группу
+    createGroupBtn?.addEventListener('click', () => {
+        closeMenu();
+        if (typeof showCreateGroupModal === 'function') {
+            showCreateGroupModal();
+        }
+    });
+    
+    // Создать канал (пока заглушка)
+    createChannelBtn?.addEventListener('click', () => {
+        closeMenu();
+        showToast('📢 Каналы скоро появятся!', false);
+    });
+    
+    // Закрытие по Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sideMenu.classList.contains('visible')) {
+            closeMenu();
+        }
+    });
+}
+
+// Вызвать в initAuth или app.js
+window.initSideMenu = initSideMenu;
 
 window.updateProfileFooter = updateProfileFooter;
 window.initProfileFooter = initProfileFooter;
