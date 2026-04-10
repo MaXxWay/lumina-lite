@@ -266,13 +266,16 @@
                     <div class="profile-view-item"><div class="profile-view-label">О себе</div><div class="profile-view-value profile-bio-view" id="profile-bio-view">Пользователь пока ничего не рассказал о себе.</div></div>
                     <button id="btn-edit-profile" class="glass-button primary" style="margin-top: 16px;">Редактировать профиль</button>
                 </div>
-                <div id="profile-edit-mode" style="display:none;">
-                    <label class="profile-label">Имя</label><input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
-                    <label class="profile-label">Username</label><input type="text" id="profile-username" class="glass-input" placeholder="@username" disabled style="opacity:0.5;cursor:not-allowed;">
-                    <label class="profile-label">О себе</label><textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
-                    <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
-                    <button id="btn-cancel-edit-profile" class="glass-button" style="margin-top: 12px;">Отмена</button>
-                </div>
+<div id="profile-edit-mode" style="display:none;">
+    <label class="profile-label">Имя</label>
+    <input type="text" id="profile-fullname" class="glass-input" placeholder="Ваше имя">
+    <label class="profile-label">Username</label>
+    <input type="text" id="profile-username" class="glass-input" placeholder="@username">
+    <label class="profile-label">О себе</label>
+    <textarea id="profile-bio" class="glass-input" placeholder="Расскажите о себе..." rows="3" style="resize:none; font-family:'Manrope',sans-serif; font-size:14px; line-height:1.5;"></textarea>
+    <button id="btn-save-profile" class="glass-button primary" style="margin-top: 16px;">Сохранить</button>
+    <button id="btn-cancel-edit-profile" class="glass-button" style="margin-top: 12px;">Отмена</button>
+</div>
                 <button id="btn-logout-profile" class="glass-button danger" style="margin-top: 12px;">Выйти</button>
             </div>
         </div>
