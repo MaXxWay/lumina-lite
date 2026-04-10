@@ -624,7 +624,8 @@ async function openSavedChat(chatId) {
         isOpeningChat = false;
     }
 }
-
+window.loadMessages = loadMessages;
+window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.loadDialogs = loadDialogs;
 window.renderDialogsList = renderDialogsList;
 window.loadUserSearchResults = loadUserSearchResults;
