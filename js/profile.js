@@ -104,14 +104,11 @@ async function optimizeImage(file) {
 }
 
 function updateAllAvatars() {
-    if (!window.currentProfile) {
-        console.log('updateAllAvatars: currentProfile не найден');
-        return;
-    }
+    if (!window.currentProfile) return;
     
     const avatarUrl = window.currentProfile.avatar_url;
-    console.log('updateAllAvatars: avatarUrl =', avatarUrl);
     
+    // Футер
     const footerAvatar = document.getElementById('footer-avatar');
     if (footerAvatar) {
         if (avatarUrl) {
@@ -121,6 +118,7 @@ function updateAllAvatars() {
         }
     }
     
+    // Большой аватар в профиле
     const profileAvatar = document.getElementById('profile-avatar-letter');
     if (profileAvatar) {
         if (avatarUrl) {
@@ -129,6 +127,15 @@ function updateAllAvatars() {
             profileAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
         }
     }
+    
+    // Свои сообщения
+    document.querySelectorAll('.message.own .msg-avatar').forEach(avatar => {
+        if (avatarUrl) {
+            avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
+        } else {
+            avatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+        }
+    });
 }
     
     const profileAvatar = document.getElementById('profile-avatar-letter');
