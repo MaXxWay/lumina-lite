@@ -82,12 +82,10 @@ function getOtpCode() {
             code += input.value;
         }
     }
-    console.log('Собранный код:', code, 'Длина:', code.length);
     return code;
 }
 
 function setupOtpInputs() {
-    console.log('setupOtpInputs вызвана');
     const inputs = [];
     for (let i = 1; i <= 6; i++) {
         const el = document.getElementById(`otp-${i}`);
@@ -101,6 +99,7 @@ function setupOtpInputs() {
     inputs.forEach((input, index) => {
         if (!input) return;
         
+        // Удаляем старые обработчики
         const newInput = input.cloneNode(true);
         input.parentNode.replaceChild(newInput, input);
         inputs[index] = newInput;
@@ -122,10 +121,7 @@ function setupOtpInputs() {
             }
             
             const code = getOtpCode();
-            console.log('Текущий код:', code);
-            
             if (code.length === 6) {
-                console.log('Код заполнен, запускаем проверку');
                 setTimeout(() => {
                     if (pendingRegistration) {
                         verifyRegCode();
@@ -174,7 +170,6 @@ function setupOtpInputs() {
 
 async function verifyCode() {
     const code = getOtpCode();
-    console.log('verifyCode: код =', code, 'длина =', code.length);
     
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
@@ -201,7 +196,6 @@ async function verifyCode() {
         if (data.user) await handleSuccessfulLogin(data.user);
         
     } catch (error) {
-        console.error('Ошибка verifyOtp:', error);
         showToast('Неверный код: ' + error.message, true);
         clearOtpInputs();
         document.getElementById('otp-1')?.focus();
@@ -213,7 +207,6 @@ async function verifyCode() {
 
 async function verifyRegCode() {
     const code = getOtpCode();
-    console.log('verifyRegCode: код =', code, 'длина =', code.length);
     
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
@@ -257,7 +250,6 @@ async function verifyRegCode() {
             await handleSuccessfulLogin(signUpData.user);
         }
     } catch (error) {
-        console.error('Ошибка verifyRegCode:', error);
         showToast('Неверный код: ' + error.message, true);
         clearOtpInputs();
         document.getElementById('otp-1')?.focus();
@@ -358,21 +350,31 @@ async function handleSuccessfulLogin(user) {
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
 }
 
+async function logout() {
+    if (window.onlineInterval) clearInterval(window.onlineInterval);
+    if (window.realtimeChannel) await supabaseClient.removeChannel(window.realtimeChannel);
+    if (window.statusSubscription) await supabaseClient.removeChannel(window.statusSubscription);
+    if (window.typingChannel) await supabaseClient.removeChannel(window.typingChannel);
+    if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
+    window.messagesCache?.clear();
+    window.dialogCache?.clear();
+    window.observedMessages?.clear();
+    if (window.readStatusObservers) {
+        window.readStatusObservers.observer?.disconnect();
+        window.readStatusObservers.mutationObserver?.disconnect();
+    }
+    await supabaseClient.auth.signOut();
+    window.currentUser = null;
+    window.currentProfile = null;
+    window.currentChat = null;
+    showScreen('login');
+}
+
 function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// Экспорт функций
-window.initAuth = initAuth;
-window.showScreen = showScreen;
-window.logout = logout;
-window.handleSuccessfulLogin = handleSuccessfulLogin;
-window.hideLoader = hideLoader;
-window.getOtpCode = getOtpCode;
-
-// Инициализация
 function initAuth() {
-    console.log('initAuth вызвана');
     setupOtpInputs();
     
     document.getElementById('to-login')?.addEventListener('click', () => showScreen('login'));
@@ -471,3 +473,10 @@ function initAuth() {
     document.getElementById('btn-resend-reg-code')?.addEventListener('click', () => resendCode('reg'));
     document.getElementById('btn-verify-code')?.addEventListener('click', verifyCode);
 }
+
+window.initAuth = initAuth;
+window.showScreen = showScreen;
+window.logout = logout;
+window.handleSuccessfulLogin = handleSuccessfulLogin;
+window.hideLoader = hideLoader;
+window.getOtpCode = getOtpCode;
