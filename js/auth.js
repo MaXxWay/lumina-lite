@@ -61,8 +61,6 @@ async function verifyCode() {
     const otpInput = document.getElementById('login-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
     
-    console.log('verifyCode: код =', code, 'длина =', code.length);
-    
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
         return;
@@ -88,7 +86,6 @@ async function verifyCode() {
         if (data.user) await handleSuccessfulLogin(data.user);
         
     } catch (error) {
-        console.error('Ошибка verifyOtp:', error);
         showToast('Неверный код: ' + error.message, true);
         otpInput.value = '';
         otpInput.focus();
@@ -101,8 +98,6 @@ async function verifyCode() {
 async function verifyRegCode() {
     const otpInput = document.getElementById('reg-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
-    
-    console.log('verifyRegCode: код =', code, 'длина =', code.length);
     
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
@@ -146,7 +141,6 @@ async function verifyRegCode() {
             await handleSuccessfulLogin(signUpData.user);
         }
     } catch (error) {
-        console.error('Ошибка verifyRegCode:', error);
         showToast('Неверный код: ' + error.message, true);
         otpInput.value = '';
         otpInput.focus();
@@ -210,33 +204,75 @@ async function handleSuccessfulLogin(user) {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
     pendingRegistration = null;
     
+    // Устанавливаем currentUser глобально
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    // Загружаем профиль
+    const { data: p, error } = await supabaseClient.from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+    
+    if (error) {
+        console.error('Ошибка загрузки профиля:', error);
+    }
+    
     if (!p) {
+        // Создаём профиль, если его нет
         const username = user.email?.split('@')[0] || 'user';
-        const { data: newProfile } = await supabaseClient.from('profiles').insert({
-            id: user.id, 
-            username: user.user_metadata?.username || username,
-            full_name: user.user_metadata?.full_name || username,
-            email: user.email, 
-            last_seen: new Date().toISOString()
-        }).select().maybeSingle();
+        const fullName = user.user_metadata?.full_name || username;
+        
+        const { data: newProfile, error: insertError } = await supabaseClient.from('profiles')
+            .insert({
+                id: user.id, 
+                username: user.user_metadata?.username || username,
+                full_name: fullName,
+                email: user.email, 
+                last_seen: new Date().toISOString()
+            })
+            .select()
+            .maybeSingle();
+            
+        if (insertError) {
+            console.error('Ошибка создания профиля:', insertError);
+        }
+        
         window.currentProfile = newProfile;
     } else {
         window.currentProfile = p;
     }
-
-    if (window.currentProfile) {
-        document.getElementById('current-user-badge').textContent = window.currentProfile.full_name;
-        if (typeof updateProfileFooter === 'function') updateProfileFooter();
-        if (typeof initProfileFooter === 'function') initProfileFooter();
-        if (typeof updateAllAvatars === 'function') updateAllAvatars();
-    }
-
-    if (typeof loadAllUsers === 'function') await loadAllUsers();
     
+    console.log('currentProfile загружен:', window.currentProfile);
+
+    // Обновляем UI профиля с задержкой для гарантии загрузки DOM
+    setTimeout(() => {
+        if (window.currentProfile) {
+            const badge = document.getElementById('current-user-badge');
+            if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
+            
+            if (typeof updateProfileFooter === 'function') {
+                updateProfileFooter();
+            }
+            if (typeof initProfileFooter === 'function') {
+                initProfileFooter();
+            }
+            if (typeof updateAllAvatars === 'function') {
+                updateAllAvatars();
+            }
+        }
+    }, 100);
+
+    // Загружаем пользователей
+    if (typeof loadAllUsers === 'function') {
+        try {
+            await loadAllUsers();
+        } catch (e) {
+            console.error('loadAllUsers error:', e);
+        }
+    }
+    
+    // Создаём чаты
     if (typeof ensureBotChat === 'function') {
         try {
             await ensureBotChat();
@@ -254,19 +290,47 @@ async function handleSuccessfulLogin(user) {
     }
 
     showScreen('chat');
-    document.getElementById('chat-title').textContent = 'Lumina Lite';
-    document.getElementById('chat-user-avatar').style.display = 'none';
-    document.querySelector('.chat-status').textContent = 'выберите диалог';
-    document.querySelector('.input-zone').style.display = 'none';
-    document.getElementById('messages').innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
+    
+    // Сбрасываем интерфейс чата
+    const chatTitle = document.getElementById('chat-title');
+    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    
+    const chatAvatar = document.getElementById('chat-user-avatar');
+    if (chatAvatar) chatAvatar.style.display = 'none';
+    
+    const chatStatus = document.querySelector('.chat-status');
+    if (chatStatus) chatStatus.textContent = 'выберите диалог';
+    
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone) inputZone.style.display = 'none';
+    
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
+    }
+    
     window.currentChat = null;
 
     setTimeout(hideLoader, 300);
-    if (typeof loadDialogs === 'function') await loadDialogs();
+    
+    if (typeof loadDialogs === 'function') {
+        try {
+            await loadDialogs();
+        } catch (e) {
+            console.error('loadDialogs error:', e);
+        }
+    }
+    
     if (typeof updateLastSeen === 'function') updateLastSeen();
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
-    if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
+    if (typeof cleanupDeadChats === 'function') {
+        try {
+            await cleanupDeadChats();
+        } catch (e) {
+            console.error('cleanupDeadChats error:', e);
+        }
+    }
 }
 
 async function logout() {
