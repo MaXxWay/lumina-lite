@@ -108,7 +108,6 @@ function updateAllAvatars() {
     
     const avatarUrl = window.currentProfile.avatar_url;
     
-    // Футер
     const footerAvatar = document.getElementById('footer-avatar');
     if (footerAvatar) {
         if (avatarUrl) {
@@ -118,7 +117,6 @@ function updateAllAvatars() {
         }
     }
     
-    // Большой аватар в профиле
     const profileAvatar = document.getElementById('profile-avatar-letter');
     if (profileAvatar) {
         if (avatarUrl) {
@@ -128,31 +126,12 @@ function updateAllAvatars() {
         }
     }
     
-    // Свои сообщения
-    document.querySelectorAll('.message.own .msg-avatar').forEach(avatar => {
-        if (avatarUrl) {
-            avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
-        } else {
-            avatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
-        }
-    });
-}
-    
-    const profileAvatar = document.getElementById('profile-avatar-letter');
-    if (profileAvatar) {
-        if (avatarUrl) {
-            profileAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-        } else {
-            profileAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
-        }
-    }
-    
     const chatAvatar = document.getElementById('chat-user-avatar');
     if (chatAvatar && currentChat?.other_user?.id === currentUser.id) {
         if (avatarUrl) {
             chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
         } else {
-            chatAvatar.textContent = (currentProfile.full_name || '?')[0].toUpperCase();
+            chatAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
         }
     }
     
