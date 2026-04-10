@@ -152,3 +152,31 @@
 }
 .toast.show { opacity: 1; }
 .toast.error { background: var(--danger); }
+/* OTP-поля для ввода кода */
+.otp-input {
+    width: 45px;
+    height: 55px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    color: white;
+    transition: var(--transition);
+}
+.otp-input:focus {
+    border-color: var(--accent-cyan);
+    background: rgba(0, 0, 0, 0.5);
+    outline: none;
+}
+.otp-input:not(:placeholder-shown) {
+    border-color: var(--accent-cyan);
+}
+@media (max-width: 480px) {
+    .otp-input {
+        width: 38px;
+        height: 48px;
+        font-size: 20px;
+    }
+}
