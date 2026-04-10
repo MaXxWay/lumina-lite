@@ -8,6 +8,8 @@ function updateProfileFooter() {
     const name = document.getElementById('footer-name');
     const uname = document.getElementById('footer-username');
     
+    console.log('updateProfileFooter: профиль =', profile);
+    
     if (avatar) {
         if (profile.avatar_url) {
             avatar.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
@@ -19,7 +21,6 @@ function updateProfileFooter() {
     if (name) name.textContent = profile.full_name || profile.username || 'Пользователь';
     if (uname) uname.textContent = `@${profile.username || 'username'}`;
 }
-
 function initProfileFooter() {
     const footer = document.getElementById('profile-footer');
     if (!footer) return;
