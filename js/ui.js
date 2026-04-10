@@ -468,8 +468,25 @@ function initSearchDialogs() {
 function initSendButton() {
     const btn = document.getElementById('btn-send-msg');
     const input = document.getElementById('message-input');
-    if (btn) btn.onclick = sendMsg;
-    if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+    if (btn) btn.onclick = function() {
+        if (typeof window.sendMsg === 'function') {
+            window.sendMsg();
+        } else if (typeof sendMsg === 'function') {
+            sendMsg();
+        } else {
+            console.error('sendMsg не определена');
+        }
+    };
+    if (input) input.addEventListener('keydown', e => { 
+        if (e.key === 'Enter' && !e.shiftKey) { 
+            e.preventDefault(); 
+            if (typeof window.sendMsg === 'function') {
+                window.sendMsg();
+            } else if (typeof sendMsg === 'function') {
+                sendMsg();
+            }
+        } 
+    });
 }
 
 function initUserActivityTracking() {
