@@ -633,7 +633,7 @@ async function ensureBotChat() {
         console.error('ensureBotChat:', err); 
     }
 }
-
+window.sendMsg = sendMsg;
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
