@@ -5,12 +5,18 @@
 
     const { data: { session } } = await supabaseClient.auth.getSession();
 
+    // Слушатель изменений авторизации
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user && !window.currentUser) {
+            await handleSuccessfulLogin(session.user);
+        }
+    });
+
     if (!session) {
         if (typeof hideLoader === 'function') hideLoader();
         showScreen('reg');
         initAuth();
     } else {
-        // Сначала инициализируем базовый UI
         initAuth();
         initProfileFooter();
         initEmojiPicker();
@@ -25,13 +31,11 @@
 
         await handleSuccessfulLogin(session.user);
 
-        // Инициализируем группы ПОСЛЕ загрузки пользователя
         if (typeof initGroups === 'function') {
             await initGroups();
             console.log('Groups initialized after login');
         }
         
-        // Инициализируем мобильные оптимизации ПОСЛЕ загрузки всего
         if (typeof initMobileOptimizations === 'function') {
             initMobileOptimizations();
         }
