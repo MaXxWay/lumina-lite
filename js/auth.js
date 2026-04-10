@@ -209,11 +209,15 @@ async function handleSuccessfulLogin(user) {
 
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (!p) {
-        const username = user.email?.split('@')[0] || 'user';
+        // Берём данные из метаданных пользователя (то, что ввели при регистрации)
+        const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
+        
+        console.log('Создаём профиль с данными:', { username, fullName });
+        
         const { data: newProfile } = await supabaseClient.from('profiles').insert({
             id: user.id, 
-            username: user.user_metadata?.username || username,
+            username: username,
             full_name: fullName,
             email: user.email, 
             last_seen: new Date().toISOString()
