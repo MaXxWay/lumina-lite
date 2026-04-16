@@ -4,7 +4,8 @@ const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
 
 // ВАЖНО: Создайте реального бота в Supabase и замените этот ID
-const BOT_USER_ID = '00000000-0000-0000-0000-000000000000';
+// Для тестового режима используем специальный ID
+const BOT_USER_ID = '00000000-0000-0000-0000-000000000001';
 const SAVED_CHAT_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
 const BOT_PROFILE = {
@@ -51,8 +52,11 @@ let dialogsSubscription = null;
 // Константы
 const MAX_MESSAGE_PREVIEW_LENGTH = 50;
 const ONLINE_TIMEOUT_MINUTES = 5;
-const HEARTBEAT_INTERVAL = 180000; // 3 минуты
+const HEARTBEAT_INTERVAL = 180000;
 const MAX_CACHED_MESSAGES = 200;
+
+// Тестовый режим
+const TEST_MODE = true;
 
 // Экспорт
 window.SUPABASE_URL = SUPABASE_URL;
@@ -65,3 +69,4 @@ window.MAX_MESSAGE_PREVIEW_LENGTH = MAX_MESSAGE_PREVIEW_LENGTH;
 window.ONLINE_TIMEOUT_MINUTES = ONLINE_TIMEOUT_MINUTES;
 window.HEARTBEAT_INTERVAL = HEARTBEAT_INTERVAL;
 window.MAX_CACHED_MESSAGES = MAX_CACHED_MESSAGES;
+window.TEST_MODE = TEST_MODE;
