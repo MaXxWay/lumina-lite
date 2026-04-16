@@ -17,7 +17,6 @@
         initAuth();
     } else {
         initAuth();
-        initProfileFooter();
         initEmojiPicker();
         initImprovedMessageMenu();
         initProfileScreen();
@@ -40,6 +39,11 @@
         }
         if (typeof initMobileGroupContextMenu === 'function') {
             initMobileGroupContextMenu();
+        }
+        
+        // Подписываемся на новые чаты
+        if (typeof subscribeToNewChats === 'function') {
+            subscribeToNewChats();
         }
     }
 })();
