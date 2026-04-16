@@ -6,7 +6,8 @@ function escapeHtml(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function showToast(msg, isError = false) {
@@ -61,6 +62,7 @@ function getUserStatusFromProfile(profile) {
     
     return { text: 'неизвестно', class: 'status-offline', isOnline: false };
 }
+
 function formatDateDivider(date) {
     const msgDate = new Date(date);
     const today = new Date();
@@ -90,14 +92,14 @@ function debounce(fn, wait) {
 }
 
 function formatSystemMessage(text, type = 'info') {
-    // type: 'info', 'warning', 'success', 'danger'
     const icons = {
         info: 'ℹ️',
         warning: '⚠️',
         success: '✅',
         danger: '❌'
     };
-    return `<div class="system-message ${type}">${icons[type] || '📢'} ${escapeHtml(text)}</div>`;
+    const cleanText = text.replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️💾👥]/g, '').trim();
+    return `<div class="system-message ${type}">${icons[type] || '📢'} ${escapeHtml(cleanText)}</div>`;
 }
 
 // Экспорт
