@@ -1,18 +1,19 @@
 // dialogs-core.js — основные функции для загрузки диалогов
 
-window.isUpdatingDialogs = window.isUpdatingDialogs || false;
-let dialogsSubscription = null;
+// Убираем window.isUpdatingDialogs, используем просто переменную
+let dialogsUpdating = false;
+let dialogsSubscriptionChannel = null;
 
 // Подписка на новые чаты в реальном времени
 function subscribeToNewChats() {
-    if (dialogsSubscription) {
-        supabaseClient.removeChannel(dialogsSubscription);
+    if (dialogsSubscriptionChannel) {
+        supabaseClient.removeChannel(dialogsSubscriptionChannel);
     }
     
     const userId = window.currentUser?.id || currentUser?.id;
     if (!userId) return;
     
-    dialogsSubscription = supabaseClient.channel('new-chats')
+    dialogsSubscriptionChannel = supabaseClient.channel('new-chats')
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
@@ -48,15 +49,15 @@ async function loadDialogs(searchTerm = '') {
         return;
     }
 
-    if (window.isUpdatingDialogs) return;
-    window.isUpdatingDialogs = true;
+    if (dialogsUpdating) return;
+    dialogsUpdating = true;
 
     try {
         const userId = window.currentUser?.id || currentUser?.id;
         if (!userId) {
             console.error('loadDialogs: currentUser не определён');
             container.innerHTML = '<div class="dialogs-empty">Ошибка загрузки</div>';
-            window.isUpdatingDialogs = false;
+            dialogsUpdating = false;
             return;
         }
 
@@ -104,7 +105,7 @@ async function loadDialogs(searchTerm = '') {
 
         if (validChats.length === 0) {
             container.innerHTML = '<div class="dialogs-empty">Нет диалогов</div>';
-            window.isUpdatingDialogs = false;
+            dialogsUpdating = false;
             return;
         }
 
@@ -244,7 +245,7 @@ async function loadDialogs(searchTerm = '') {
         console.error('Ошибка loadDialogs:', err);
         container.innerHTML = '<div class="dialogs-empty">Ошибка загрузки</div>';
     } finally {
-        window.isUpdatingDialogs = false;
+        dialogsUpdating = false;
     }
 }
 
