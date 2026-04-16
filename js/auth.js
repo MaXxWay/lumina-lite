@@ -1,4 +1,4 @@
-// auth.js — регистрация и вход (тестовый режим)
+// auth.js — ПОЛНОСТЬЮ РАБОЧАЯ ВЕРСИЯ С OTP
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -11,9 +11,7 @@ let pendingRegistration = null;
 let currentLoginEmail = '';
 let otpTimer = null;
 let otpSecondsLeft = 0;
-
-// Тестовые пользователи
-const testUsers = new Map();
+let currentOtpCode = null; // Для тестового режима
 
 function hideLoader() {
     const loader = document.getElementById('app-loader');
@@ -68,101 +66,30 @@ function resetRegForm() {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
 }
 
-// Тестовый вход
-async function testLogin(email) {
-    if (!email || !email.includes('@')) {
-        showToast('Введите корректный email', true);
-        return false;
-    }
-    
-    currentLoginEmail = email;
-    
-    // Проверяем, существует ли пользователь в Supabase
+async function sendOtpCode(email, type = 'login') {
     try {
-        const { data: existingProfile } = await supabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('email', email)
-            .maybeSingle();
-        
-        if (existingProfile) {
-            // Пользователь существует, нужно получить его из auth
-            // В тестовом режиме используем специальный метод
-            const testPassword = 'test123456';
-            
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: testPassword
-            });
-            
-            if (error) {
-                // Если не удалось войти, создаем нового пользователя
-                return await createTestUser(email);
-            }
-            
-            if (data.user) {
-                await handleSuccessfulLogin(data.user);
-                return true;
-            }
-        } else {
-            return await createTestUser(email);
-        }
-    } catch (error) {
-        console.error('Test login error:', error);
-        return await createTestUser(email);
-    }
-    
-    return false;
-}
-
-async function createTestUser(email) {
-    const username = email.split('@')[0];
-    const fullName = username;
-    const testPassword = 'test123456';
-    
-    try {
-        const { data, error } = await supabaseClient.auth.signUp({
+        const { error } = await supabaseClient.auth.signInWithOtp({ 
             email: email,
-            password: testPassword,
             options: {
-                data: {
-                    username: username,
-                    full_name: fullName
-                }
+                shouldCreateUser: type === 'register'
             }
         });
         
         if (error) {
-            if (error.message.includes('User already registered')) {
-                showToast('Пользователь уже существует, попробуйте войти снова', true);
-            } else {
-                showToast('Ошибка: ' + error.message, true);
-            }
-            return false;
+            console.error('OTP send error:', error);
+            return { success: false, error: error.message };
         }
         
-        if (data.user) {
-            showToast('✅ Аккаунт создан!');
-            await handleSuccessfulLogin(data.user);
-            return true;
-        }
+        return { success: true };
     } catch (error) {
-        console.error('Create user error:', error);
-        showToast('Ошибка создания пользователя', true);
+        console.error('Send OTP error:', error);
+        return { success: false, error: error.message };
     }
-    
-    return false;
 }
 
 async function verifyCode() {
     const otpInput = document.getElementById('login-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
-    
-    // В тестовом режиме используем код 123456
-    if (code === '123456') {
-        await testLogin(currentLoginEmail);
-        return;
-    }
     
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
@@ -188,9 +115,14 @@ async function verifyCode() {
         });
         
         if (error) throw error;
-        if (data.user) await handleSuccessfulLogin(data.user);
+        
+        if (data.user) {
+            showToast('✅ Вход выполнен!');
+            await handleSuccessfulLogin(data.user);
+        }
         
     } catch (error) {
+        console.error('Verify error:', error);
         showToast('Неверный код: ' + error.message, true);
         if (otpInput) {
             otpInput.value = '';
@@ -208,51 +140,13 @@ async function verifyRegCode() {
     const otpInput = document.getElementById('reg-otp-code');
     const code = otpInput ? otpInput.value.trim() : '';
     
-    if (!pendingRegistration) {
-        showToast('Ошибка: данные не найдены', true);
-        return;
-    }
-    
-    // В тестовом режиме просто создаем пользователя
-    if (code === '123456') {
-        const btn = document.getElementById('btn-verify-reg-code');
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = 'Создание...';
-        }
-        
-        try {
-            const testPassword = 'test123456';
-            const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
-                email: pendingRegistration.email,
-                password: testPassword,
-                options: {
-                    data: {
-                        username: pendingRegistration.username,
-                        full_name: pendingRegistration.fullName
-                    }
-                }
-            });
-            
-            if (signUpError) throw signUpError;
-            
-            if (signUpData.user) {
-                showToast('✅ Аккаунт создан!');
-                await handleSuccessfulLogin(signUpData.user);
-            }
-        } catch (error) {
-            showToast('Ошибка: ' + error.message, true);
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = 'Подтвердить код';
-            }
-        }
-        return;
-    }
-    
     if (code.length !== 6) {
         showToast('Введите 6 цифр', true);
+        return;
+    }
+    
+    if (!pendingRegistration) {
+        showToast('Ошибка: данные не найдены', true);
         return;
     }
 
@@ -263,25 +157,22 @@ async function verifyRegCode() {
     }
 
     try {
-        const password = Math.random().toString(36).slice(-10) + 'A1!';
-        const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
+        // Сначала верифицируем код
+        const { data: verifyData, error: verifyError } = await supabaseClient.auth.verifyOtp({
             email: pendingRegistration.email,
-            password: password,
-            options: {
-                data: {
-                    username: pendingRegistration.username,
-                    full_name: pendingRegistration.fullName
-                }
-            }
+            token: code,
+            type: 'email'
         });
         
-        if (signUpError) throw signUpError;
+        if (verifyError) throw verifyError;
         
-        if (signUpData.user) {
-            showToast('✅ Аккаунт создан!');
-            await handleSuccessfulLogin(signUpData.user);
+        if (verifyData.user) {
+            showToast('✅ Аккаунт подтвержден!');
+            await handleSuccessfulLogin(verifyData.user);
         }
+        
     } catch (error) {
+        console.error('Registration verify error:', error);
         showToast('Ошибка: ' + error.message, true);
         if (otpInput) {
             otpInput.value = '';
@@ -304,8 +195,16 @@ async function resendCode(type) {
     btn.textContent = 'Отправка...';
 
     try {
-        // В тестовом режиме просто показываем сообщение
-        showToast('⚡ ТЕСТОВЫЙ РЕЖИМ: используйте код 123456', false);
+        const { error } = await supabaseClient.auth.signInWithOtp({ 
+            email, 
+            options: { 
+                shouldCreateUser: type === 'reg'
+            } 
+        });
+        
+        if (error) throw error;
+        
+        showToast('📧 Код отправлен повторно!');
         
         const otpInput = type === 'login' ? document.getElementById('login-otp-code') : document.getElementById('reg-otp-code');
         if (otpInput) {
@@ -314,7 +213,9 @@ async function resendCode(type) {
         }
         
         startResendTimer(type);
+        
     } catch (error) {
+        console.error('Resend error:', error);
         showToast('Ошибка: ' + error.message, true);
     } finally {
         btn.disabled = false;
@@ -348,24 +249,32 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    // Получаем профиль из БД
-    const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    // Получаем или создаем профиль
+    let { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
     
-    if (p) {
-        window.currentProfile = p;
-    } else {
-        // Создаём профиль вручную
+    if (error || !profile) {
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
         
-        const { data: newProfile } = await supabaseClient.from('profiles').insert({
-            id: user.id, 
-            username: username,
-            full_name: fullName,
-            email: user.email, 
-            last_seen: new Date().toISOString()
-        }).select().maybeSingle();
+        const { data: newProfile } = await supabaseClient
+            .from('profiles')
+            .upsert({
+                id: user.id,
+                username: username,
+                full_name: fullName,
+                email: user.email,
+                last_seen: new Date().toISOString()
+            })
+            .select()
+            .single();
+        
         window.currentProfile = newProfile;
+    } else {
+        window.currentProfile = profile;
     }
 
     console.log('currentProfile загружен:', window.currentProfile);
@@ -373,21 +282,12 @@ async function handleSuccessfulLogin(user) {
     if (window.currentProfile) {
         const badge = document.getElementById('current-user-badge');
         if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
-        
-        if (typeof updateProfileFooter === 'function') {
-            updateProfileFooter();
-        }
+        if (typeof updateProfileFooter === 'function') updateProfileFooter();
     }
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
-    
-    if (typeof ensureBotChat === 'function') {
-        try { await ensureBotChat(); } catch (e) { console.error('ensureBotChat error:', e); }
-    }
-    
-    if (typeof ensureSavedChat === 'function') {
-        try { await ensureSavedChat(); } catch (e) { console.error('ensureSavedChat error:', e); }
-    }
+    if (typeof ensureBotChat === 'function') await ensureBotChat();
+    if (typeof ensureSavedChat === 'function') await ensureSavedChat();
 
     showScreen('chat');
     const chatTitle = document.getElementById('chat-title');
@@ -411,12 +311,6 @@ async function handleSuccessfulLogin(user) {
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
-    
-    setTimeout(() => {
-        if (typeof updateProfileFooter === 'function') {
-            updateProfileFooter();
-        }
-    }, 500);
 }
 
 async function logout() {
@@ -431,6 +325,7 @@ async function logout() {
     window.currentProfile = null;
     window.currentChat = null;
     showScreen('login');
+    showToast('Вы вышли из аккаунта');
 }
 
 function isValidEmail(email) {
@@ -463,55 +358,62 @@ function initAuth() {
         if (editMode) editMode.style.display = 'none';
     });
 
+    // РЕГИСТРАЦИЯ
     if (doReg) {
         doReg.addEventListener('click', async () => {
             const username = document.getElementById('reg-username')?.value.trim();
             const fullName = document.getElementById('reg-full-name')?.value.trim();
             const email = document.getElementById('reg-email')?.value.trim();
 
-            if (!username || !email || !fullName) return showToast('Заполните все поля', true);
-            if (!isValidEmail(email)) return showToast('Введите корректный email', true);
-
-            // В тестовом режиме просто создаем аккаунт
-            const testPassword = 'test123456';
-            
-            const btn = document.getElementById('btn-do-reg');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Создание...';
+            if (!username || !email || !fullName) {
+                showToast('Заполните все поля', true);
+                return;
+            }
+            if (!isValidEmail(email)) {
+                showToast('Введите корректный email', true);
+                return;
             }
 
+            const btn = doReg;
+            btn.disabled = true;
+            btn.textContent = 'Отправка кода...';
+
             try {
-                const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: testPassword,
-                    options: {
-                        data: {
-                            username: username.replace(/^@/, ''),
-                            full_name: fullName
-                        }
-                    }
+                // Отправляем OTP код
+                const { error } = await supabaseClient.auth.signInWithOtp({ 
+                    email, 
+                    options: { 
+                        shouldCreateUser: true
+                    } 
                 });
                 
-                if (signUpError) throw signUpError;
+                if (error) throw error;
+
+                pendingRegistration = { 
+                    email, 
+                    username: username.replace(/^@/, ''), 
+                    fullName 
+                };
+
+                const stepForm = document.getElementById('reg-step-form');
+                const stepCode = document.getElementById('reg-step-code');
+                const emailDisplay = document.getElementById('reg-code-email-display');
+                const otpInput = document.getElementById('reg-otp-code');
                 
-                if (signUpData.user) {
-                    showToast('✅ Аккаунт создан!');
-                    await handleSuccessfulLogin(signUpData.user);
-                }
+                if (stepForm) stepForm.style.display = 'none';
+                if (stepCode) stepCode.style.display = 'block';
+                if (emailDisplay) emailDisplay.textContent = email;
+                if (otpInput) otpInput.focus();
+                
+                showToast('📧 Код подтверждения отправлен на почту!');
+                startResendTimer('reg');
+                
             } catch (error) {
-                console.error('Signup error:', error);
-                if (error.message.includes('User already registered')) {
-                    showToast('Пользователь с таким email уже существует. Войдите.', true);
-                    showScreen('login');
-                } else {
-                    showToast('Ошибка: ' + error.message, true);
-                }
+                console.error('Registration error:', error);
+                showToast('Ошибка: ' + error.message, true);
             } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Зарегистрироваться';
-                }
+                btn.disabled = false;
+                btn.textContent = 'Зарегистрироваться';
             }
         });
     }
@@ -519,24 +421,52 @@ function initAuth() {
     if (verifyRegCode) verifyRegCode.addEventListener('click', verifyRegCode);
     if (resendRegCode) resendRegCode.addEventListener('click', () => resendCode('reg'));
 
+    // ВХОД
     if (sendCode) {
         sendCode.addEventListener('click', async () => {
             const email = document.getElementById('login-email')?.value.trim();
-            if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
-            
-            // Показываем форму для ввода кода
+            if (!email || !isValidEmail(email)) {
+                showToast('Введите корректный email', true);
+                return;
+            }
+
             currentLoginEmail = email;
-            
-            const stepEmail = document.getElementById('login-step-email');
-            const stepCode = document.getElementById('login-step-code');
-            const emailDisplay = document.getElementById('code-email-display');
-            
-            if (stepEmail) stepEmail.style.display = 'none';
-            if (stepCode) stepCode.style.display = 'block';
-            if (emailDisplay) emailDisplay.textContent = email;
-            
-            showToast('⚡ ТЕСТОВЫЙ РЕЖИМ: используйте код 123456', false);
-            startResendTimer('login');
+            const btn = sendCode;
+            btn.disabled = true;
+            btn.textContent = 'Отправка кода...';
+
+            try {
+                const { error } = await supabaseClient.auth.signInWithOtp({ 
+                    email, 
+                    options: { shouldCreateUser: false } 
+                });
+                
+                if (error) throw error;
+
+                const stepEmail = document.getElementById('login-step-email');
+                const stepCode = document.getElementById('login-step-code');
+                const emailDisplay = document.getElementById('code-email-display');
+                const otpInput = document.getElementById('login-otp-code');
+                
+                if (stepEmail) stepEmail.style.display = 'none';
+                if (stepCode) stepCode.style.display = 'block';
+                if (emailDisplay) emailDisplay.textContent = email;
+                if (otpInput) otpInput.focus();
+                
+                showToast('📧 Код отправлен на почту!');
+                startResendTimer('login');
+                
+            } catch (error) {
+                console.error('Send code error:', error);
+                if (error.message.includes('user not found')) {
+                    showToast('Пользователь не найден. Зарегистрируйтесь сначала.', true);
+                } else {
+                    showToast('Ошибка: ' + error.message, true);
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Отправить код';
+            }
         });
     }
 
@@ -549,4 +479,3 @@ window.showScreen = showScreen;
 window.logout = logout;
 window.handleSuccessfulLogin = handleSuccessfulLogin;
 window.hideLoader = hideLoader;
-window.testLogin = testLogin;
