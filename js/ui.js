@@ -1,4 +1,5 @@
 // ui.js — UI компоненты, контекстное меню, профиль
+
 function updateProfileFooter() {
     const profile = window.currentProfile;
     if (!profile) {
@@ -6,52 +7,34 @@ function updateProfileFooter() {
         return;
     }
     
-    const avatar = document.getElementById('footer-avatar');
-    const name = document.getElementById('footer-name');
-    const uname = document.getElementById('footer-username');
+    // Обновляем аватар в меню
+    const menuAvatar = document.getElementById('side-menu-avatar');
+    const menuName = document.getElementById('side-menu-name');
+    const menuUsername = document.getElementById('side-menu-username');
     
-    console.log('updateProfileFooter: обновляем футер с профилем:', profile.full_name, profile.username);
-    
-    if (avatar) {
+    if (menuAvatar) {
         if (profile.avatar_url) {
-            avatar.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            menuAvatar.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            avatar.textContent = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
-            avatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
+            menuAvatar.textContent = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
+            menuAvatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
+        menuAvatar.style.animation = 'none';
+        menuAvatar.offsetHeight;
+        menuAvatar.style.animation = 'scalePop 0.3s ease-out';
     }
     
-    if (name) {
-        name.textContent = profile.full_name || profile.username || 'Пользователь';
+    if (menuName) {
+        menuName.textContent = profile.full_name || profile.username || 'Пользователь';
     }
     
-    if (uname) {
-        uname.textContent = `@${profile.username || 'username'}`;
+    if (menuUsername) {
+        menuUsername.textContent = `@${profile.username || 'username'}`;
     }
 }
+
 function initProfileFooter() {
-    const footer = document.getElementById('profile-footer');
-    if (!footer) return;
-    const info = footer.querySelector('.profile-footer-info');
-    if (info) info.onclick = () => { if (window.currentProfile) openProfileModal(); };
-    document.getElementById('footer-settings')?.addEventListener('click', () => { if (window.currentProfile) openProfileModal(); });
-    
-    const logoutBtn = document.getElementById('footer-logout');
-    if (logoutBtn) {
-        logoutBtn.style.display = 'flex';
-        logoutBtn.onclick = async () => {
-            const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
-            if (confirmed) {
-                if (typeof stopOnlineHeartbeat === 'function') stopOnlineHeartbeat();
-                if (window.realtimeChannel) await supabaseClient.removeChannel(window.realtimeChannel);
-                await supabaseClient.auth.signOut();
-                window.currentUser = null; window.currentProfile = null; window.currentChat = null;
-                showScreen('login');
-                showToast('Вы вышли из аккаунта');
-            }
-        };
-    }
-    
+    // Футер больше не нужен, так как всё перенесено в меню
     if (window.currentProfile) updateProfileFooter();
 }
 
@@ -83,7 +66,6 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     const bioView = document.getElementById('profile-bio-view');
     const editBtn = document.getElementById('btn-edit-profile');
     const saveBtn = document.getElementById('btn-save-profile');
-    const logoutBtn = document.getElementById('btn-logout-profile');
     
     const oldChatBtn = document.getElementById('profile-chat-btn');
     if (oldChatBtn) oldChatBtn.remove();
@@ -124,7 +106,6 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     }
     if (username) {
         username.value = profile.username || '';
-        // Username можно менять только если это свой профиль
         username.readOnly = readOnly;
         if (!readOnly) {
             username.disabled = false;
@@ -142,7 +123,6 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
     if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
-    if (logoutBtn) logoutBtn.style.display = readOnly ? 'none' : 'block';
 
     modal.style.display = 'flex';
 }
@@ -150,56 +130,54 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
 function initProfileScreen() {
     const editBtn = document.getElementById('btn-edit-profile');
     const saveBtn = document.getElementById('btn-save-profile');
-    const logoutBtn = document.getElementById('btn-logout-profile');
     const backBtn = document.getElementById('btn-profile-back');
     const viewMode = document.getElementById('profile-view-mode');
     const editMode = document.getElementById('profile-edit-mode');
 
-if (editBtn) editBtn.onclick = () => {
-    if (viewMode) viewMode.style.display = 'none';
-    if (editMode) editMode.style.display = 'block';
-    
-    const fullname = document.getElementById('profile-fullname');
-    const username = document.getElementById('profile-username');
-    const bio = document.getElementById('profile-bio');
-    
-    if (fullname && window.currentProfile) {
-        fullname.value = window.currentProfile.full_name || '';
-    }
-    if (username && window.currentProfile) {
-        username.value = window.currentProfile.username || '';
-        username.disabled = false;
-        username.style.opacity = '1';
-        username.style.cursor = 'text';
-    }
-    if (bio && window.currentProfile) {
-        bio.value = window.currentProfile.bio || '';
-    }
-};
+    if (editBtn) editBtn.onclick = () => {
+        if (viewMode) viewMode.style.display = 'none';
+        if (editMode) editMode.style.display = 'block';
+        
+        const fullname = document.getElementById('profile-fullname');
+        const username = document.getElementById('profile-username');
+        const bio = document.getElementById('profile-bio');
+        
+        if (fullname && window.currentProfile) {
+            fullname.value = window.currentProfile.full_name || '';
+        }
+        if (username && window.currentProfile) {
+            username.value = window.currentProfile.username || '';
+            username.disabled = false;
+            username.style.opacity = '1';
+            username.style.cursor = 'text';
+        }
+        if (bio && window.currentProfile) {
+            bio.value = window.currentProfile.bio || '';
+        }
+    };
 
     if (saveBtn) saveBtn.onclick = async () => {
         const fn = document.getElementById('profile-fullname')?.value.trim();
         const un = document.getElementById('profile-username')?.value.trim().replace(/^@/, '');
-        const bio = document.getElementById('profile-bio')?.value.trim();
+        const bioText = document.getElementById('profile-bio')?.value.trim();
         
         if (!fn) { showToast('Введите имя', true); return; }
         if (!un) { showToast('Введите username', true); return; }
         
         try {
-            const updates = { full_name: fn, username: un, bio };
+            const updates = { full_name: fn, username: un, bio: bioText };
             const { error } = await supabaseClient.from('profiles').update(updates).eq('id', window.currentUser.id);
             if (error) throw error;
             
             window.currentProfile.full_name = fn;
             window.currentProfile.username = un;
-            window.currentProfile.bio = bio;
+            window.currentProfile.bio = bioText;
             
             updateProfileFooter();
             
-            // Обновляем отображение в режиме просмотра
             document.getElementById('profile-name-view').textContent = fn;
             document.getElementById('profile-username-view').textContent = `@${un}`;
-            document.getElementById('profile-bio-view').textContent = bio || 'Пользователь пока ничего не рассказал о себе.';
+            document.getElementById('profile-bio-view').textContent = bioText || 'Пользователь пока ничего не рассказал о себе.';
             
             showToast('Профиль сохранён');
             
@@ -209,22 +187,10 @@ if (editBtn) editBtn.onclick = () => {
             if (window.lastOpenedGroupId) {
                 showGroupProfile(window.lastOpenedGroupId);
                 window.lastOpenedGroupId = null;
-            } else {
-                showScreen('chat');
             }
         } catch (err) { 
             console.error('Ошибка сохранения:', err);
             showToast('Ошибка сохранения: ' + (err.message || ''), true); 
-        }
-    };
-
-    if (logoutBtn) logoutBtn.onclick = async () => {
-        const ok = await modal.confirm('Выйти из аккаунта?', 'Выход');
-        if (ok) {
-            if (typeof stopOnlineHeartbeat === 'function') stopOnlineHeartbeat();
-            await supabaseClient.auth.signOut();
-            window.currentUser = null; window.currentProfile = null; window.currentChat = null;
-            showScreen('login');
         }
     };
 
@@ -235,23 +201,8 @@ if (editBtn) editBtn.onclick = () => {
         if (window.lastOpenedGroupId) {
             showGroupProfile(window.lastOpenedGroupId);
             window.lastOpenedGroupId = null;
-        } else {
-            showScreen('chat');
         }
     };
-}
-
-// Остальные функции (initEmojiPicker, initImprovedMessageMenu, showMessageMenu, handleMenuAction, initSearchDialogs, initSendButton, initUserActivityTracking, updateChatStatusFromProfile, initSideMenu) остаются без изменений
-// ... (вставь их сюда, они уже были в твоём ui.js)
-
-function updateChatStatusFromProfile(profile) {
-    const cs = document.querySelector('.chat-status');
-    if (!cs) return;
-    if (currentChat?.other_user?.id === BOT_USER_ID) { cs.textContent = 'бот'; cs.className = 'chat-status status-bot'; return; }
-    if (currentChat?.id === SAVED_CHAT_ID) { cs.textContent = 'личное'; cs.className = 'chat-status'; return; }
-    const status = getUserStatusFromProfile(profile);
-    cs.textContent = status.text;
-    cs.className = `chat-status ${status.class}`;
 }
 
 function initEmojiPicker() {
@@ -510,30 +461,80 @@ function initSideMenu() {
     const overlay = document.querySelector('.side-menu-overlay');
     const createGroupBtn = document.getElementById('create-group-menu-btn');
     const createChannelBtn = document.getElementById('create-channel-menu-btn');
+    const settingsBtn = document.getElementById('settings-menu-btn');
+    const logoutBtn = document.getElementById('logout-menu-btn');
+    const userInfo = document.querySelector('.side-menu-user-info');
     
     if (!menuBtn || !sideMenu) return;
     
-    menuBtn.addEventListener('click', () => {
+    const openMenu = () => {
         sideMenu.classList.add('visible');
-    });
+        const items = document.querySelectorAll('.side-menu-item, .side-menu-divider, .side-menu-footer');
+        items.forEach((item, index) => {
+            item.style.animation = 'none';
+            item.offsetHeight;
+            item.style.animation = `slideInFromLeft 0.4s ease-out ${index * 0.05}s both`;
+        });
+    };
     
     const closeMenu = () => {
         sideMenu.classList.remove('visible');
     };
     
+    menuBtn.addEventListener('click', openMenu);
     closeBtn?.addEventListener('click', closeMenu);
     overlay?.addEventListener('click', closeMenu);
     
     createGroupBtn?.addEventListener('click', () => {
         closeMenu();
-        if (typeof showCreateGroupModal === 'function') {
-            showCreateGroupModal();
-        }
+        setTimeout(() => {
+            if (typeof showCreateGroupModal === 'function') {
+                showCreateGroupModal();
+            }
+        }, 200);
     });
     
     createChannelBtn?.addEventListener('click', () => {
         closeMenu();
-        showToast('📢 Каналы скоро появятся!', false);
+        setTimeout(() => {
+            showToast('📢 Каналы скоро появятся!', false);
+        }, 200);
+    });
+    
+    settingsBtn?.addEventListener('click', () => {
+        closeMenu();
+        setTimeout(() => {
+            if (window.currentProfile) {
+                openProfileModal(window.currentProfile, { readOnly: false });
+                showToast('⚙️ Настройки профиля', false);
+            }
+        }, 200);
+    });
+    
+    logoutBtn?.addEventListener('click', async () => {
+        closeMenu();
+        setTimeout(async () => {
+            const confirmed = await modal.confirm('Выйти из аккаунта?', 'Выход');
+            if (confirmed) {
+                if (typeof stopOnlineHeartbeat === 'function') stopOnlineHeartbeat();
+                if (window.realtimeChannel) await supabaseClient.removeChannel(window.realtimeChannel);
+                await supabaseClient.auth.signOut();
+                window.currentUser = null;
+                window.currentProfile = null;
+                window.currentChat = null;
+                showScreen('login');
+                showToast('Вы вышли из аккаунта');
+            }
+        }, 200);
+    });
+    
+    userInfo?.addEventListener('click', () => {
+        closeMenu();
+        setTimeout(() => {
+            if (window.currentProfile) {
+                openProfileModal(window.currentProfile, { readOnly: false });
+            }
+        }, 200);
     });
     
     document.addEventListener('keydown', (e) => {
@@ -543,6 +544,25 @@ function initSideMenu() {
     });
 }
 
+function updateChatStatusFromProfile(profile) {
+    const cs = document.querySelector('.chat-status');
+    if (!cs) return;
+    if (currentChat?.other_user?.id === BOT_USER_ID) { 
+        cs.textContent = 'бот'; 
+        cs.className = 'chat-status status-bot'; 
+        return; 
+    }
+    if (currentChat?.id === SAVED_CHAT_ID) { 
+        cs.textContent = 'личное'; 
+        cs.className = 'chat-status'; 
+        return; 
+    }
+    const status = getUserStatusFromProfile(profile);
+    cs.textContent = status.text;
+    cs.className = `chat-status ${status.class}`;
+}
+
+// Экспорт
 window.updateProfileFooter = updateProfileFooter;
 window.initProfileFooter = initProfileFooter;
 window.openProfileModal = openProfileModal;
