@@ -1,4 +1,4 @@
-// profile.js — управление аватарами и профилем
+// profile.js — управление аватарами и профилем (ИСПРАВЛЕННЫЙ)
 
 async function uploadAvatar(file) {
     if (!file || !currentUser) return null;
@@ -108,12 +108,13 @@ function updateAllAvatars() {
     
     const avatarUrl = window.currentProfile.avatar_url;
     
-    const footerAvatar = document.getElementById('footer-avatar');
-    if (footerAvatar) {
+    const menuAvatar = document.getElementById('side-menu-avatar');
+    if (menuAvatar) {
         if (avatarUrl) {
-            footerAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            menuAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            footerAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+            menuAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+            menuAvatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     }
     
@@ -232,38 +233,243 @@ function createAvatarUploader() {
     return container;
 }
 
-const originalOpenProfileModal = window.openProfileModal;
-window.openProfileModal = function(profile = currentProfile, options = {}) {
-    if (!profile) return;
+// ОСНОВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ
+async function saveProfile() {
+    const fn = document.getElementById('profile-fullname')?.value.trim();
+    const un = document.getElementById('profile-username')?.value.trim().replace(/^@/, '');
+    const bioText = document.getElementById('profile-bio')?.value.trim();
     
-    if (typeof originalOpenProfileModal === 'function') {
-        originalOpenProfileModal(profile, options);
+    if (!fn) { 
+        showToast('Введите имя', true); 
+        return false;
+    }
+    if (!un) { 
+        showToast('Введите username', true); 
+        return false;
     }
     
-    const isOwnProfile = profile.id === currentUser?.id;
-    const readOnly = options.readOnly === true || !isOwnProfile;
+    const saveBtn = document.getElementById('btn-save-profile');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Сохранение...';
+    }
     
-    if (!readOnly) {
-        const editMode = document.getElementById('profile-edit-mode');
-        if (editMode) {
-            const existingUploader = editMode.querySelector('.avatar-uploader');
-            if (existingUploader) existingUploader.remove();
-            
-            const uploader = createAvatarUploader();
-            const bioField = document.getElementById('profile-bio');
-            if (bioField) {
-                bioField.parentNode.insertBefore(uploader, bioField.nextSibling);
-            }
+    try {
+        console.log('Сохраняем профиль:', { full_name: fn, username: un, bio: bioText });
+        
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .update({ 
+                full_name: fn, 
+                username: un, 
+                bio: bioText,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', window.currentUser.id)
+            .select();
+        
+        if (error) {
+            console.error('Ошибка Supabase:', error);
+            throw error;
+        }
+        
+        console.log('Профиль сохранен:', data);
+        
+        // Обновляем локальный объект
+        window.currentProfile.full_name = fn;
+        window.currentProfile.username = un;
+        window.currentProfile.bio = bioText;
+        
+        // Обновляем UI
+        updateProfileFooter();
+        
+        const nameView = document.getElementById('profile-name-view');
+        const usernameView = document.getElementById('profile-username-view');
+        const bioView = document.getElementById('profile-bio-view');
+        
+        if (nameView) nameView.textContent = fn;
+        if (usernameView) usernameView.textContent = `@${un}`;
+        if (bioView) bioView.textContent = bioText || 'Пользователь пока ничего не рассказал о себе.';
+        
+        // Обновляем бейдж в шапке чата
+        const badge = document.getElementById('current-user-badge');
+        if (badge) badge.textContent = fn;
+        
+        showToast('Профиль сохранён');
+        
+        // Закрываем модальное окно
+        const modal = document.getElementById('profile-screen');
+        if (modal) modal.style.display = 'none';
+        
+        // Возвращаемся к группе если нужно
+        if (window.lastOpenedGroupId) {
+            showGroupProfile(window.lastOpenedGroupId);
+            window.lastOpenedGroupId = null;
+        }
+        
+        return true;
+        
+    } catch (err) { 
+        console.error('Ошибка сохранения:', err);
+        showToast('Ошибка сохранения: ' + (err.message || 'Неизвестная ошибка'), true);
+        return false;
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Сохранить';
         }
     }
-    
-    const avatarBig = document.getElementById('profile-avatar-letter');
-    if (avatarBig && profile.avatar_url) {
-        avatarBig.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-    }
-};
+}
 
+function openProfileModal(profile = window.currentProfile, options = {}) {
+    if (!profile) {
+        profile = window.currentProfile;
+        if (!profile) return;
+    }
+    
+    const isOwnProfile = profile.id === window.currentUser?.id;
+    const readOnly = options.readOnly === true || !isOwnProfile;
+    const fromGroup = options.fromGroup === true;
+    const groupId = options.groupId;
+    const groupName = options.groupName;
+    const letter = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
+
+    const modal = document.getElementById('profile-screen');
+    if (!modal) return;
+    
+    const avatarLetter = document.getElementById('profile-avatar-letter');
+    const fullname = document.getElementById('profile-fullname');
+    const username = document.getElementById('profile-username');
+    const bio = document.getElementById('profile-bio');
+    const title = document.querySelector('.profile-modal-title');
+    const viewMode = document.getElementById('profile-view-mode');
+    const editMode = document.getElementById('profile-edit-mode');
+    const nameView = document.getElementById('profile-name-view');
+    const usernameView = document.getElementById('profile-username-view');
+    const bioView = document.getElementById('profile-bio-view');
+    const editBtn = document.getElementById('btn-edit-profile');
+    const saveBtn = document.getElementById('btn-save-profile');
+    
+    // Удаляем старую кнопку чата если есть
+    const oldChatBtn = document.getElementById('profile-chat-btn');
+    if (oldChatBtn) oldChatBtn.remove();
+    
+    // Добавляем кнопку чата для чужих профилей
+    if (fromGroup && !isOwnProfile && profile.id !== BOT_USER_ID && profile.id !== SAVED_CHAT_ID) {
+        const chatBtn = document.createElement('button');
+        chatBtn.id = 'profile-chat-btn';
+        chatBtn.className = 'glass-button primary';
+        chatBtn.style.marginTop = '16px';
+        chatBtn.innerHTML = '<svg width="16" height="16" style="margin-right: 8px;"><use href="#icon-chat"/></svg>Перейти в чат';
+        const btnContainer = document.querySelector('.profile-modal-body');
+        if (btnContainer) btnContainer.appendChild(chatBtn);
+        
+        chatBtn.onclick = async () => {
+            if (modal) modal.style.display = 'none';
+            const chatId = await getOrCreatePrivateChat(profile.id);
+            await openChat(chatId, profile.id, profile);
+            showScreen('chat');
+        };
+    }
+
+    // Заполняем данные
+    if (avatarLetter) {
+        if (profile.avatar_url) {
+            avatarLetter.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatarLetter.textContent = letter;
+        }
+        avatarLetter.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
+    }
+    
+    if (nameView) nameView.textContent = profile.full_name || profile.username || 'Пользователь';
+    if (usernameView) usernameView.textContent = `@${profile.username || 'username'}`;
+    if (bioView) bioView.textContent = profile.bio || 'Пользователь пока ничего не рассказал о себе.';
+    
+    if (fullname) { 
+        fullname.value = profile.full_name || ''; 
+    }
+    if (username) {
+        username.value = profile.username || '';
+    }
+    if (bio) { 
+        bio.value = profile.bio || ''; 
+    }
+    
+    // Настройка режима
+    if (viewMode) viewMode.style.display = 'block';
+    if (editMode) editMode.style.display = 'none';
+    if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
+    if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
+    if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
+    
+    // Добавляем аватар загрузчик для своего профиля
+    if (!readOnly && editMode) {
+        const existingUploader = editMode.querySelector('.avatar-uploader');
+        if (existingUploader) existingUploader.remove();
+        const uploader = createAvatarUploader();
+        const bioField = document.getElementById('profile-bio');
+        if (bioField && bioField.parentNode) {
+            bioField.parentNode.insertBefore(uploader, bioField.nextSibling);
+        }
+    }
+
+    modal.style.display = 'flex';
+}
+
+function initProfileScreen() {
+    const editBtn = document.getElementById('btn-edit-profile');
+    const saveBtn = document.getElementById('btn-save-profile');
+    const backBtn = document.getElementById('btn-profile-back');
+    const viewMode = document.getElementById('profile-view-mode');
+    const editMode = document.getElementById('profile-edit-mode');
+
+    if (editBtn) {
+        editBtn.onclick = () => {
+            if (viewMode) viewMode.style.display = 'none';
+            if (editMode) editMode.style.display = 'block';
+            
+            const fullname = document.getElementById('profile-fullname');
+            const username = document.getElementById('profile-username');
+            const bio = document.getElementById('profile-bio');
+            
+            if (fullname && window.currentProfile) {
+                fullname.value = window.currentProfile.full_name || '';
+            }
+            if (username && window.currentProfile) {
+                username.value = window.currentProfile.username || '';
+            }
+            if (bio && window.currentProfile) {
+                bio.value = window.currentProfile.bio || '';
+            }
+        };
+    }
+
+    if (saveBtn) {
+        // Убираем старые обработчики и добавляем новый
+        const newSaveBtn = saveBtn.cloneNode(true);
+        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+        newSaveBtn.onclick = saveProfile;
+    }
+
+    if (backBtn) {
+        backBtn.onclick = () => {
+            const modal = document.getElementById('profile-screen');
+            if (modal) modal.style.display = 'none';
+            
+            if (window.lastOpenedGroupId) {
+                showGroupProfile(window.lastOpenedGroupId);
+                window.lastOpenedGroupId = null;
+            }
+        };
+    }
+}
+
+// Экспорт
 window.uploadAvatar = uploadAvatar;
 window.removeAvatar = removeAvatar;
 window.updateAllAvatars = updateAllAvatars;
 window.createAvatarUploader = createAvatarUploader;
+window.saveProfile = saveProfile;
+window.openProfileModal = openProfileModal;
+window.initProfileScreen = initProfileScreen;
