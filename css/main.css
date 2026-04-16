@@ -130,26 +130,38 @@
     position: relative;
 }
 
-/* Аватарка слева - для получателя */
-.message.other {
+/* Входящие сообщения - аватарка слева */
+.message.incoming {
     flex-direction: row;
     justify-content: flex-start;
 }
-.message.other .msg-avatar {
+.message.incoming .msg-avatar {
     order: 1;
     margin-right: 8px;
     margin-left: 0;
 }
-
-/* Аватарка справа - для отправителя */
-.message.own {
-    flex-direction: row-reverse;
-    justify-content: flex-start;
+.message.incoming .msg-bubble {
+    order: 2;
+    border-bottom-left-radius: 5px;
 }
-.message.own .msg-avatar {
+.message.incoming .msg-bubble {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Исходящие сообщения - аватарка справа */
+.message.outgoing {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+.message.outgoing .msg-avatar {
     order: 2;
     margin-left: 8px;
     margin-right: 0;
+}
+.message.outgoing .msg-bubble {
+    order: 1;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    border-bottom-right-radius: 5px;
 }
 
 .msg-avatar {
@@ -164,7 +176,6 @@
     color: white;
     flex-shrink: 0;
     position: relative;
-    background: #1e293b;
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.1s ease;
@@ -177,29 +188,18 @@
     height: 100%;
     object-fit: cover;
 }
-.message.own .msg-avatar {
+.message.outgoing .msg-avatar {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
 }
-.msg-avatar.group-avatar {
+.message.incoming .msg-avatar {
     background: linear-gradient(135deg, #667eea, #764ba2);
-}
-.msg-avatar.bot-avatar {
-    background: #12141D;
 }
 
 .msg-bubble {
-    background: rgba(255, 255, 255, 0.05);
     padding: 12px 16px;
     border-radius: 18px;
     max-width: 80%;
     position: relative;
-}
-.message.own .msg-bubble {
-    background: var(--accent-blue);
-    border-bottom-right-radius: 5px;
-}
-.message.other .msg-bubble {
-    border-bottom-left-radius: 5px;
 }
 
 .msg-sender {
@@ -217,16 +217,44 @@
     margin-top: 5px;
     text-align: right;
 }
-.message.own .msg-time { color: rgba(255,255,255,0.5); }
+.message.outgoing .msg-time { color: rgba(255,255,255,0.5); }
+.message.incoming .msg-time { color: rgba(255,255,255,0.35); }
 
 /* Непрочитанные сообщения */
-.message.unread-message .msg-bubble {
+.message.incoming.unread .msg-bubble {
     background: rgba(0, 114, 255, 0.15);
     border: 1px solid rgba(0, 114, 255, 0.3);
 }
-.message.own.unread-message .msg-bubble {
-    background: var(--accent-blue);
+.message.outgoing.unread .msg-bubble {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
     opacity: 0.8;
+}
+
+/* Сообщения бота */
+.bot-message .msg-bubble {
+    background: rgba(74, 85, 104, 0.3);
+    border: 1px solid rgba(74, 85, 104, 0.5);
+}
+.bot-message .msg-sender {
+    color: #a0aec0;
+}
+
+/* Каналы */
+.channel-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    font-size: 16px;
+}
+.chat-status.status-channel {
+    color: var(--accent-cyan);
+}
+.message.incoming.channel-message .msg-avatar {
+    display: none;
+}
+.message.outgoing.channel-message .msg-avatar {
+    display: flex;
 }
 
 /* Поле ввода */
@@ -255,6 +283,10 @@
     padding: 8px 0;
 }
 .glass-input-wrapper input::placeholder { color: var(--text-dim); }
+.glass-input-wrapper input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 
 .emoji-btn, .send-btn {
     background: none;
@@ -270,6 +302,10 @@
 .emoji-btn:hover, .send-btn:hover {
     color: white;
     transform: scale(1.05);
+}
+.send-btn:disabled, .emoji-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Эмодзи панель */
