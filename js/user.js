@@ -48,7 +48,6 @@ function subscribeToUserStatus(userId) {
             if (payload.new && currentChat?.other_user?.id === userId && typeof updateChatStatusFromProfile === 'function') {
                 updateChatStatusFromProfile(payload.new);
             }
-            // Обновляем аватар если он изменился
             if (payload.new && payload.new.avatar_url !== payload.old?.avatar_url) {
                 updateUserAvatarInUI(userId, payload.new.avatar_url);
             }
@@ -57,7 +56,6 @@ function subscribeToUserStatus(userId) {
 }
 
 function updateUserAvatarInUI(userId, avatarUrl) {
-    // Обновляем аватар в списке диалогов
     document.querySelectorAll(`.dialog-item[data-other-user-id="${userId}"] .dialog-avatar`).forEach(avatar => {
         if (avatarUrl) {
             avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
@@ -67,7 +65,6 @@ function updateUserAvatarInUI(userId, avatarUrl) {
         }
     });
     
-    // Обновляем аватар в сообщениях
     document.querySelectorAll(`.message .msg-avatar`).forEach(avatar => {
         const msg = avatar.closest('.message');
         if (msg && msg.dataset.userId === userId) {
@@ -77,7 +74,6 @@ function updateUserAvatarInUI(userId, avatarUrl) {
         }
     });
     
-    // Обновляем аватар в шапке чата
     if (currentChat?.other_user?.id === userId) {
         const chatAvatar = document.getElementById('chat-user-avatar');
         if (chatAvatar) {
@@ -151,11 +147,18 @@ async function searchUsersByUsername(username) {
 }
 
 async function ensureBotChat() {
+    // Проверяем, что currentUser существует
+    const userId = window.currentUser?.id || currentUser?.id;
+    if (!userId) {
+        console.log('ensureBotChat: currentUser не определён, пропускаем');
+        return;
+    }
+    
     try {
         const { data: existing } = await supabaseClient.from('chats')
             .select('id')
             .eq('type', 'private')
-            .contains('participants', [currentUser.id, BOT_USER_ID])
+            .contains('participants', [userId, BOT_USER_ID])
             .maybeSingle();
         
         if (existing) {
@@ -180,7 +183,7 @@ async function ensureBotChat() {
         const { data: chat, error } = await supabaseClient.from('chats')
             .insert({ 
                 type: 'private', 
-                participants: [currentUser.id, BOT_USER_ID], 
+                participants: [userId, BOT_USER_ID], 
                 created_at: new Date().toISOString(), 
                 updated_at: new Date().toISOString(), 
                 is_bot_chat: true 
@@ -204,13 +207,13 @@ async function ensureBotChat() {
 }
 
 async function ensureSavedChat() {
+    const userId = window.currentUser?.id || currentUser?.id;
+    if (!userId) {
+        console.error('ensureSavedChat: currentUser не определён');
+        return;
+    }
+    
     try {
-        const userId = window.currentUser?.id || currentUser?.id;
-        if (!userId) {
-            console.error('ensureSavedChat: currentUser не определён');
-            return;
-        }
-        
         const { data: existing } = await supabaseClient.from('chats')
             .select('id').eq('type', 'saved').contains('participants', [userId]).maybeSingle();
         if (existing) return;
