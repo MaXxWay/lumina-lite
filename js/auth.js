@@ -36,9 +36,12 @@ function showScreen(key) {
 }
 
 function resetLoginForm() {
-    document.getElementById('login-step-email').style.display = 'block';
-    document.getElementById('login-step-code').style.display = 'none';
-    document.getElementById('login-email').value = '';
+    const stepEmail = document.getElementById('login-step-email');
+    const stepCode = document.getElementById('login-step-code');
+    if (stepEmail) stepEmail.style.display = 'block';
+    if (stepCode) stepCode.style.display = 'none';
+    const loginEmail = document.getElementById('login-email');
+    if (loginEmail) loginEmail.value = '';
     const otpInput = document.getElementById('login-otp-code');
     if (otpInput) otpInput.value = '';
     currentLoginEmail = '';
@@ -46,11 +49,16 @@ function resetLoginForm() {
 }
 
 function resetRegForm() {
-    document.getElementById('reg-step-form').style.display = 'block';
-    document.getElementById('reg-step-code').style.display = 'none';
-    document.getElementById('reg-username').value = '';
-    document.getElementById('reg-full-name').value = '';
-    document.getElementById('reg-email').value = '';
+    const stepForm = document.getElementById('reg-step-form');
+    const stepCode = document.getElementById('reg-step-code');
+    if (stepForm) stepForm.style.display = 'block';
+    if (stepCode) stepCode.style.display = 'none';
+    const regUsername = document.getElementById('reg-username');
+    const regFullName = document.getElementById('reg-full-name');
+    const regEmail = document.getElementById('reg-email');
+    if (regUsername) regUsername.value = '';
+    if (regFullName) regFullName.value = '';
+    if (regEmail) regEmail.value = '';
     const otpInput = document.getElementById('reg-otp-code');
     if (otpInput) otpInput.value = '';
     pendingRegistration = null;
@@ -72,8 +80,10 @@ async function verifyCode() {
     }
 
     const btn = document.getElementById('btn-verify-code');
-    btn.disabled = true;
-    btn.textContent = 'Проверка...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Проверка...';
+    }
 
     try {
         const { data, error } = await supabaseClient.auth.verifyOtp({
@@ -87,11 +97,15 @@ async function verifyCode() {
         
     } catch (error) {
         showToast('Неверный код: ' + error.message, true);
-        otpInput.value = '';
-        otpInput.focus();
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.focus();
+        }
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Подтвердить код';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить код';
+        }
     }
 }
 
@@ -110,66 +124,57 @@ async function verifyRegCode() {
     }
 
     const btn = document.getElementById('btn-verify-reg-code');
-    btn.disabled = true;
-    btn.textContent = 'Проверка...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Проверка...';
+    }
 
     try {
-        // Исправлено: убираем password, так как пользователь уже создан через OTP
-        const { data: signUpData, error: signUpError } = await supabaseClient.auth.verifyOtp({
+        const password = Math.random().toString(36).slice(-10) + 'A1!';
+        const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
             email: pendingRegistration.email,
-            token: code,
-            type: 'email'
+            password: password,
+            options: {
+                data: {
+                    username: pendingRegistration.username,
+                    full_name: pendingRegistration.fullName
+                }
+            }
         });
         
         if (signUpError) throw signUpError;
         
         if (signUpData.user) {
-            // Проверяем, есть ли уже профиль
-            const { data: existingProfile } = await supabaseClient
-                .from('profiles')
-                .select('id')
-                .eq('id', signUpData.user.id)
-                .maybeSingle();
-            
-            if (!existingProfile) {
-                await supabaseClient.from('profiles').insert({
-                    id: signUpData.user.id,
-                    username: pendingRegistration.username,
-                    full_name: pendingRegistration.fullName,
-                    email: pendingRegistration.email,
-                    last_seen: new Date().toISOString()
-                });
-            }
-            
+            // Профиль создастся автоматически через триггер в БД
             showToast('✅ Аккаунт создан!');
             await handleSuccessfulLogin(signUpData.user);
         }
     } catch (error) {
-        showToast('Неверный код: ' + error.message, true);
-        otpInput.value = '';
-        otpInput.focus();
+        showToast('Ошибка: ' + error.message, true);
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.focus();
+        }
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Подтвердить код';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить код';
+        }
     }
 }
 
 async function resendCode(type) {
     const email = type === 'login' ? currentLoginEmail : pendingRegistration?.email;
     const btn = type === 'login' ? document.getElementById('btn-resend-code') : document.getElementById('btn-resend-reg-code');
-    if (!email) return;
+    if (!email || !btn) return;
     
     btn.disabled = true;
     btn.textContent = 'Отправка...';
 
     try {
-        // Для регистрации — без shouldCreateUser
-        // Для входа — с shouldCreateUser: false
-        const options = type === 'login' ? { shouldCreateUser: false } : {};
-        
         const { error } = await supabaseClient.auth.signInWithOtp({ 
             email, 
-            options
+            options: { shouldCreateUser: false } 
         });
         if (error) throw error;
         showToast('📧 Код отправлен!');
@@ -215,12 +220,15 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
+    // Получаем профиль из БД (создастся автоматически через триггер)
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
-    if (!p) {
+    
+    if (p) {
+        window.currentProfile = p;
+    } else {
+        // Если профиля нет (ошибка триггера), создаём вручную
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
-        
-        console.log('Создаём профиль с данными:', { username, fullName });
         
         const { data: newProfile } = await supabaseClient.from('profiles').insert({
             id: user.id, 
@@ -230,8 +238,6 @@ async function handleSuccessfulLogin(user) {
             last_seen: new Date().toISOString()
         }).select().maybeSingle();
         window.currentProfile = newProfile;
-    } else {
-        window.currentProfile = p;
     }
 
     console.log('currentProfile загружен:', window.currentProfile);
@@ -256,11 +262,19 @@ async function handleSuccessfulLogin(user) {
     }
 
     showScreen('chat');
-    document.getElementById('chat-title').textContent = 'Lumina Lite';
-    document.getElementById('chat-user-avatar').style.display = 'none';
-    document.querySelector('.chat-status').textContent = 'выберите диалог';
-    document.querySelector('.input-zone').style.display = 'none';
-    document.getElementById('messages').innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
+    const chatTitle = document.getElementById('chat-title');
+    const chatAvatar = document.getElementById('chat-user-avatar');
+    const chatStatus = document.querySelector('.chat-status');
+    const inputZone = document.querySelector('.input-zone');
+    const messagesContainer = document.getElementById('messages');
+    
+    if (chatTitle) chatTitle.textContent = 'Lumina Lite';
+    if (chatAvatar) chatAvatar.style.display = 'none';
+    if (chatStatus) chatStatus.textContent = 'выберите диалог';
+    if (inputZone) inputZone.style.display = 'none';
+    if (messagesContainer) {
+        messagesContainer.innerHTML = `<div class="msg-stub"><svg width="48" height="48"><use href="#icon-chat"/></svg><p>Выберите диалог</p></div>`;
+    }
     window.currentChat = null;
 
     setTimeout(hideLoader, 300);
@@ -283,6 +297,7 @@ async function logout() {
     if (window.statusSubscription) await supabaseClient.removeChannel(window.statusSubscription);
     if (window.typingChannel) await supabaseClient.removeChannel(window.typingChannel);
     if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
+    if (window.dialogsSubscription) await supabaseClient.removeChannel(window.dialogsSubscription);
     await supabaseClient.auth.signOut();
     window.currentUser = null;
     window.currentProfile = null;
@@ -295,89 +310,120 @@ function isValidEmail(email) {
 }
 
 function initAuth() {
-    document.getElementById('to-login')?.addEventListener('click', () => showScreen('login'));
-    document.getElementById('to-register')?.addEventListener('click', () => showScreen('reg'));
-    document.getElementById('btn-change-email-login')?.addEventListener('click', resetLoginForm);
-    document.getElementById('btn-change-email-reg')?.addEventListener('click', resetRegForm);
-    document.getElementById('btn-profile-back')?.addEventListener('click', () => showScreen('chat'));
-    document.getElementById('btn-cancel-edit-profile')?.addEventListener('click', () => {
-        document.getElementById('profile-view-mode').style.display = 'block';
-        document.getElementById('profile-edit-mode').style.display = 'none';
+    const toLogin = document.getElementById('to-login');
+    const toRegister = document.getElementById('to-register');
+    const changeEmailLogin = document.getElementById('btn-change-email-login');
+    const changeEmailReg = document.getElementById('btn-change-email-reg');
+    const profileBack = document.getElementById('btn-profile-back');
+    const cancelEdit = document.getElementById('btn-cancel-edit-profile');
+    const doReg = document.getElementById('btn-do-reg');
+    const verifyRegCode = document.getElementById('btn-verify-reg-code');
+    const resendRegCode = document.getElementById('btn-resend-reg-code');
+    const sendCode = document.getElementById('btn-send-code');
+    const resendCode = document.getElementById('btn-resend-code');
+    const verifyCodeBtn = document.getElementById('btn-verify-code');
+    
+    if (toLogin) toLogin.addEventListener('click', () => showScreen('login'));
+    if (toRegister) toRegister.addEventListener('click', () => showScreen('reg'));
+    if (changeEmailLogin) changeEmailLogin.addEventListener('click', resetLoginForm);
+    if (changeEmailReg) changeEmailReg.addEventListener('click', resetRegForm);
+    if (profileBack) profileBack.addEventListener('click', () => showScreen('chat'));
+    if (cancelEdit) cancelEdit.addEventListener('click', () => {
+        const viewMode = document.getElementById('profile-view-mode');
+        const editMode = document.getElementById('profile-edit-mode');
+        if (viewMode) viewMode.style.display = 'block';
+        if (editMode) editMode.style.display = 'none';
     });
 
-    // РЕГИСТРАЦИЯ — ИСПРАВЛЕНО
-    document.getElementById('btn-do-reg')?.addEventListener('click', async () => {
-        const username = document.getElementById('reg-username').value.trim();
-        const fullName = document.getElementById('reg-full-name').value.trim();
-        const email = document.getElementById('reg-email').value.trim();
+    if (doReg) {
+        doReg.addEventListener('click', async () => {
+            const username = document.getElementById('reg-username')?.value.trim();
+            const fullName = document.getElementById('reg-full-name')?.value.trim();
+            const email = document.getElementById('reg-email')?.value.trim();
 
-        if (!username || !email || !fullName) return showToast('Заполните все поля', true);
-        if (!isValidEmail(email)) return showToast('Введите корректный email', true);
+            if (!username || !email || !fullName) return showToast('Заполните все поля', true);
+            if (!isValidEmail(email)) return showToast('Введите корректный email', true);
 
-        const btn = document.getElementById('btn-do-reg');
-        btn.disabled = true;
-        btn.textContent = 'Отправка...';
+            const btn = document.getElementById('btn-do-reg');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Отправка...';
+            }
 
-        try {
-            // ИСПРАВЛЕНО: убираем shouldCreateUser: false для регистрации
-            const { error } = await supabaseClient.auth.signInWithOtp({ email });
-            if (error) throw error;
+            try {
+                const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+                if (error && !error.message.includes('user not found')) throw error;
 
-            pendingRegistration = { email, username: username.replace(/^@/, ''), fullName };
+                pendingRegistration = { email, username: username.replace(/^@/, ''), fullName };
 
-            document.getElementById('reg-step-form').style.display = 'none';
-            document.getElementById('reg-step-code').style.display = 'block';
-            document.getElementById('reg-code-email-display').textContent = email;
-            document.getElementById('reg-otp-code').focus();
-            
-            showToast('📧 Код отправлен!');
-            startResendTimer('reg');
-        } catch (error) {
-            showToast('Ошибка: ' + error.message, true);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Зарегистрироваться';
-        }
-    });
+                const stepForm = document.getElementById('reg-step-form');
+                const stepCode = document.getElementById('reg-step-code');
+                const emailDisplay = document.getElementById('reg-code-email-display');
+                const otpInput = document.getElementById('reg-otp-code');
+                
+                if (stepForm) stepForm.style.display = 'none';
+                if (stepCode) stepCode.style.display = 'block';
+                if (emailDisplay) emailDisplay.textContent = email;
+                if (otpInput) otpInput.focus();
+                
+                showToast('📧 Код отправлен!');
+                startResendTimer('reg');
+            } catch (error) {
+                showToast('Ошибка: ' + error.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Зарегистрироваться';
+                }
+            }
+        });
+    }
 
-    document.getElementById('btn-verify-reg-code')?.addEventListener('click', verifyRegCode);
-    document.getElementById('btn-resend-reg-code')?.addEventListener('click', () => resendCode('reg'));
+    if (verifyRegCode) verifyRegCode.addEventListener('click', verifyRegCode);
+    if (resendRegCode) resendRegCode.addEventListener('click', () => resendCode('reg'));
 
-    // ВХОД — оставляем shouldCreateUser: false
-    document.getElementById('btn-send-code')?.addEventListener('click', async () => {
-        const email = document.getElementById('login-email').value.trim();
-        if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
+    if (sendCode) {
+        sendCode.addEventListener('click', async () => {
+            const email = document.getElementById('login-email')?.value.trim();
+            if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
 
-        currentLoginEmail = email;
-        const btn = document.getElementById('btn-send-code');
-        btn.disabled = true;
-        btn.textContent = 'Отправка...';
+            currentLoginEmail = email;
+            const btn = document.getElementById('btn-send-code');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Отправка...';
+            }
 
-        try {
-            const { error } = await supabaseClient.auth.signInWithOtp({ 
-                email, 
-                options: { shouldCreateUser: false } 
-            });
-            if (error) throw error;
+            try {
+                const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+                if (error) throw error;
 
-            document.getElementById('login-step-email').style.display = 'none';
-            document.getElementById('login-step-code').style.display = 'block';
-            document.getElementById('code-email-display').textContent = email;
-            document.getElementById('login-otp-code').focus();
-            
-            showToast('📧 Код отправлен!');
-            startResendTimer('login');
-        } catch (error) {
-            if (error.message.includes('user not found')) showToast('Пользователь не найден', true);
-            else showToast('Ошибка: ' + error.message, true);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Отправить код';
-        }
-    });
+                const stepEmail = document.getElementById('login-step-email');
+                const stepCode = document.getElementById('login-step-code');
+                const emailDisplay = document.getElementById('code-email-display');
+                const otpInput = document.getElementById('login-otp-code');
+                
+                if (stepEmail) stepEmail.style.display = 'none';
+                if (stepCode) stepCode.style.display = 'block';
+                if (emailDisplay) emailDisplay.textContent = email;
+                if (otpInput) otpInput.focus();
+                
+                showToast('📧 Код отправлен!');
+                startResendTimer('login');
+            } catch (error) {
+                if (error.message.includes('user not found')) showToast('Пользователь не найден', true);
+                else showToast('Ошибка: ' + error.message, true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Отправить код';
+                }
+            }
+        });
+    }
 
-    document.getElementById('btn-resend-code')?.addEventListener('click', () => resendCode('login'));
-    document.getElementById('btn-verify-code')?.addEventListener('click', verifyCode);
+    if (resendCode) resendCode.addEventListener('click', () => resendCode('login'));
+    if (verifyCodeBtn) verifyCodeBtn.addEventListener('click', verifyCode);
 }
 
 window.initAuth = initAuth;
