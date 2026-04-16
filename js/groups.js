@@ -61,11 +61,11 @@ class GroupManager {
 
             showToast(`Группа «${name}» создана!`);
 
-            const m = document.getElementById('create-group-modal');
-            if (m) m.style.display = 'none';
+            const modal = document.getElementById('create-group-modal');
+            if (modal) modal.style.display = 'none';
 
-            await loadDialogs();
-            await openGroupChat(chat.id, { ...group, member_count: participants.length, chat_id: chat.id });
+            if (typeof loadDialogs === 'function') await loadDialogs();
+            if (typeof openGroupChat === 'function') await openGroupChat(chat.id, { ...group, member_count: participants.length, chat_id: chat.id });
 
             return { success: true, group, chat };
         } catch (err) {
@@ -85,12 +85,12 @@ class GroupManager {
                         user_id,
                         role,
                         joined_at,
-                        profile:profiles(id, full_name, username, bio, is_online, last_seen, is_verified)
+                        profile:profiles(id, full_name, username, bio, is_online, last_seen, is_verified, avatar_url)
                     )
                 `)
                 .eq('id', groupId).single();
             if (error) throw error;
-            if (group.members) {
+            if (group && group.members) {
                 const roleOrder = { admin: 0, moderator: 1, member: 2 };
                 group.members.sort((a, b) => roleOrder[a.role] - roleOrder[b.role]);
             }
@@ -149,7 +149,7 @@ class GroupManager {
             if (!ok) throw new Error('Недостаточно прав');
             
             const g = await this.getGroupInfo(groupId);
-            if (g.created_by === userId) throw new Error('Нельзя удалить создателя');
+            if (g && g.created_by === userId) throw new Error('Нельзя удалить создателя');
             
             const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
             const { data: p } = await this.supabase.from('profiles').select('username, full_name').eq('id', userId).single();
@@ -192,7 +192,7 @@ class GroupManager {
 
             if (currentChat?.group?.id === groupId && typeof closeChat === 'function') closeChat();
             showToast('Вы покинули группу');
-            await loadDialogs();
+            if (typeof loadDialogs === 'function') await loadDialogs();
             return { success: true };
         } catch (err) {
             showToast('Ошибка: ' + err.message, true);
@@ -203,7 +203,7 @@ class GroupManager {
     async deleteGroup(groupId) {
         try {
             const g = await this.getGroupInfo(groupId);
-            if (g?.created_by !== currentUser.id) throw new Error('Только создатель может удалить группу');
+            if (!g || g.created_by !== currentUser.id) throw new Error('Только создатель может удалить группу');
 
             const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).maybeSingle();
             if (chat) {
@@ -215,7 +215,7 @@ class GroupManager {
 
             if (currentChat?.group?.id === groupId && typeof closeChat === 'function') closeChat();
             showToast('Группа удалена');
-            await loadDialogs();
+            if (typeof loadDialogs === 'function') await loadDialogs();
             return { success: true };
         } catch (err) {
             showToast('Ошибка: ' + err.message, true);
@@ -226,7 +226,7 @@ class GroupManager {
     async setRole(groupId, userId, role) {
         try {
             const g = await this.getGroupInfo(groupId);
-            if (g.created_by !== currentUser.id && currentUser.id !== g.created_by) throw new Error('Только создатель назначает роли');
+            if (!g || (g.created_by !== currentUser.id && currentUser.id !== g.created_by)) throw new Error('Только создатель назначает роли');
             if (userId === g.created_by) throw new Error('Нельзя изменить роль создателя');
             
             const { data: chat } = await this.supabase.from('chats').select('id').eq('group_id', groupId).single();
@@ -265,6 +265,8 @@ class GroupManager {
     async updateGroupInfo(groupId, updates) {
         try {
             const group = await this.getGroupInfo(groupId);
+            if (!group) throw new Error('Группа не найдена');
+            
             const isAdmin = group.created_by === currentUser.id;
             const isMod = group.members?.find(m => m.user_id === currentUser.id)?.role === 'moderator';
             
@@ -294,7 +296,6 @@ class GroupManager {
 
     async _addSystemMessage(chatId, text) {
         try {
-            // Очищаем текст от лишних эмодзи при рендере, но сохраняем их в БД
             await this.supabase.from('messages').insert({ 
                 chat_id: chatId, 
                 user_id: BOT_USER_ID, 
@@ -315,14 +316,16 @@ class GroupManager {
         try {
             const { count } = await this.supabase.from('group_members').select('*', { count: 'exact', head: true }).eq('group_id', groupId);
             await this.supabase.from('groups').update({ member_count: count }).eq('id', groupId);
-        } catch {}
+        } catch (err) { console.error('updateMemberCount error:', err); }
     }
 
     async updateGroupChat(groupId) {
         try {
             const { data: members } = await this.supabase.from('group_members').select('user_id').eq('group_id', groupId);
-            await this.supabase.from('chats').update({ participants: members.map(m => m.user_id) }).eq('group_id', groupId);
-        } catch {}
+            if (members) {
+                await this.supabase.from('chats').update({ participants: members.map(m => m.user_id) }).eq('group_id', groupId);
+            }
+        } catch (err) { console.error('updateGroupChat error:', err); }
     }
 
     async searchUsersForGroup(term, groupId) {
@@ -337,28 +340,35 @@ class GroupManager {
                 .neq('id', currentUser.id)
                 .limit(20);
             return users || [];
-        } catch { return []; }
+        } catch (err) { 
+            console.error('searchUsersForGroup error:', err);
+            return []; 
+        }
     }
 }
 
 let groupManager = null;
 
-    const btn = document.getElementById('create-group-btn');
-    if (btn) {
-        btn.onclick = () => {
+async function initGroups() {
+    if (!supabaseClient || !currentUser) {
+        console.log('initGroups: waiting for currentUser...');
+        setTimeout(initGroups, 500);
+        return;
+    }
+    
+    groupManager = new GroupManager(supabaseClient);
+    window.groupManager = groupManager;
+    
+    const createGroupBtn = document.getElementById('create-group-menu-btn');
+    if (createGroupBtn) {
+        createGroupBtn.onclick = () => {
             if (typeof showCreateGroupModal === 'function') showCreateGroupModal();
         };
     }
+    
+    console.log('GroupManager инициализирован');
 }
 
 window.GroupManager = GroupManager;
 window.groupManager = groupManager;
 window.initGroups = initGroups;
-window.waitForGroupManager = function(callback) {
-    if (groupManager) {
-        callback();
-    } else {
-        setTimeout(() => window.waitForGroupManager(callback), 100);
-    }
-};
-// БОЛЬШЕ НИЧЕГО ПОСЛЕ ЭТОГО!
