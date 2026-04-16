@@ -147,7 +147,6 @@ async function searchUsersByUsername(username) {
 }
 
 async function ensureBotChat() {
-    // Проверяем, что currentUser существует
     const userId = window.currentUser?.id || currentUser?.id;
     if (!userId) {
         console.log('ensureBotChat: currentUser не определён, пропускаем');
@@ -155,6 +154,7 @@ async function ensureBotChat() {
     }
     
     try {
+        // Проверяем, существует ли чат с ботом
         const { data: existing } = await supabaseClient.from('chats')
             .select('id')
             .eq('type', 'private')
@@ -162,6 +162,7 @@ async function ensureBotChat() {
             .maybeSingle();
         
         if (existing) {
+            // Чат существует, проверяем наличие приветственного сообщения
             const { data: botMessages } = await supabaseClient.from('messages')
                 .select('id')
                 .eq('chat_id', existing.id)
@@ -180,6 +181,7 @@ async function ensureBotChat() {
             return;
         }
         
+        // Создаём новый чат с ботом
         const { data: chat, error } = await supabaseClient.from('chats')
             .insert({ 
                 type: 'private', 
@@ -254,7 +256,7 @@ async function cleanupDeadChats() {
                 await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
             }
         }
-        await loadDialogs();
+        if (typeof loadDialogs === 'function') await loadDialogs();
     } catch {}
 }
 
