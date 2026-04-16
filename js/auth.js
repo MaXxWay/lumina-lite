@@ -1,4 +1,4 @@
-// auth.js — ПОЛНОСТЬЮ РАБОЧАЯ ВЕРСИЯ С OTP
+// auth.js — исправленная версия для правильного ввода кода
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -11,7 +11,6 @@ let pendingRegistration = null;
 let currentLoginEmail = '';
 let otpTimer = null;
 let otpSecondsLeft = 0;
-let currentOtpCode = null; // Для тестового режима
 
 function hideLoader() {
     const loader = document.getElementById('app-loader');
@@ -66,33 +65,43 @@ function resetRegForm() {
     if (otpTimer) { clearInterval(otpTimer); otpTimer = null; }
 }
 
-async function sendOtpCode(email, type = 'login') {
-    try {
-        const { error } = await supabaseClient.auth.signInWithOtp({ 
-            email: email,
-            options: {
-                shouldCreateUser: type === 'register'
+// Функция для ввода кода по одному символу (автоматический переход)
+function setupOtpInputs() {
+    const loginOtp = document.getElementById('login-otp-code');
+    const regOtp = document.getElementById('reg-otp-code');
+    
+    const handleOtpInput = (e) => {
+        // Убираем все не цифры
+        let value = e.target.value.replace(/\D/g, '');
+        // Ограничиваем 6 символами
+        if (value.length > 6) value = value.slice(0, 6);
+        e.target.value = value;
+        
+        // Если ввели 6 цифр, автоматически отправляем
+        if (value.length === 6) {
+            if (e.target.id === 'login-otp-code') {
+                setTimeout(() => verifyCode(), 100);
+            } else {
+                setTimeout(() => verifyRegCode(), 100);
             }
-        });
-        
-        if (error) {
-            console.error('OTP send error:', error);
-            return { success: false, error: error.message };
         }
-        
-        return { success: true };
-    } catch (error) {
-        console.error('Send OTP error:', error);
-        return { success: false, error: error.message };
-    }
+    };
+    
+    if (loginOtp) loginOtp.addEventListener('input', handleOtpInput);
+    if (regOtp) regOtp.addEventListener('input', handleOtpInput);
 }
 
 async function verifyCode() {
     const otpInput = document.getElementById('login-otp-code');
-    const code = otpInput ? otpInput.value.trim() : '';
+    let code = otpInput ? otpInput.value.trim() : '';
+    
+    // Очищаем код от всего кроме цифр
+    code = code.replace(/\D/g, '');
+    
+    console.log('Проверка кода:', code, 'Длина:', code.length);
     
     if (code.length !== 6) {
-        showToast('Введите 6 цифр', true);
+        showToast('Введите 6 цифр кода из письма', true);
         return;
     }
     
@@ -108,13 +117,20 @@ async function verifyCode() {
     }
 
     try {
+        console.log('Отправка запроса верификации для:', currentLoginEmail);
+        
         const { data, error } = await supabaseClient.auth.verifyOtp({
             email: currentLoginEmail,
             token: code,
             type: 'email'
         });
         
-        if (error) throw error;
+        if (error) {
+            console.error('Ошибка верификации:', error);
+            throw error;
+        }
+        
+        console.log('Верификация успешна:', data);
         
         if (data.user) {
             showToast('✅ Вход выполнен!');
@@ -122,8 +138,8 @@ async function verifyCode() {
         }
         
     } catch (error) {
-        console.error('Verify error:', error);
-        showToast('Неверный код: ' + error.message, true);
+        console.error('Verify error details:', error);
+        showToast('Неверный код. Проверьте почту и введите точный код из письма', true);
         if (otpInput) {
             otpInput.value = '';
             otpInput.focus();
@@ -138,10 +154,15 @@ async function verifyCode() {
 
 async function verifyRegCode() {
     const otpInput = document.getElementById('reg-otp-code');
-    const code = otpInput ? otpInput.value.trim() : '';
+    let code = otpInput ? otpInput.value.trim() : '';
+    
+    // Очищаем код от всего кроме цифр
+    code = code.replace(/\D/g, '');
+    
+    console.log('Проверка кода регистрации:', code, 'Длина:', code.length);
     
     if (code.length !== 6) {
-        showToast('Введите 6 цифр', true);
+        showToast('Введите 6 цифр кода из письма', true);
         return;
     }
     
@@ -157,23 +178,29 @@ async function verifyRegCode() {
     }
 
     try {
-        // Сначала верифицируем код
-        const { data: verifyData, error: verifyError } = await supabaseClient.auth.verifyOtp({
+        console.log('Отправка запроса верификации регистрации для:', pendingRegistration.email);
+        
+        const { data, error } = await supabaseClient.auth.verifyOtp({
             email: pendingRegistration.email,
             token: code,
             type: 'email'
         });
         
-        if (verifyError) throw verifyError;
+        if (error) {
+            console.error('Ошибка верификации регистрации:', error);
+            throw error;
+        }
         
-        if (verifyData.user) {
-            showToast('✅ Аккаунт подтвержден!');
-            await handleSuccessfulLogin(verifyData.user);
+        console.log('Верификация регистрации успешна:', data);
+        
+        if (data.user) {
+            showToast('✅ Аккаунт создан!');
+            await handleSuccessfulLogin(data.user);
         }
         
     } catch (error) {
         console.error('Registration verify error:', error);
-        showToast('Ошибка: ' + error.message, true);
+        showToast('Неверный код. Проверьте почту и введите точный код из письма', true);
         if (otpInput) {
             otpInput.value = '';
             otpInput.focus();
@@ -195,6 +222,8 @@ async function resendCode(type) {
     btn.textContent = 'Отправка...';
 
     try {
+        console.log('Повторная отправка кода на:', email);
+        
         const { error } = await supabaseClient.auth.signInWithOtp({ 
             email, 
             options: { 
@@ -204,7 +233,7 @@ async function resendCode(type) {
         
         if (error) throw error;
         
-        showToast('📧 Код отправлен повторно!');
+        showToast('📧 Новый код отправлен! Проверьте почту (и папку Спам)');
         
         const otpInput = type === 'login' ? document.getElementById('login-otp-code') : document.getElementById('reg-otp-code');
         if (otpInput) {
@@ -249,7 +278,6 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    // Получаем или создаем профиль
     let { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -346,6 +374,9 @@ function initAuth() {
     const resendCode = document.getElementById('btn-resend-code');
     const verifyCodeBtn = document.getElementById('btn-verify-code');
     
+    // Настраиваем OTP поля для автоматической отправки
+    setupOtpInputs();
+    
     if (toLogin) toLogin.addEventListener('click', () => showScreen('login'));
     if (toRegister) toRegister.addEventListener('click', () => showScreen('reg'));
     if (changeEmailLogin) changeEmailLogin.addEventListener('click', resetLoginForm);
@@ -379,7 +410,6 @@ function initAuth() {
             btn.textContent = 'Отправка кода...';
 
             try {
-                // Отправляем OTP код
                 const { error } = await supabaseClient.auth.signInWithOtp({ 
                     email, 
                     options: { 
