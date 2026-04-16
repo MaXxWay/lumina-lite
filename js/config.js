@@ -1,9 +1,9 @@
 // config.js - Конфигурация Supabase
-// ВНИМАНИЕ: В production используйте переменные окружения!
+
 const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
 
-// TODO: Создать реального бота в Supabase и заменить этот ID
+// ВАЖНО: Создайте реального бота в Supabase и замените этот ID
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000000';
 const SAVED_CHAT_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
@@ -12,7 +12,8 @@ const BOT_PROFILE = {
     username: 'lumina_bot',
     full_name: 'Lumina Bot',
     bio: 'Официальный бот мессенджера Lumina Lite',
-    is_bot: true
+    is_bot: true,
+    is_verified: true
 };
 
 const SAVED_CHAT = {
@@ -45,11 +46,12 @@ let onlineInterval = null;
 let isUserOnline = true;
 let lastActivityUpdate = 0;
 let statusSubscription = null;
+let dialogsSubscription = null;
 
 // Константы
 const MAX_MESSAGE_PREVIEW_LENGTH = 50;
 const ONLINE_TIMEOUT_MINUTES = 5;
-const HEARTBEAT_INTERVAL = 300000; // 5 минут
+const HEARTBEAT_INTERVAL = 180000; // 3 минуты
 const MAX_CACHED_MESSAGES = 200;
 
 // Экспорт
