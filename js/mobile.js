@@ -167,8 +167,16 @@ function initMobileGroupContextMenu() {
     menu.style.width = '100%';
 }
 
+// Функция для обновления списка диалогов на мобильных
+function refreshDialogsMobile() {
+    if (isMobileDevice() && typeof loadDialogs === 'function') {
+        loadDialogs();
+    }
+}
+
 window.initMobileOptimizations = initMobileOptimizations;
 window.openChatMobile = openChatMobile;
 window.closeChat = closeChat;
 window.isChatOpen = isChatOpen;
 window.initMobileGroupContextMenu = initMobileGroupContextMenu;
+window.refreshDialogsMobile = refreshDialogsMobile;
