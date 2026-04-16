@@ -9,27 +9,30 @@
         if (event === 'SIGNED_IN' && session?.user && !window.currentUser) {
             await handleSuccessfulLogin(session.user);
         }
+        if (event === 'SIGNED_OUT') {
+            window.currentUser = null;
+            window.currentProfile = null;
+            window.currentChat = null;
+        }
     });
 
-    if (!session) {
-        if (typeof hideLoader === 'function') hideLoader();
-        showScreen('reg');
-        initAuth();
-    } else {
-        initAuth();
-        initEmojiPicker();
-        initImprovedMessageMenu();
-        initProfileScreen();
-        initSearchDialogs();
-        initSendButton();
-        initUserActivityTracking();
-        if (typeof initSideMenu === 'function') initSideMenu();
+    // Инициализация всех компонентов
+    initAuth();
+    initEmojiPicker();
+    initImprovedMessageMenu();
+    initProfileScreen();
+    initSearchDialogs();
+    initSendButton();
+    initUserActivityTracking();
+    if (typeof initSideMenu === 'function') initSideMenu();
 
-        window.addEventListener('resize', updateDvh);
-        updateDvh();
+    window.addEventListener('resize', updateDvh);
+    updateDvh();
 
+    // Если есть сессия, загружаем данные
+    if (session) {
         await handleSuccessfulLogin(session.user);
-
+        
         if (typeof initGroups === 'function') {
             await initGroups();
         }
@@ -41,9 +44,11 @@
             initMobileGroupContextMenu();
         }
         
-        // Подписываемся на новые чаты
         if (typeof subscribeToNewChats === 'function') {
             subscribeToNewChats();
         }
+    } else {
+        hideLoader();
+        showScreen('login');
     }
 })();
