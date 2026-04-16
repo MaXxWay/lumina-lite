@@ -471,92 +471,7 @@ function updateDialogLastMessage(chatId, text, isOwn) {
     item.parentNode?.insertBefore(item, item.parentNode.firstChild);
 }
 
-function updateChatStatusFromProfile(profile) {
-    const cs = document.querySelector('.chat-status');
-    if (!cs) return;
-    
-    if (currentChat?.other_user?.id === BOT_USER_ID) {
-        cs.textContent = 'бот';
-        cs.className = 'chat-status status-bot';
-        return;
-    }
-    
-    if (currentChat?.id === SAVED_CHAT_ID) {
-        cs.textContent = 'личное';
-        cs.className = 'chat-status';
-        return;
-    }
-    
-    const status = getUserStatusFromProfile(profile);
-    cs.textContent = status.text;
-    cs.className = `chat-status ${status.class}`;
-    
-    if (status.isOnline) {
-        cs.style.color = '#22c55e';
-    } else {
-        cs.style.color = '';
-    }
-}
-
-async function ensureBotChat() {
-    try {
-        const userId = window.currentUser?.id || currentUser?.id;
-        if (!userId) {
-            console.error('ensureBotChat: currentUser не определён');
-            return;
-        }
-        
-        const { data: existing } = await supabaseClient.from('chats')
-            .select('id')
-            .eq('type', 'private')
-            .contains('participants', [userId, BOT_USER_ID])
-            .maybeSingle();
-        
-        if (existing) {
-            const { data: botMessages } = await supabaseClient.from('messages')
-                .select('id')
-                .eq('chat_id', existing.id)
-                .eq('user_id', BOT_USER_ID)
-                .limit(1);
-            
-            if (!botMessages || botMessages.length === 0) {
-                await supabaseClient.from('messages').insert({
-                    text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
-                    user_id: BOT_USER_ID,
-                    chat_id: existing.id,
-                    is_system: false,
-                    created_at: new Date().toISOString()
-                });
-            }
-            return;
-        }
-        
-        const { data: chat, error } = await supabaseClient.from('chats')
-            .insert({ 
-                type: 'private', 
-                participants: [userId, BOT_USER_ID], 
-                created_at: new Date().toISOString(), 
-                updated_at: new Date().toISOString(), 
-                is_bot_chat: true 
-            })
-            .select()
-            .single();
-        if (error) throw error;
-        
-        if (chat) {
-            await supabaseClient.from('messages').insert({
-                text: '👋 Добро пожаловать в Lumina Lite!\n\nЗдесь можно:\n• Найти друзей по @username\n• Создать группу\n• Настроить профиль и аватар\n\nПриятного общения! 🚀',
-                user_id: BOT_USER_ID,
-                chat_id: chat.id,
-                is_system: false,
-                created_at: new Date().toISOString()
-            });
-        }
-    } catch (err) { 
-        console.error('ensureBotChat:', err); 
-    }
-}
-
+// Экспорт всех функций
 window.getOrCreatePrivateChat = getOrCreatePrivateChat;
 window.markChatMessagesAsRead = markChatMessagesAsRead;
 window.setupReadStatusObserver = setupReadStatusObserver;
@@ -572,5 +487,4 @@ window.sendMsg = sendMsg;
 window.updateDialogLastMessage = updateDialogLastMessage;
 window.setMessageReadStatus = setMessageReadStatus;
 window.attachMessageContextMenu = attachMessageContextMenu;
-window.updateChatStatusFromProfile = updateChatStatusFromProfile;
-window.ensureBotChat = ensureBotChat;
+// updateChatStatusFromProfile удалён — он определён в ui.js
