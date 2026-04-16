@@ -114,28 +114,32 @@ async function verifyRegCode() {
     btn.textContent = 'Проверка...';
 
     try {
-        const password = Math.random().toString(36).slice(-10) + 'A1!';
-        const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
+        // Исправлено: убираем password, так как пользователь уже создан через OTP
+        const { data: signUpData, error: signUpError } = await supabaseClient.auth.verifyOtp({
             email: pendingRegistration.email,
-            password: password,
-            options: {
-                data: {
-                    username: pendingRegistration.username,
-                    full_name: pendingRegistration.fullName
-                }
-            }
+            token: code,
+            type: 'email'
         });
         
         if (signUpError) throw signUpError;
         
         if (signUpData.user) {
-            await supabaseClient.from('profiles').insert({
-                id: signUpData.user.id,
-                username: pendingRegistration.username,
-                full_name: pendingRegistration.fullName,
-                email: pendingRegistration.email,
-                last_seen: new Date().toISOString()
-            });
+            // Проверяем, есть ли уже профиль
+            const { data: existingProfile } = await supabaseClient
+                .from('profiles')
+                .select('id')
+                .eq('id', signUpData.user.id)
+                .maybeSingle();
+            
+            if (!existingProfile) {
+                await supabaseClient.from('profiles').insert({
+                    id: signUpData.user.id,
+                    username: pendingRegistration.username,
+                    full_name: pendingRegistration.fullName,
+                    email: pendingRegistration.email,
+                    last_seen: new Date().toISOString()
+                });
+            }
             
             showToast('✅ Аккаунт создан!');
             await handleSuccessfulLogin(signUpData.user);
@@ -159,9 +163,13 @@ async function resendCode(type) {
     btn.textContent = 'Отправка...';
 
     try {
+        // Для регистрации — без shouldCreateUser
+        // Для входа — с shouldCreateUser: false
+        const options = type === 'login' ? { shouldCreateUser: false } : {};
+        
         const { error } = await supabaseClient.auth.signInWithOtp({ 
             email, 
-            options: { shouldCreateUser: false } 
+            options
         });
         if (error) throw error;
         showToast('📧 Код отправлен!');
@@ -207,7 +215,6 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    // Загружаем профиль
     const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (!p) {
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
@@ -229,12 +236,10 @@ async function handleSuccessfulLogin(user) {
 
     console.log('currentProfile загружен:', window.currentProfile);
 
-    // Обновляем UI сразу
     if (window.currentProfile) {
         const badge = document.getElementById('current-user-badge');
         if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
         
-        // Вызываем обновление футера
         if (typeof updateProfileFooter === 'function') {
             updateProfileFooter();
         }
@@ -265,7 +270,6 @@ async function handleSuccessfulLogin(user) {
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
     
-    // Ещё раз обновляем футер после загрузки всего
     setTimeout(() => {
         if (typeof updateProfileFooter === 'function') {
             updateProfileFooter();
@@ -301,6 +305,7 @@ function initAuth() {
         document.getElementById('profile-edit-mode').style.display = 'none';
     });
 
+    // РЕГИСТРАЦИЯ — ИСПРАВЛЕНО
     document.getElementById('btn-do-reg')?.addEventListener('click', async () => {
         const username = document.getElementById('reg-username').value.trim();
         const fullName = document.getElementById('reg-full-name').value.trim();
@@ -314,8 +319,9 @@ function initAuth() {
         btn.textContent = 'Отправка...';
 
         try {
-            const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-            if (error && !error.message.includes('user not found')) throw error;
+            // ИСПРАВЛЕНО: убираем shouldCreateUser: false для регистрации
+            const { error } = await supabaseClient.auth.signInWithOtp({ email });
+            if (error) throw error;
 
             pendingRegistration = { email, username: username.replace(/^@/, ''), fullName };
 
@@ -337,6 +343,7 @@ function initAuth() {
     document.getElementById('btn-verify-reg-code')?.addEventListener('click', verifyRegCode);
     document.getElementById('btn-resend-reg-code')?.addEventListener('click', () => resendCode('reg'));
 
+    // ВХОД — оставляем shouldCreateUser: false
     document.getElementById('btn-send-code')?.addEventListener('click', async () => {
         const email = document.getElementById('login-email').value.trim();
         if (!email || !isValidEmail(email)) return showToast('Введите корректный email', true);
@@ -347,7 +354,10 @@ function initAuth() {
         btn.textContent = 'Отправка...';
 
         try {
-            const { error } = await supabaseClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+            const { error } = await supabaseClient.auth.signInWithOtp({ 
+                email, 
+                options: { shouldCreateUser: false } 
+            });
             if (error) throw error;
 
             document.getElementById('login-step-email').style.display = 'none';
