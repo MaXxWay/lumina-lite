@@ -1,4 +1,4 @@
-// auth.js — исправленная версия (без двойной верификации)
+// auth.js — исправленная версия (без двойной верификации, поддержка любых почт)
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -11,7 +11,7 @@ let pendingRegistration = null;
 let currentLoginEmail = '';
 let otpTimer = null;
 let otpSecondsLeft = 0;
-let isVerifying = false; // Флаг для предотвращения двойной верификации
+let isVerifying = false;
 
 function hideLoader() {
     const loader = document.getElementById('app-loader');
@@ -68,18 +68,15 @@ function resetRegForm() {
     isVerifying = false;
 }
 
-// Функция для ввода кода (автоматическая отправка при 6 символах)
 function setupOtpInputs() {
     const loginOtp = document.getElementById('login-otp-code');
     const regOtp = document.getElementById('reg-otp-code');
     
     const handleOtpInput = (e) => {
-        // Убираем все не цифры
         let value = e.target.value.replace(/\D/g, '');
         if (value.length > 6) value = value.slice(0, 6);
         e.target.value = value;
         
-        // Если ввели 6 цифр И не идет верификация, отправляем
         if (value.length === 6 && !isVerifying) {
             if (e.target.id === 'login-otp-code') {
                 verifyCode();
@@ -94,7 +91,6 @@ function setupOtpInputs() {
 }
 
 async function verifyCode() {
-    // Предотвращаем двойной вызов
     if (isVerifying) {
         console.log('Верификация уже выполняется, пропускаем');
         return;
@@ -130,14 +126,15 @@ async function verifyCode() {
         
         if (error) throw error;
         
-        if (data.user) {
+        if (data.user || data.session) {
             showToast('✅ Вход выполнен!');
-            await handleSuccessfulLogin(data.user);
+            await handleSuccessfulLogin(data.user || data.session.user);
+        } else {
+            throw new Error('Не удалось получить данные пользователя');
         }
         
     } catch (error) {
         console.error('Verify error:', error);
-        // Не показываем ошибку если вход уже выполнен
         if (!window.currentUser) {
             showToast('Неверный код. Попробуйте еще раз', true);
         }
@@ -155,7 +152,6 @@ async function verifyCode() {
 }
 
 async function verifyRegCode() {
-    // Предотвращаем двойной вызов
     if (isVerifying) {
         console.log('Верификация уже выполняется, пропускаем');
         return;
@@ -191,9 +187,26 @@ async function verifyRegCode() {
         
         if (error) throw error;
         
-        if (data.user) {
+        if (data.user || data.session) {
+            const user = data.user || data.session.user;
+            
+            // Создаем профиль с указанными данными
+            const { error: profileError } = await supabaseClient
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    username: pendingRegistration.username,
+                    full_name: pendingRegistration.fullName,
+                    email: pendingRegistration.email,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+            
+            if (profileError) console.error('Ошибка создания профиля:', profileError);
+            
             showToast('✅ Аккаунт создан!');
-            await handleSuccessfulLogin(data.user);
+            await handleSuccessfulLogin(user);
+        } else {
+            throw new Error('Не удалось получить данные пользователя');
         }
         
     } catch (error) {
@@ -278,17 +291,22 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
+    // ИСПРАВЛЕНО: правильный запрос профиля
     let { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
     
-    if (error || !profile) {
+    if (error) {
+        console.error('Ошибка загрузки профиля:', error);
+    }
+    
+    if (!profile) {
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'user';
         const fullName = user.user_metadata?.full_name || username;
         
-        const { data: newProfile } = await supabaseClient
+        const { data: newProfile, error: createError } = await supabaseClient
             .from('profiles')
             .upsert({
                 id: user.id,
@@ -296,9 +314,13 @@ async function handleSuccessfulLogin(user) {
                 full_name: fullName,
                 email: user.email,
                 last_seen: new Date().toISOString()
-            })
+            }, { onConflict: 'id' })
             .select()
             .single();
+        
+        if (createError) {
+            console.error('Ошибка создания профиля:', createError);
+        }
         
         window.currentProfile = newProfile;
     } else {
@@ -312,6 +334,9 @@ async function handleSuccessfulLogin(user) {
         if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
         if (typeof updateProfileFooter === 'function') updateProfileFooter();
     }
+
+    // Инициализируем группы ПОСЛЕ загрузки профиля
+    if (typeof initGroups === 'function') await initGroups();
 
     if (typeof loadAllUsers === 'function') await loadAllUsers();
     if (typeof ensureBotChat === 'function') await ensureBotChat();
@@ -339,6 +364,10 @@ async function handleSuccessfulLogin(user) {
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
     if (typeof cleanupDeadChats === 'function') await cleanupDeadChats();
+    
+    if (typeof initMobileOptimizations === 'function') initMobileOptimizations();
+    if (typeof initMobileGroupContextMenu === 'function') initMobileGroupContextMenu();
+    if (typeof subscribeToNewChats === 'function') subscribeToNewChats();
 }
 
 async function logout() {
@@ -374,7 +403,6 @@ function initAuth() {
     const resendCode = document.getElementById('btn-resend-code');
     const verifyCodeBtn = document.getElementById('btn-verify-code');
     
-    // Настраиваем OTP поля
     setupOtpInputs();
     
     if (toLogin) toLogin.addEventListener('click', () => showScreen('login'));
