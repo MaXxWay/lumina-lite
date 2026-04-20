@@ -1,7 +1,7 @@
 // profile.js — управление аватарами и профилем (ИСПРАВЛЕННЫЙ)
 
 async function uploadAvatar(file) {
-    if (!file || !currentUser) return null;
+    if (!file || !window.currentUser) return null;
     
     try {
         if (file.size > 5 * 1024 * 1024) {
@@ -16,7 +16,7 @@ async function uploadAvatar(file) {
         
         const optimizedFile = await optimizeImage(file);
         const fileExt = file.name.split('.').pop();
-        const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
+        const fileName = `${window.currentUser.id}/${Date.now()}.${fileExt}`;
         
         const { data, error } = await supabaseClient.storage
             .from('avatars')
@@ -37,24 +37,24 @@ async function uploadAvatar(file) {
                 avatar_url: publicUrl,
                 avatar_updated_at: new Date().toISOString()
             })
-            .eq('id', currentUser.id);
+            .eq('id', window.currentUser.id);
             
         if (updateError) throw updateError;
         
-        if (currentProfile?.avatar_url) {
+        if (window.currentProfile?.avatar_url) {
             try {
-                const oldPath = currentProfile.avatar_url.split('/').pop();
+                const oldPath = window.currentProfile.avatar_url.split('/').pop();
                 if (oldPath) {
                     await supabaseClient.storage
                         .from('avatars')
-                        .remove([`${currentUser.id}/${oldPath}`]);
+                        .remove([`${window.currentUser.id}/${oldPath}`]);
                 }
             } catch (e) {
                 console.warn('Не удалось удалить старый аватар:', e);
             }
         }
         
-        currentProfile.avatar_url = publicUrl;
+        window.currentProfile.avatar_url = publicUrl;
         updateAllAvatars();
         
         showToast('Аватар обновлен');
@@ -128,7 +128,7 @@ function updateAllAvatars() {
     }
     
     const chatAvatar = document.getElementById('chat-user-avatar');
-    if (chatAvatar && currentChat?.other_user?.id === currentUser.id) {
+    if (chatAvatar && window.currentChat?.other_user?.id === window.currentUser.id) {
         if (avatarUrl) {
             chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
         } else {
@@ -144,17 +144,17 @@ function updateAllAvatars() {
 }
 
 async function removeAvatar() {
-    if (!currentUser || !currentProfile?.avatar_url) return;
+    if (!window.currentUser || !window.currentProfile?.avatar_url) return;
     
     const confirmed = await modal.confirm('Удалить аватар?', 'Подтверждение');
     if (!confirmed) return;
     
     try {
-        const oldPath = currentProfile.avatar_url.split('/').pop();
+        const oldPath = window.currentProfile.avatar_url.split('/').pop();
         if (oldPath) {
             await supabaseClient.storage
                 .from('avatars')
-                .remove([`${currentUser.id}/${oldPath}`]);
+                .remove([`${window.currentUser.id}/${oldPath}`]);
         }
         
         await supabaseClient
@@ -163,9 +163,9 @@ async function removeAvatar() {
                 avatar_url: null,
                 avatar_updated_at: new Date().toISOString()
             })
-            .eq('id', currentUser.id);
+            .eq('id', window.currentUser.id);
             
-        currentProfile.avatar_url = null;
+        window.currentProfile.avatar_url = null;
         updateAllAvatars();
         
         showToast('Аватар удален');
@@ -188,7 +188,7 @@ function createAvatarUploader() {
                 </svg>
                 Загрузить фото
             </button>
-            ${currentProfile?.avatar_url ? `
+            ${window.currentProfile?.avatar_url ? `
                 <button class="glass-button danger" id="remove-avatar-btn" style="margin-top:8px;">
                     <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -219,21 +219,22 @@ function createAvatarUploader() {
                 </svg>
                 Загрузить фото
             `;
-            location.reload();
+            // Обновляем UI без перезагрузки
+            updateAllAvatars();
         }
     };
     
     if (removeBtn) {
         removeBtn.onclick = async () => {
             await removeAvatar();
-            location.reload();
+            updateAllAvatars();
         };
     }
     
     return container;
 }
 
-// ОСНОВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ
+// ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ
 async function saveProfile() {
     const fn = document.getElementById('profile-fullname')?.value.trim();
     const un = document.getElementById('profile-username')?.value.trim().replace(/^@/, '');
@@ -248,6 +249,11 @@ async function saveProfile() {
         return false;
     }
     
+    if (!window.currentUser?.id) {
+        showToast('Ошибка: пользователь не авторизован', true);
+        return false;
+    }
+    
     const saveBtn = document.getElementById('btn-save-profile');
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -257,20 +263,33 @@ async function saveProfile() {
     try {
         console.log('Сохраняем профиль:', { full_name: fn, username: un, bio: bioText });
         
+        // ИСПРАВЛЕНО: используем upsert с onConflict
         const { data, error } = await supabaseClient
             .from('profiles')
-            .update({ 
+            .upsert({ 
+                id: window.currentUser.id,
                 full_name: fn, 
                 username: un, 
                 bio: bioText,
                 updated_at: new Date().toISOString()
-            })
-            .eq('id', window.currentUser.id)
+            }, { onConflict: 'id' })
             .select();
         
         if (error) {
             console.error('Ошибка Supabase:', error);
-            throw error;
+            
+            // Пробуем альтернативный метод - update
+            const { error: updateError } = await supabaseClient
+                .from('profiles')
+                .update({ 
+                    full_name: fn, 
+                    username: un, 
+                    bio: bioText,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', window.currentUser.id);
+                
+            if (updateError) throw updateError;
         }
         
         console.log('Профиль сохранен:', data);
@@ -281,7 +300,7 @@ async function saveProfile() {
         window.currentProfile.bio = bioText;
         
         // Обновляем UI
-        updateProfileFooter();
+        if (typeof updateProfileFooter === 'function') updateProfileFooter();
         
         const nameView = document.getElementById('profile-name-view');
         const usernameView = document.getElementById('profile-username-view');
@@ -302,7 +321,7 @@ async function saveProfile() {
         if (modal) modal.style.display = 'none';
         
         // Возвращаемся к группе если нужно
-        if (window.lastOpenedGroupId) {
+        if (window.lastOpenedGroupId && typeof showGroupProfile === 'function') {
             showGroupProfile(window.lastOpenedGroupId);
             window.lastOpenedGroupId = null;
         }
@@ -355,7 +374,7 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     if (oldChatBtn) oldChatBtn.remove();
     
     // Добавляем кнопку чата для чужих профилей
-    if (fromGroup && !isOwnProfile && profile.id !== BOT_USER_ID && profile.id !== SAVED_CHAT_ID) {
+    if (fromGroup && !isOwnProfile && profile.id !== '00000000-0000-0000-0000-000000000001' && profile.id !== 'ffffffff-ffff-ffff-ffff-ffffffffffff') {
         const chatBtn = document.createElement('button');
         chatBtn.id = 'profile-chat-btn';
         chatBtn.className = 'glass-button primary';
@@ -366,9 +385,11 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
         
         chatBtn.onclick = async () => {
             if (modal) modal.style.display = 'none';
-            const chatId = await getOrCreatePrivateChat(profile.id);
-            await openChat(chatId, profile.id, profile);
-            showScreen('chat');
+            if (typeof getOrCreatePrivateChat === 'function' && typeof openChat === 'function') {
+                const chatId = await getOrCreatePrivateChat(profile.id);
+                await openChat(chatId, profile.id, profile);
+                showScreen('chat');
+            }
         };
     }
 
@@ -446,7 +467,6 @@ function initProfileScreen() {
     }
 
     if (saveBtn) {
-        // Убираем старые обработчики и добавляем новый
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = saveProfile;
@@ -457,7 +477,7 @@ function initProfileScreen() {
             const modal = document.getElementById('profile-screen');
             if (modal) modal.style.display = 'none';
             
-            if (window.lastOpenedGroupId) {
+            if (window.lastOpenedGroupId && typeof showGroupProfile === 'function') {
                 showGroupProfile(window.lastOpenedGroupId);
                 window.lastOpenedGroupId = null;
             }
