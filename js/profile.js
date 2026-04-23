@@ -1,36 +1,53 @@
-// profile.js — управление аватарами и профилем (ИСПРАВЛЕННЫЙ)
+// profile.js — управление аватарами и профилем (ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
 
 async function uploadAvatar(file) {
     if (!file || !currentUser) return null;
     
     try {
+        // Проверка размера (5MB)
         if (file.size > 5 * 1024 * 1024) {
             showToast('Файл слишком большой (макс 5MB)', true);
             return null;
         }
         
+        // Проверка типа
         if (!file.type.startsWith('image/')) {
             showToast('Можно загружать только изображения', true);
             return null;
         }
         
+        showToast('Загрузка аватара...', false);
+        
+        // Оптимизация изображения
         const optimizedFile = await optimizeImage(file);
+        
+        // Путь: avatars/[user_id]/[timestamp].[ext]
         const fileExt = file.name.split('.').pop();
         const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
         
+        console.log('Загрузка аватара:', fileName);
+        
+        // Загрузка в Storage
         const { data, error } = await supabaseClient.storage
             .from('avatars')
             .upload(fileName, optimizedFile, {
                 cacheControl: '3600',
-                upsert: false
+                upsert: true
             });
             
-        if (error) throw error;
+        if (error) {
+            console.error('Ошибка загрузки в Storage:', error);
+            throw error;
+        }
         
+        // Получение публичного URL
         const { data: { publicUrl } } = supabaseClient.storage
             .from('avatars')
             .getPublicUrl(fileName);
             
+        console.log('Public URL:', publicUrl);
+        
+        // Обновление профиля
         const { error: updateError } = await supabaseClient
             .from('profiles')
             .update({ 
@@ -38,12 +55,16 @@ async function uploadAvatar(file) {
             })
             .eq('id', currentUser.id);
             
-        if (updateError) throw updateError;
+        if (updateError) {
+            console.error('Ошибка обновления профиля:', updateError);
+            throw updateError;
+        }
         
+        // Удаление старого аватара
         if (currentProfile?.avatar_url) {
             try {
                 const oldPath = currentProfile.avatar_url.split('/').pop();
-                if (oldPath) {
+                if (oldPath && oldPath.includes(currentUser.id)) {
                     await supabaseClient.storage
                         .from('avatars')
                         .remove([`${currentUser.id}/${oldPath}`]);
@@ -53,15 +74,16 @@ async function uploadAvatar(file) {
             }
         }
         
+        // Обновление локального профиля
         currentProfile.avatar_url = publicUrl;
         updateAllAvatars();
         
-        showToast('Аватар обновлен');
+        showToast('Аватар обновлен!');
         return publicUrl;
         
     } catch (error) {
         console.error('Ошибка загрузки аватара:', error);
-        showToast('Ошибка загрузки аватара', true);
+        showToast('Ошибка загрузки аватара: ' + (error.message || 'Неизвестная ошибка'), true);
         return null;
     }
 }
@@ -79,12 +101,12 @@ async function optimizeImage(file) {
             
             if (width > height) {
                 if (width > MAX_SIZE) {
-                    height *= MAX_SIZE / width;
+                    height = Math.round(height * MAX_SIZE / width);
                     width = MAX_SIZE;
                 }
             } else {
                 if (height > MAX_SIZE) {
-                    width *= MAX_SIZE / height;
+                    width = Math.round(width * MAX_SIZE / height);
                     height = MAX_SIZE;
                 }
             }
@@ -106,38 +128,49 @@ function updateAllAvatars() {
     if (!window.currentProfile) return;
     
     const avatarUrl = window.currentProfile.avatar_url;
+    const name = window.currentProfile.full_name || window.currentProfile.username || '?';
+    const letter = name.charAt(0).toUpperCase();
     
+    // Обновляем аватар в боковом меню
     const menuAvatar = document.getElementById('side-menu-avatar');
     if (menuAvatar) {
         if (avatarUrl) {
             menuAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            menuAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+            menuAvatar.textContent = letter;
             menuAvatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     }
     
+    // Обновляем аватар в модальном окне профиля
     const profileAvatar = document.getElementById('profile-avatar-letter');
     if (profileAvatar) {
         if (avatarUrl) {
             profileAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            profileAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+            profileAvatar.textContent = letter;
+            profileAvatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     }
     
+    // Обновляем аватар в шапке чата (если это наш профиль)
     const chatAvatar = document.getElementById('chat-user-avatar');
     if (chatAvatar && currentChat?.other_user?.id === currentUser.id) {
         if (avatarUrl) {
-            chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
+            chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         } else {
-            chatAvatar.textContent = (window.currentProfile.full_name || '?')[0].toUpperCase();
+            chatAvatar.textContent = letter;
+            chatAvatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     }
     
+    // Обновляем аватары в своих сообщениях
     document.querySelectorAll('.message.own .msg-avatar').forEach(avatar => {
         if (avatarUrl) {
-            avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
+            avatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        } else {
+            avatar.textContent = letter;
+            avatar.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))';
         }
     });
 }
@@ -150,7 +183,7 @@ async function removeAvatar() {
     
     try {
         const oldPath = currentProfile.avatar_url.split('/').pop();
-        if (oldPath) {
+        if (oldPath && oldPath.includes(currentUser.id)) {
             await supabaseClient.storage
                 .from('avatars')
                 .remove([`${currentUser.id}/${oldPath}`]);
@@ -180,7 +213,7 @@ function createAvatarUploader() {
         <input type="file" id="avatar-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
         <div class="avatar-actions">
             <button class="glass-button" id="upload-avatar-btn" style="margin-top:8px;">
-                <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                     <circle cx="12" cy="13" r="4"/>
                 </svg>
@@ -188,8 +221,10 @@ function createAvatarUploader() {
             </button>
             ${currentProfile?.avatar_url ? `
                 <button class="glass-button danger" id="remove-avatar-btn" style="margin-top:8px;">
-                    <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+                        <line x1="8" y1="6" x2="8" y2="4"/>
+                        <line x1="16" y1="6" x2="16" y2="4"/>
                     </svg>
                     Удалить фото
                 </button>
@@ -201,37 +236,46 @@ function createAvatarUploader() {
     const uploadBtn = container.querySelector('#upload-avatar-btn');
     const removeBtn = container.querySelector('#remove-avatar-btn');
     
-    uploadBtn.onclick = () => input.click();
+    if (uploadBtn) {
+        uploadBtn.onclick = () => input.click();
+    }
     
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Загрузка...';
-            await uploadAvatar(file);
-            uploadBtn.disabled = false;
-            uploadBtn.innerHTML = `
-                <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                </svg>
-                Загрузить фото
-            `;
-            location.reload();
-        }
-    };
+    if (input) {
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = 'Загрузка...';
+                }
+                await uploadAvatar(file);
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = `
+                        <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        Загрузить фото
+                    `;
+                }
+                // Обновляем страницу для отображения нового аватара
+                setTimeout(() => location.reload(), 500);
+            }
+        };
+    }
     
     if (removeBtn) {
         removeBtn.onclick = async () => {
             await removeAvatar();
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         };
     }
     
     return container;
 }
 
-// ОСНОВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ (ИСПРАВЛЕННАЯ)
+// ОСНОВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ
 async function saveProfile() {
     const fn = document.getElementById('profile-fullname')?.value.trim();
     const un = document.getElementById('profile-username')?.value.trim().replace(/^@/, '');
@@ -255,7 +299,6 @@ async function saveProfile() {
     try {
         console.log('Сохраняем профиль:', { full_name: fn, username: un, bio: bioText });
         
-        // Обновляем БЕЗ поля updated_at
         const { data, error } = await supabaseClient
             .from('profiles')
             .update({ 
@@ -273,7 +316,6 @@ async function saveProfile() {
         
         console.log('Профиль сохранен:', data);
         
-        // Обновляем локальный объект
         if (data && data[0]) {
             window.currentProfile = data[0];
         } else {
@@ -282,7 +324,6 @@ async function saveProfile() {
             window.currentProfile.bio = bioText || '';
         }
         
-        // Обновляем UI
         if (typeof updateProfileFooter === 'function') {
             updateProfileFooter();
         }
@@ -295,17 +336,14 @@ async function saveProfile() {
         if (usernameView) usernameView.textContent = `@${un}`;
         if (bioView) bioView.textContent = bioText || 'Пользователь пока ничего не рассказал о себе.';
         
-        // Обновляем бейдж в шапке чата
         const badge = document.getElementById('current-user-badge');
         if (badge) badge.textContent = fn;
         
         showToast('Профиль сохранён');
         
-        // Закрываем модальное окно
         const modal = document.getElementById('profile-screen');
         if (modal) modal.style.display = 'none';
         
-        // Возвращаемся к группе если нужно
         if (window.lastOpenedGroupId) {
             if (typeof showGroupProfile === 'function') {
                 showGroupProfile(window.lastOpenedGroupId);
@@ -336,8 +374,6 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     const isOwnProfile = profile.id === window.currentUser?.id;
     const readOnly = options.readOnly === true || !isOwnProfile;
     const fromGroup = options.fromGroup === true;
-    const groupId = options.groupId;
-    const groupName = options.groupName;
     const letter = (profile.full_name || profile.username || '?').charAt(0).toUpperCase();
 
     const modal = document.getElementById('profile-screen');
@@ -355,6 +391,7 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     const bioView = document.getElementById('profile-bio-view');
     const editBtn = document.getElementById('btn-edit-profile');
     const saveBtn = document.getElementById('btn-save-profile');
+    const cancelBtn = document.getElementById('btn-cancel-edit-profile');
     
     // Удаляем старую кнопку чата если есть
     const oldChatBtn = document.getElementById('profile-chat-btn');
@@ -406,8 +443,9 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     if (viewMode) viewMode.style.display = 'block';
     if (editMode) editMode.style.display = 'none';
     if (editBtn) editBtn.style.display = readOnly ? 'none' : 'block';
-    if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
     if (saveBtn) saveBtn.style.display = readOnly ? 'none' : 'block';
+    if (cancelBtn) cancelBtn.style.display = readOnly ? 'none' : 'block';
+    if (title) title.textContent = readOnly ? 'Профиль пользователя' : 'Мой профиль';
     
     // Добавляем аватар загрузчик для своего профиля
     if (!readOnly && editMode) {
@@ -426,12 +464,15 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
 function initProfileScreen() {
     const editBtn = document.getElementById('btn-edit-profile');
     const saveBtn = document.getElementById('btn-save-profile');
+    const cancelBtn = document.getElementById('btn-cancel-edit-profile');
     const backBtn = document.getElementById('btn-profile-back');
     const viewMode = document.getElementById('profile-view-mode');
     const editMode = document.getElementById('profile-edit-mode');
 
     if (editBtn) {
-        editBtn.onclick = () => {
+        const newEditBtn = editBtn.cloneNode(true);
+        editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+        newEditBtn.onclick = () => {
             if (viewMode) viewMode.style.display = 'none';
             if (editMode) editMode.style.display = 'block';
             
@@ -452,14 +493,24 @@ function initProfileScreen() {
     }
 
     if (saveBtn) {
-        // Убираем старые обработчики и добавляем новый
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = saveProfile;
     }
 
+    if (cancelBtn) {
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+        newCancelBtn.onclick = () => {
+            if (viewMode) viewMode.style.display = 'block';
+            if (editMode) editMode.style.display = 'none';
+        };
+    }
+
     if (backBtn) {
-        backBtn.onclick = () => {
+        const newBackBtn = backBtn.cloneNode(true);
+        backBtn.parentNode.replaceChild(newBackBtn, backBtn);
+        newBackBtn.onclick = () => {
             const modal = document.getElementById('profile-screen');
             if (modal) modal.style.display = 'none';
             
@@ -473,7 +524,7 @@ function initProfileScreen() {
     }
 }
 
-// Экспорт
+// Экспорт всех функций
 window.uploadAvatar = uploadAvatar;
 window.removeAvatar = removeAvatar;
 window.updateAllAvatars = updateAllAvatars;
