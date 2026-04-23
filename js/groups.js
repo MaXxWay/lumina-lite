@@ -1,4 +1,4 @@
-// groups.js — менеджер групп (ИСПРАВЛЕННЫЙ)
+// groups.js — менеджер групп (ИСПРАВЛЕННЫЙ - БЕЗ БЕСКОНЕЧНОГО ЦИКЛА)
 
 // Проверка, чтобы класс не объявлялся дважды
 if (typeof window.GroupManager === 'undefined') {
@@ -389,7 +389,6 @@ if (typeof window.GroupManager === 'undefined') {
             
             const createGroupBtn = document.getElementById('create-group-menu-btn');
             if (createGroupBtn) {
-                // Убираем старые обработчики
                 const newBtn = createGroupBtn.cloneNode(true);
                 createGroupBtn.parentNode.replaceChild(newBtn, createGroupBtn);
                 newBtn.onclick = () => {
@@ -403,8 +402,7 @@ if (typeof window.GroupManager === 'undefined') {
             console.log('GroupManager успешно инициализирован');
         } catch (error) {
             console.error('initGroups ошибка:', error);
-            // Если ошибка, пробуем ещё раз через 2 секунды
-            setTimeout(initGroups, 2000);
+            groupsInitialized = true; // Останавливаем попытки даже при ошибке
         }
     }
 
