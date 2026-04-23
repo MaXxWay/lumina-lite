@@ -1,4 +1,4 @@
-// dialogs-context-menu.js — контекстное меню для чатов
+// dialogs-context-menu.js — контекстное меню для чатов (ИСПРАВЛЕННЫЙ)
 
 function attachDialogContextMenu(element, chatId, chatData) {
     // Для десктопа — ПКМ
@@ -14,7 +14,6 @@ function attachDialogContextMenu(element, chatId, chatData) {
     let isLongPress = false;
     
     const startTouch = (e) => {
-        // Не открываем меню если это клик по кнопке внутри элемента
         if (e.target.closest('.dialog-avatar') || e.target.closest('.dialog-name')) {
             return;
         }
@@ -23,7 +22,6 @@ function attachDialogContextMenu(element, chatId, chatData) {
         touchTimer = setTimeout(() => {
             isLongPress = true;
             if (window.navigator.vibrate) window.navigator.vibrate(40);
-            // Создаём фейковое событие с координатами
             const touch = e.touches[0];
             const fakeEvent = {
                 clientX: touch.clientX,
@@ -41,9 +39,7 @@ function attachDialogContextMenu(element, chatId, chatData) {
             clearTimeout(touchTimer);
             touchTimer = null;
         }
-        // Если не было долгого нажатия, триггерим клик
         if (!isLongPress && !e.target.closest('.dialog-avatar') && !e.target.closest('.dialog-name')) {
-            // Клик обрабатывается в onclick на элементе
             return;
         }
         isLongPress = false;
@@ -67,7 +63,6 @@ async function showDialogMenu(event, chatId, chatData) {
     const menu = document.getElementById('dialog-menu');
     if (!menu) return;
     
-    // Закрываем любое другое открытое меню
     const otherMenus = document.querySelectorAll('.message-menu, #dialog-menu, #member-context-menu');
     otherMenus.forEach(m => {
         if (m !== menu) {
@@ -88,12 +83,35 @@ async function showDialogMenu(event, chatId, chatData) {
     const readItem = menu.querySelector('[data-action="read"]');
     const pinItem = menu.querySelector('[data-action="pin"]');
     const muteItem = menu.querySelector('[data-action="mute"]');
+    const deleteChatItem = menu.querySelector('[data-action="delete-chat"]');
     
     // Скрываем блокировку для групп, ботов и избранного
     if (chatData.isGroup || chatData.isBot || chatData.isSaved) {
         if (blockItem) blockItem.style.display = 'none';
     } else {
         if (blockItem) blockItem.style.display = 'flex';
+    }
+    
+    // ЗАПРЕЩАЕМ УДАЛЕНИЕ ЧАТА С БОТОМ
+    if (chatData.isBot || chatData.id === SAVED_CHAT_ID) {
+        if (deleteChatItem) deleteChatItem.style.display = 'none';
+    } else {
+        if (deleteChatItem) deleteChatItem.style.display = 'flex';
+    }
+    
+    // Обновляем иконку и текст для закрепления (меняем на иконку булавки)
+    if (pinItem) {
+        const pinSpan = pinItem.querySelector('span');
+        const pinSvg = pinItem.querySelector('svg');
+        if (chatData.isPinned) {
+            pinSpan.textContent = 'Открепить';
+        } else {
+            pinSpan.textContent = 'Закрепить';
+        }
+        // Меняем иконку на булавку, если ещё не изменена
+        if (pinSvg && pinSvg.getAttribute('href') !== '#icon-pin') {
+            pinSvg.setAttribute('href', '#icon-pin');
+        }
     }
     
     // Обновляем текст для отметки прочитанным
@@ -103,16 +121,6 @@ async function showDialogMenu(event, chatId, chatData) {
             readSpan.textContent = 'Отметить прочитанным';
         } else {
             readSpan.textContent = 'Отметить непрочитанным';
-        }
-    }
-    
-    // Обновляем текст для закрепления
-    if (pinItem) {
-        const pinSpan = pinItem.querySelector('span');
-        if (chatData.isPinned) {
-            pinSpan.textContent = 'Открепить';
-        } else {
-            pinSpan.textContent = 'Закрепить';
         }
     }
     
@@ -140,7 +148,6 @@ async function showDialogMenu(event, chatId, chatData) {
         menu.style.width = '100%';
         menu.style.display = 'block';
         
-        // Добавляем затемнение фона для мобильных
         let overlay = document.getElementById('mobile-menu-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
@@ -162,7 +169,6 @@ async function showDialogMenu(event, chatId, chatData) {
         overlay.style.display = 'block';
         setTimeout(() => overlay.style.opacity = '1', 10);
         
-        // Закрытие по клику на оверлей
         overlay.onclick = () => {
             closeMenu();
             overlay.style.opacity = '0';
@@ -232,7 +238,6 @@ async function showDialogMenu(event, chatId, chatData) {
         }
     };
     
-    // Очищаем старые обработчики и добавляем новые
     menu.querySelectorAll('.menu-item').forEach(item => {
         const newItem = item.cloneNode(true);
         item.parentNode.replaceChild(newItem, item);
@@ -240,14 +245,10 @@ async function showDialogMenu(event, chatId, chatData) {
         newItem.addEventListener('touchstart', handleAction, { passive: false });
     });
     
-    // Закрытие по клику вне меню (только для десктопа)
     if (!isMobile) {
         setTimeout(() => document.addEventListener('click', closeMenu), 10);
     }
 }
-
-// Остальные функции (togglePinChat, toggleReadChat, toggleMuteChat, clearChatHistory, blockUser, deleteChat)
-// остаются без изменений
 
 async function togglePinChat(chatId) {
     try {
@@ -452,6 +453,13 @@ async function blockUser(chatId, chatData) {
 }
 
 async function deleteChat(chatId) {
+    // Проверяем, что это не чат с ботом
+    const chat = window.currentDialogMenuChat?.data;
+    if (chat?.isBot || chatId === SAVED_CHAT_ID) {
+        showToast('Нельзя удалить чат с ботом', true);
+        return;
+    }
+    
     const confirmed = await modal.confirm('Удалить чат? Восстановить будет невозможно', 'Подтверждение');
     if (!confirmed) return;
     
@@ -481,3 +489,4 @@ window.toggleReadChat = toggleReadChat;
 window.toggleMuteChat = toggleMuteChat;
 window.clearChatHistory = clearChatHistory;
 window.blockUser = blockUser;
+window.deleteChat = deleteChat;
