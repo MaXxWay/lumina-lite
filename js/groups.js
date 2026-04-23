@@ -354,25 +354,58 @@ if (typeof window.GroupManager === 'undefined') {
     }
 
     let groupManager = null;
+    let groupsInitialized = false;
 
     async function initGroups() {
-        if (!supabaseClient || !currentUser) {
-            console.log('initGroups: waiting for currentUser...');
+        // Предотвращаем множественную инициализацию
+        if (groupsInitialized) {
+            console.log('initGroups: уже инициализирован');
+            return;
+        }
+        
+        if (!supabaseClient) {
+            console.log('initGroups: ждём supabaseClient...');
             setTimeout(initGroups, 500);
             return;
         }
         
-        groupManager = new GroupManager(supabaseClient);
-        window.groupManager = groupManager;
-        
-        const createGroupBtn = document.getElementById('create-group-menu-btn');
-        if (createGroupBtn) {
-            createGroupBtn.onclick = () => {
-                if (typeof showCreateGroupModal === 'function') showCreateGroupModal();
-            };
+        if (!currentUser) {
+            console.log('initGroups: ждём currentUser...');
+            setTimeout(initGroups, 500);
+            return;
         }
         
-        console.log('GroupManager инициализирован');
+        if (!currentProfile) {
+            console.log('initGroups: ждём currentProfile...');
+            setTimeout(initGroups, 500);
+            return;
+        }
+        
+        console.log('initGroups: начинаем инициализацию...');
+        
+        try {
+            groupManager = new GroupManager(supabaseClient);
+            window.groupManager = groupManager;
+            
+            const createGroupBtn = document.getElementById('create-group-menu-btn');
+            if (createGroupBtn) {
+                // Убираем старые обработчики
+                const newBtn = createGroupBtn.cloneNode(true);
+                createGroupBtn.parentNode.replaceChild(newBtn, createGroupBtn);
+                newBtn.onclick = () => {
+                    if (typeof showCreateGroupModal === 'function') {
+                        showCreateGroupModal();
+                    }
+                };
+            }
+            
+            groupsInitialized = true;
+            console.log('GroupManager успешно инициализирован');
+        } catch (error) {
+            console.error('initGroups ошибка:', error);
+            // Если ошибка, пробуем ещё раз через 2 секунды
+            setTimeout(initGroups, 2000);
+        }
     }
 
     window.GroupManager = GroupManager;
