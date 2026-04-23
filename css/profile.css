@@ -233,3 +233,58 @@
     background: var(--glass-bg);
     backdrop-filter: blur(40px);
 }
+/* Аватар с кнопкой загрузки */
+.avatar-with-uploader {
+    position: relative;
+    display: inline-block;
+}
+
+.avatar-upload-btn {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    border: 3px solid var(--bg-deep);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-upload-btn:hover {
+    transform: scale(1.1);
+    background: var(--accent-cyan);
+}
+
+.avatar-delete-btn {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--danger);
+    border: 3px solid var(--bg-deep);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-delete-btn:hover {
+    transform: scale(1.1);
+}
+
+.profile-avatar-center {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+    position: relative;
+}
