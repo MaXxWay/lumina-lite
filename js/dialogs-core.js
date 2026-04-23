@@ -1,10 +1,11 @@
-// dialogs-core.js — основные функции для загрузки диалогов
+// dialogs-core.js — оптимизированная загрузка диалогов
 
-// Убираем window.isUpdatingDialogs, используем просто переменную
 let dialogsUpdating = false;
 let dialogsSubscriptionChannel = null;
+let dialogsCache = null;
+let lastDialogsLoad = 0;
+const DIALOGS_CACHE_TTL = 30000; // 30 секунд кэш
 
-// Подписка на новые чаты в реальном времени
 function subscribeToNewChats() {
     if (dialogsSubscriptionChannel) {
         supabaseClient.removeChannel(dialogsSubscriptionChannel);
@@ -20,9 +21,9 @@ function subscribeToNewChats() {
             table: 'chats',
             filter: `participants=cs.{${userId}}`
         }, async (payload) => {
-            console.log('Новый чат обнаружен:', payload.new);
-            if (typeof loadDialogs === 'function') {
-                await loadDialogs();
+            dialogsCache = null; // Инвалидируем кэш
+            if (typeof loadDialodsOptimized === 'function') {
+                await loadDialodsOptimized();
             }
         })
         .on('postgres_changes', {
@@ -31,12 +32,27 @@ function subscribeToNewChats() {
             table: 'chats',
             filter: `participants=cs.{${userId}}`
         }, async (payload) => {
-            console.log('Чат обновлён:', payload.new);
-            if (typeof loadDialogs === 'function') {
-                await loadDialogs();
+            dialogsCache = null;
+            if (typeof loadDialodsOptimized === 'function') {
+                await loadDialodsOptimized();
             }
         })
         .subscribe();
+}
+
+// Оптимизированная загрузка с кэшем
+async function loadDialodsOptimized(force = false) {
+    const now = Date.now();
+    if (!force && dialogsCache && (now - lastDialogsLoad) < DIALOGS_CACHE_TTL) {
+        console.log('Загружаем диалоги из кэша');
+        if (typeof renderDialogsList === 'function') {
+            const container = document.getElementById('dialogs-list');
+            if (container) renderDialogsList(container, dialogsCache);
+        }
+        return;
+    }
+    
+    return loadDialogs();
 }
 
 async function loadDialogs(searchTerm = '') {
@@ -52,20 +68,36 @@ async function loadDialogs(searchTerm = '') {
     if (dialogsUpdating) return;
     dialogsUpdating = true;
 
+    // Показываем скелетон загрузки
+    container.innerHTML = `
+        <div class="dialogs-skeleton">
+            ${Array(5).fill(0).map(() => `
+                <div class="skeleton-item">
+                    <div class="skeleton-avatar"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-name"></div>
+                        <div class="skeleton-preview"></div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
     try {
         const userId = window.currentUser?.id || currentUser?.id;
         if (!userId) {
-            console.error('loadDialogs: currentUser не определён');
             container.innerHTML = '<div class="dialogs-empty">Ошибка загрузки</div>';
             dialogsUpdating = false;
             return;
         }
 
+        // Загружаем чаты одним запросом
         const { data: allChats, error } = await supabaseClient
             .from('chats')
             .select('id, type, participants, updated_at, created_at, last_message, is_group, group_id, is_pinned, is_muted')
             .order('is_pinned', { ascending: false })
-            .order('updated_at', { ascending: false });
+            .order('updated_at', { ascending: false })
+            .limit(50); // Ограничиваем количество
 
         if (error) throw error;
 
@@ -73,104 +105,50 @@ async function loadDialogs(searchTerm = '') {
             c.participants && c.participants.includes(userId)
         );
 
-        const groupIds = chats.filter(c => c.is_group && c.group_id).map(c => c.group_id);
-        let groupsMap = new Map();
-        if (groupIds.length > 0) {
-            const { data: groups } = await supabaseClient
-                .from('groups')
-                .select('id, name, description, member_count, avatar_emoji')
-                .in('id', groupIds);
-            if (groups) groups.forEach(g => groupsMap.set(g.id, g));
-        }
-
-        const validChats = [];
-        for (const chat of chats) {
-            if (chat.is_group) {
-                validChats.push(chat);
-                continue;
-            }
-            const otherId = chat.participants?.find(id => id !== userId);
-            if (!otherId || otherId === BOT_USER_ID || chat.id === SAVED_CHAT_ID) {
-                validChats.push(chat);
-                continue;
-            }
-            const userExists = await checkUserExists(otherId);
-            if (userExists) {
-                validChats.push(chat);
-            } else {
-                await supabaseClient.from('chats').delete().eq('id', chat.id);
-                await supabaseClient.from('messages').delete().eq('chat_id', chat.id);
-            }
-        }
-
-        if (validChats.length === 0) {
+        if (chats.length === 0) {
             container.innerHTML = '<div class="dialogs-empty">Нет диалогов</div>';
             dialogsUpdating = false;
             return;
         }
 
-        const { data: unreadData } = await supabaseClient
-            .from('messages')
-            .select('chat_id')
-            .eq('is_read', false)
-            .neq('user_id', userId)
-            .in('chat_id', validChats.map(c => c.id));
+        // Получаем ID всех участников одним запросом
+        const participantIds = new Set();
+        const groupIds = new Set();
+        
+        chats.forEach(chat => {
+            if (chat.is_group && chat.group_id) {
+                groupIds.add(chat.group_id);
+            } else if (!chat.is_group) {
+                chat.participants?.forEach(id => {
+                    if (id !== userId && id !== BOT_USER_ID && id !== SAVED_CHAT_ID) {
+                        participantIds.add(id);
+                    }
+                });
+            }
+        });
+
+        // Параллельные запросы
+        const [groupsResult, profilesResult, unreadResult] = await Promise.all([
+            groupIds.size > 0 ? supabaseClient.from('groups').select('id, name, description, member_count, avatar_emoji').in('id', Array.from(groupIds)) : { data: [] },
+            participantIds.size > 0 ? supabaseClient.from('profiles').select('id, full_name, username, bio, last_seen, is_online, is_verified, avatar_url').in('id', Array.from(participantIds)) : { data: [] },
+            supabaseClient.from('messages').select('chat_id').eq('is_read', false).neq('user_id', userId).in('chat_id', chats.map(c => c.id))
+        ]);
+
+        const groupsMap = new Map();
+        (groupsResult.data || []).forEach(g => groupsMap.set(g.id, g));
+
+        const profileMap = new Map();
+        (profilesResult.data || []).forEach(p => profileMap.set(p.id, p));
+        profileMap.set(BOT_USER_ID, { ...BOT_PROFILE, is_verified: true });
 
         const unreadCounts = new Map();
-        (unreadData || []).forEach(m => {
+        (unreadResult.data || []).forEach(m => {
             unreadCounts.set(m.chat_id, (unreadCounts.get(m.chat_id) || 0) + 1);
         });
 
-        const lastMessages = new Map();
-        for (const chat of validChats) {
-            const cached = messagesCache.get(chat.id);
-            if (cached && cached.length > 0) {
-                const last = cached[cached.length - 1];
-                const isOwn = last.user_id === userId;
-                let text = last.text || '';
-                if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
-                lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
-                continue;
-            }
-
-            const { data: lastMsg } = await supabaseClient
-                .from('messages')
-                .select('text, user_id, is_system')
-                .eq('chat_id', chat.id)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            if (lastMsg) {
-                if (lastMsg.is_system) {
-                    let cleanText = lastMsg.text.replace(/[🎉✅⚠️❌👑🛡️👤➕👋✏️📝📢ℹ️]/g, '').trim();
-                    lastMessages.set(chat.id, cleanText.slice(0, 40));
-                } else {
-                    const isOwn = lastMsg.user_id === userId;
-                    let text = lastMsg.text || '';
-                    if (text.length > MAX_MESSAGE_PREVIEW_LENGTH) text = text.slice(0, MAX_MESSAGE_PREVIEW_LENGTH - 3) + '...';
-                    lastMessages.set(chat.id, (isOwn ? 'Вы: ' : '') + text);
-                }
-            }
-        }
-
-        const privateParticipantIds = validChats
-            .filter(c => !c.is_group)
-            .flatMap(c => c.participants || []);
-        const uniqueIds = [...new Set(privateParticipantIds)];
-        const profileMap = new Map();
-
-        if (uniqueIds.length > 0) {
-            const { data: profiles } = await supabaseClient
-                .from('profiles')
-                .select('id, full_name, username, bio, last_seen, is_online, is_verified, avatar_url')
-                .in('id', uniqueIds);
-            if (profiles) profiles.forEach(p => profileMap.set(p.id, p));
-        }
-        profileMap.set(BOT_USER_ID, { ...BOT_PROFILE, is_verified: true });
-
+        // Формируем данные для рендера
         const chatData = [];
-        for (const chat of validChats) {
+        for (const chat of chats) {
             if (chat.is_group) {
                 const group = groupsMap.get(chat.group_id);
                 if (!group) continue;
@@ -180,7 +158,7 @@ async function loadDialogs(searchTerm = '') {
                     groupInfo: { ...group, chat_id: chat.id },
                     name: group.name,
                     unreadCount: unreadCounts.get(chat.id) || 0,
-                    lastMessage: lastMessages.get(chat.id) || `${group.member_count || 0} участников`,
+                    lastMessage: chat.last_message || `${group.member_count || 0} участников`,
                     isPinned: chat.is_pinned || false,
                     isMuted: chat.is_muted || false
                 });
@@ -195,7 +173,7 @@ async function loadDialogs(searchTerm = '') {
                     name: 'Избранное',
                     isSaved: true,
                     unreadCount: 0,
-                    lastMessage: lastMessages.get(chat.id) || 'Сохранённые сообщения',
+                    lastMessage: chat.last_message || 'Сохранённые сообщения',
                     isPinned: chat.is_pinned || false,
                     isMuted: chat.is_muted || false
                 });
@@ -217,29 +195,19 @@ async function loadDialogs(searchTerm = '') {
                 isBot,
                 isSaved: false,
                 unreadCount: unreadCounts.get(chat.id) || 0,
-                lastMessage: lastMessages.get(chat.id) || 'Нет сообщений',
+                lastMessage: chat.last_message || 'Нет сообщений',
                 isOnline: status.class === 'status-online',
                 isPinned: chat.is_pinned || false,
                 isMuted: chat.is_muted || false
             });
         }
 
-        let filteredData = chatData;
-        if (searchTerm && !isUserSearch) {
-            filteredData = chatData.filter(c =>
-                c.name.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-        
-        const pinnedChats = filteredData.filter(c => c.isPinned);
-        const unpinnedChats = filteredData.filter(c => !c.isPinned);
-        const sortedData = [...pinnedChats, ...unpinnedChats];
+        // Сохраняем в кэш
+        dialogsCache = chatData;
+        lastDialogsLoad = Date.now();
 
         if (typeof renderDialogsList === 'function') {
-            renderDialogsList(container, sortedData);
-        } else {
-            console.error('renderDialogsList не определена');
-            container.innerHTML = '<div class="dialogs-empty">Ошибка рендера</div>';
+            renderDialogsList(container, chatData);
         }
     } catch (err) {
         console.error('Ошибка loadDialogs:', err);
@@ -315,5 +283,6 @@ async function loadUserSearchResults(searchTerm, container) {
 
 // Экспорт
 window.loadDialogs = loadDialogs;
+window.loadDialodsOptimized = loadDialodsOptimized;
 window.loadUserSearchResults = loadUserSearchResults;
 window.subscribeToNewChats = subscribeToNewChats;
