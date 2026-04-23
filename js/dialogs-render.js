@@ -1,4 +1,4 @@
-// dialogs-render.js — рендер списка диалогов
+// dialogs-render.js — рендер списка диалогов (исправленный для аватара бота)
 
 function renderDialogsList(container, filteredData) {
     container.innerHTML = '';
@@ -33,6 +33,7 @@ function renderDialogsList(container, filteredData) {
 
         let avatarHtml = '';
         if (chat.isBot) {
+            // Для бота используем SVG иконку
             avatarHtml = '<img src="lumina.svg" alt="Bot" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
         } else if (chat.isSaved) {
             avatarHtml = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
