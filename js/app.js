@@ -34,12 +34,12 @@
     if (session) {
         await handleSuccessfulLogin(session.user);
         
-        // Ждём немного перед инициализацией групп
+        // Даём время на загрузку профиля
         setTimeout(async () => {
             if (typeof initGroups === 'function') {
                 await initGroups();
             }
-        }, 1000);
+        }, 2000);
         
         if (typeof initMobileOptimizations === 'function') {
             initMobileOptimizations();
