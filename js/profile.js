@@ -1,7 +1,7 @@
 // profile.js — управление аватарами и профилем (ИСПРАВЛЕННЫЙ)
 
 async function uploadAvatar(file) {
-    if (!file || !window.currentUser) return null;
+    if (!file || !currentUser) return null;
     
     try {
         if (file.size > 5 * 1024 * 1024) {
@@ -16,7 +16,7 @@ async function uploadAvatar(file) {
         
         const optimizedFile = await optimizeImage(file);
         const fileExt = file.name.split('.').pop();
-        const fileName = `${window.currentUser.id}/${Date.now()}.${fileExt}`;
+        const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
         
         const { data, error } = await supabaseClient.storage
             .from('avatars')
@@ -34,27 +34,26 @@ async function uploadAvatar(file) {
         const { error: updateError } = await supabaseClient
             .from('profiles')
             .update({ 
-                avatar_url: publicUrl,
-                avatar_updated_at: new Date().toISOString()
+                avatar_url: publicUrl
             })
-            .eq('id', window.currentUser.id);
+            .eq('id', currentUser.id);
             
         if (updateError) throw updateError;
         
-        if (window.currentProfile?.avatar_url) {
+        if (currentProfile?.avatar_url) {
             try {
-                const oldPath = window.currentProfile.avatar_url.split('/').pop();
+                const oldPath = currentProfile.avatar_url.split('/').pop();
                 if (oldPath) {
                     await supabaseClient.storage
                         .from('avatars')
-                        .remove([`${window.currentUser.id}/${oldPath}`]);
+                        .remove([`${currentUser.id}/${oldPath}`]);
                 }
             } catch (e) {
                 console.warn('Не удалось удалить старый аватар:', e);
             }
         }
         
-        window.currentProfile.avatar_url = publicUrl;
+        currentProfile.avatar_url = publicUrl;
         updateAllAvatars();
         
         showToast('Аватар обновлен');
@@ -128,7 +127,7 @@ function updateAllAvatars() {
     }
     
     const chatAvatar = document.getElementById('chat-user-avatar');
-    if (chatAvatar && window.currentChat?.other_user?.id === window.currentUser.id) {
+    if (chatAvatar && currentChat?.other_user?.id === currentUser.id) {
         if (avatarUrl) {
             chatAvatar.innerHTML = `<img src="${escapeHtml(avatarUrl)}" alt="Avatar">`;
         } else {
@@ -144,28 +143,27 @@ function updateAllAvatars() {
 }
 
 async function removeAvatar() {
-    if (!window.currentUser || !window.currentProfile?.avatar_url) return;
+    if (!currentUser || !currentProfile?.avatar_url) return;
     
     const confirmed = await modal.confirm('Удалить аватар?', 'Подтверждение');
     if (!confirmed) return;
     
     try {
-        const oldPath = window.currentProfile.avatar_url.split('/').pop();
+        const oldPath = currentProfile.avatar_url.split('/').pop();
         if (oldPath) {
             await supabaseClient.storage
                 .from('avatars')
-                .remove([`${window.currentUser.id}/${oldPath}`]);
+                .remove([`${currentUser.id}/${oldPath}`]);
         }
         
         await supabaseClient
             .from('profiles')
             .update({ 
-                avatar_url: null,
-                avatar_updated_at: new Date().toISOString()
+                avatar_url: null
             })
-            .eq('id', window.currentUser.id);
+            .eq('id', currentUser.id);
             
-        window.currentProfile.avatar_url = null;
+        currentProfile.avatar_url = null;
         updateAllAvatars();
         
         showToast('Аватар удален');
@@ -188,7 +186,7 @@ function createAvatarUploader() {
                 </svg>
                 Загрузить фото
             </button>
-            ${window.currentProfile?.avatar_url ? `
+            ${currentProfile?.avatar_url ? `
                 <button class="glass-button danger" id="remove-avatar-btn" style="margin-top:8px;">
                     <svg width="16" height="16" style="margin-right:8px;" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
@@ -219,22 +217,21 @@ function createAvatarUploader() {
                 </svg>
                 Загрузить фото
             `;
-            // Обновляем UI без перезагрузки
-            updateAllAvatars();
+            location.reload();
         }
     };
     
     if (removeBtn) {
         removeBtn.onclick = async () => {
             await removeAvatar();
-            updateAllAvatars();
+            location.reload();
         };
     }
     
     return container;
 }
 
-// ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ
+// ОСНОВНАЯ ФУНКЦИЯ СОХРАНЕНИЯ ПРОФИЛЯ (ИСПРАВЛЕННАЯ)
 async function saveProfile() {
     const fn = document.getElementById('profile-fullname')?.value.trim();
     const un = document.getElementById('profile-username')?.value.trim().replace(/^@/, '');
@@ -249,11 +246,6 @@ async function saveProfile() {
         return false;
     }
     
-    if (!window.currentUser?.id) {
-        showToast('Ошибка: пользователь не авторизован', true);
-        return false;
-    }
-    
     const saveBtn = document.getElementById('btn-save-profile');
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -263,44 +255,37 @@ async function saveProfile() {
     try {
         console.log('Сохраняем профиль:', { full_name: fn, username: un, bio: bioText });
         
-        // ИСПРАВЛЕНО: используем upsert с onConflict
+        // Обновляем БЕЗ поля updated_at
         const { data, error } = await supabaseClient
             .from('profiles')
-            .upsert({ 
-                id: window.currentUser.id,
+            .update({ 
                 full_name: fn, 
                 username: un, 
-                bio: bioText,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
+                bio: bioText || ''
+            })
+            .eq('id', window.currentUser.id)
             .select();
         
         if (error) {
             console.error('Ошибка Supabase:', error);
-            
-            // Пробуем альтернативный метод - update
-            const { error: updateError } = await supabaseClient
-                .from('profiles')
-                .update({ 
-                    full_name: fn, 
-                    username: un, 
-                    bio: bioText,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', window.currentUser.id);
-                
-            if (updateError) throw updateError;
+            throw error;
         }
         
         console.log('Профиль сохранен:', data);
         
         // Обновляем локальный объект
-        window.currentProfile.full_name = fn;
-        window.currentProfile.username = un;
-        window.currentProfile.bio = bioText;
+        if (data && data[0]) {
+            window.currentProfile = data[0];
+        } else {
+            window.currentProfile.full_name = fn;
+            window.currentProfile.username = un;
+            window.currentProfile.bio = bioText || '';
+        }
         
         // Обновляем UI
-        if (typeof updateProfileFooter === 'function') updateProfileFooter();
+        if (typeof updateProfileFooter === 'function') {
+            updateProfileFooter();
+        }
         
         const nameView = document.getElementById('profile-name-view');
         const usernameView = document.getElementById('profile-username-view');
@@ -321,8 +306,10 @@ async function saveProfile() {
         if (modal) modal.style.display = 'none';
         
         // Возвращаемся к группе если нужно
-        if (window.lastOpenedGroupId && typeof showGroupProfile === 'function') {
-            showGroupProfile(window.lastOpenedGroupId);
+        if (window.lastOpenedGroupId) {
+            if (typeof showGroupProfile === 'function') {
+                showGroupProfile(window.lastOpenedGroupId);
+            }
             window.lastOpenedGroupId = null;
         }
         
@@ -374,7 +361,7 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
     if (oldChatBtn) oldChatBtn.remove();
     
     // Добавляем кнопку чата для чужих профилей
-    if (fromGroup && !isOwnProfile && profile.id !== '00000000-0000-0000-0000-000000000001' && profile.id !== 'ffffffff-ffff-ffff-ffff-ffffffffffff') {
+    if (fromGroup && !isOwnProfile && profile.id !== BOT_USER_ID && profile.id !== SAVED_CHAT_ID) {
         const chatBtn = document.createElement('button');
         chatBtn.id = 'profile-chat-btn';
         chatBtn.className = 'glass-button primary';
@@ -385,11 +372,9 @@ function openProfileModal(profile = window.currentProfile, options = {}) {
         
         chatBtn.onclick = async () => {
             if (modal) modal.style.display = 'none';
-            if (typeof getOrCreatePrivateChat === 'function' && typeof openChat === 'function') {
-                const chatId = await getOrCreatePrivateChat(profile.id);
-                await openChat(chatId, profile.id, profile);
-                showScreen('chat');
-            }
+            const chatId = await getOrCreatePrivateChat(profile.id);
+            await openChat(chatId, profile.id, profile);
+            showScreen('chat');
         };
     }
 
@@ -467,6 +452,7 @@ function initProfileScreen() {
     }
 
     if (saveBtn) {
+        // Убираем старые обработчики и добавляем новый
         const newSaveBtn = saveBtn.cloneNode(true);
         saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
         newSaveBtn.onclick = saveProfile;
@@ -477,8 +463,10 @@ function initProfileScreen() {
             const modal = document.getElementById('profile-screen');
             if (modal) modal.style.display = 'none';
             
-            if (window.lastOpenedGroupId && typeof showGroupProfile === 'function') {
-                showGroupProfile(window.lastOpenedGroupId);
+            if (window.lastOpenedGroupId) {
+                if (typeof showGroupProfile === 'function') {
+                    showGroupProfile(window.lastOpenedGroupId);
+                }
                 window.lastOpenedGroupId = null;
             }
         };
