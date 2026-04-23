@@ -1,4 +1,4 @@
-// app.js — точка входа
+// app.js — точка входа (ИСПРАВЛЕННАЯ)
 
 (async function init() {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -13,6 +13,7 @@
             window.currentUser = null;
             window.currentProfile = null;
             window.currentChat = null;
+            window.groupsInitialized = false;
         }
     });
 
@@ -33,9 +34,12 @@
     if (session) {
         await handleSuccessfulLogin(session.user);
         
-        if (typeof initGroups === 'function') {
-            await initGroups();
-        }
+        // Ждём немного перед инициализацией групп
+        setTimeout(async () => {
+            if (typeof initGroups === 'function') {
+                await initGroups();
+            }
+        }, 1000);
         
         if (typeof initMobileOptimizations === 'function') {
             initMobileOptimizations();
