@@ -1,9 +1,8 @@
-// config.js - Конфигурация Supabase (добавляем avatar_url для бота)
+// config.js - Конфигурация Supabase
 
 const SUPABASE_URL = 'https://ofxvazqurjgnxxuozjlr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9meHZhenF1cmpnbnh4dW96amxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTg4ODEsImV4cCI6MjA5MDE5NDg4MX0.Zf2pwQNmxe9wBt7tlZed-ntnLPzm7JGOuqkLuBkv0GE';
 
-// ВАЖНО: Бот создаётся через SQL скрипт
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000001';
 const SAVED_CHAT_ID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 
@@ -14,7 +13,7 @@ const BOT_PROFILE = {
     bio: 'Официальный бот мессенджера Lumina Lite',
     is_bot: true,
     is_verified: true,
-    avatar_url: 'lumina.svg' // Добавляем путь к SVG
+    avatar_url: 'lumina.svg'
 };
 
 const SAVED_CHAT = {
@@ -49,16 +48,12 @@ let lastActivityUpdate = 0;
 let statusSubscription = null;
 let dialogsSubscription = null;
 
-// Константы
 const MAX_MESSAGE_PREVIEW_LENGTH = 50;
 const ONLINE_TIMEOUT_MINUTES = 5;
 const HEARTBEAT_INTERVAL = 180000;
 const MAX_CACHED_MESSAGES = 200;
-
-// Тестовый режим (для отладки)
 const TEST_MODE = false;
 
-// Экспорт
 window.SUPABASE_URL = SUPABASE_URL;
 window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 window.BOT_USER_ID = BOT_USER_ID;
