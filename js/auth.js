@@ -24,17 +24,33 @@ function hideLoader() {
 }
 
 function showScreen(key) {
+    console.log('showScreen called with:', key);
+    
     // Сначала скрываем все
-    if (screens.chat) screens.chat.style.display = 'none';
-    if (screens.profile) screens.profile.style.display = 'none';
-    if (screens.reg) screens.reg.style.display = 'none';
-    if (screens.login) screens.login.style.display = 'none';
+    const allScreens = ['reg', 'login', 'chat', 'profile'];
+    allScreens.forEach(screenKey => {
+        const el = screens[screenKey];
+        if (el) {
+            el.style.display = 'none';
+            el.classList.remove('active', 'visible');
+        }
+    });
     
     const el = screens[key];
-    if (!el) return;
+    if (!el) {
+        console.error('Screen not found:', key);
+        return;
+    }
     
-    el.style.display = 'flex';
-    el.classList.add(key === 'chat' || key === 'profile' ? 'visible' : 'active');
+    if (key === 'chat' || key === 'profile') {
+        el.style.display = 'flex';
+        el.classList.add('visible');
+    } else {
+        el.style.display = 'block';
+        el.classList.add('active');
+    }
+    
+    console.log('Screen displayed:', key, el.style.display);
     
     if (key === 'login') resetLoginForm();
     if (key === 'reg') resetRegForm();
@@ -202,7 +218,6 @@ async function verifyRegCode() {
                     id: user.id,
                     username: pendingRegistration.username,
                     full_name: pendingRegistration.fullName,
-                    email: pendingRegistration.email,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'id' });
             
@@ -316,7 +331,6 @@ async function handleSuccessfulLogin(user) {
                 id: user.id,
                 username: username,
                 full_name: fullName,
-                email: user.email,
                 last_seen: new Date().toISOString()
             })
             .select()
@@ -327,8 +341,7 @@ async function handleSuccessfulLogin(user) {
             window.currentProfile = {
                 id: user.id,
                 username: username,
-                full_name: fullName,
-                email: user.email
+                full_name: fullName
             };
         } else {
             window.currentProfile = newProfile;
@@ -395,10 +408,19 @@ async function logout() {
     if (window.typingChannel) await supabaseClient.removeChannel(window.typingChannel);
     if (window.deletionChannel) await supabaseClient.removeChannel(window.deletionChannel);
     if (window.dialogsSubscription) await supabaseClient.removeChannel(window.dialogsSubscription);
+    
     await supabaseClient.auth.signOut();
+    
     window.currentUser = null;
     window.currentProfile = null;
     window.currentChat = null;
+    window.groupsInitialized = false;
+    
+    if (typeof messagesCache !== 'undefined') {
+        messagesCache.clear();
+        observedMessages.clear();
+    }
+    
     showScreen('login');
     showToast('Вы вышли из аккаунта');
 }
