@@ -14,6 +14,8 @@
             window.currentProfile = null;
             window.currentChat = null;
             window.groupsInitialized = false;
+            showScreen('login');
+            hideLoader();
         }
     });
 
@@ -33,24 +35,6 @@
     // Если есть сессия, загружаем данные
     if (session) {
         await handleSuccessfulLogin(session.user);
-        
-        // Даём время на загрузку профиля
-        setTimeout(async () => {
-            if (typeof initGroups === 'function') {
-                await initGroups();
-            }
-        }, 2000);
-        
-        if (typeof initMobileOptimizations === 'function') {
-            initMobileOptimizations();
-        }
-        if (typeof initMobileGroupContextMenu === 'function') {
-            initMobileGroupContextMenu();
-        }
-        
-        if (typeof subscribeToNewChats === 'function') {
-            subscribeToNewChats();
-        }
     } else {
         hideLoader();
         showScreen('login');
