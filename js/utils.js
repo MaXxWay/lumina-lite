@@ -102,7 +102,6 @@ function formatSystemMessage(text, type = 'info') {
     return `<div class="system-message ${type}">${icons[type] || '📢'} ${escapeHtml(cleanText)}</div>`;
 }
 
-// Экспорт
 window.escapeHtml = escapeHtml;
 window.showToast = showToast;
 window.getEmail = getEmail;
