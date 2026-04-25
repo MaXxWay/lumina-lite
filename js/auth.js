@@ -1,4 +1,4 @@
-// auth.js — исправленная версия (без двойной верификации, поддержка любых почт)
+// auth.js — исправленная версия
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -17,23 +17,29 @@ function hideLoader() {
     const loader = document.getElementById('app-loader');
     if (loader) {
         loader.classList.add('hidden');
-        setTimeout(() => loader.remove(), 600);
+        setTimeout(() => {
+            if (loader.parentNode) loader.remove();
+        }, 600);
     }
 }
 
 function showScreen(key) {
-    Object.values(screens).forEach(s => {
-        if (!s) return;
-        s.style.display = 'none';
-        s.classList.remove('active', 'visible');
-    });
+    // Сначала скрываем все
+    if (screens.chat) screens.chat.style.display = 'none';
+    if (screens.profile) screens.profile.style.display = 'none';
+    if (screens.reg) screens.reg.style.display = 'none';
+    if (screens.login) screens.login.style.display = 'none';
+    
     const el = screens[key];
     if (!el) return;
+    
     el.style.display = 'flex';
     el.classList.add(key === 'chat' || key === 'profile' ? 'visible' : 'active');
     
     if (key === 'login') resetLoginForm();
     if (key === 'reg') resetRegForm();
+    
+    hideLoader();
 }
 
 function resetLoginForm() {
@@ -190,7 +196,6 @@ async function verifyRegCode() {
         if (data.user || data.session) {
             const user = data.user || data.session.user;
             
-            // Создаем профиль с указанными данными
             const { error: profileError } = await supabaseClient
                 .from('profiles')
                 .upsert({
@@ -291,7 +296,6 @@ async function handleSuccessfulLogin(user) {
     window.currentUser = user;
     console.log('currentUser установлен:', window.currentUser.id);
 
-    // ИСПРАВЛЕНО: правильный запрос профиля
     let { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -308,41 +312,51 @@ async function handleSuccessfulLogin(user) {
         
         const { data: newProfile, error: createError } = await supabaseClient
             .from('profiles')
-            .upsert({
+            .insert({
                 id: user.id,
                 username: username,
                 full_name: fullName,
                 email: user.email,
                 last_seen: new Date().toISOString()
-            }, { onConflict: 'id' })
+            })
             .select()
             .single();
         
         if (createError) {
             console.error('Ошибка создания профиля:', createError);
+            window.currentProfile = {
+                id: user.id,
+                username: username,
+                full_name: fullName,
+                email: user.email
+            };
+        } else {
+            window.currentProfile = newProfile;
         }
-        
-        window.currentProfile = newProfile;
     } else {
         window.currentProfile = profile;
     }
 
     console.log('currentProfile загружен:', window.currentProfile);
 
-    if (window.currentProfile) {
-        const badge = document.getElementById('current-user-badge');
-        if (badge) badge.textContent = window.currentProfile.full_name || 'Пользователь';
-        if (typeof updateProfileFooter === 'function') updateProfileFooter();
+    const badge = document.getElementById('current-user-badge');
+    if (badge && window.currentProfile) {
+        badge.textContent = window.currentProfile.full_name || 'Пользователь';
     }
+    if (typeof updateProfileFooter === 'function') updateProfileFooter();
 
-    // Инициализируем группы ПОСЛЕ загрузки профиля
-    if (typeof initGroups === 'function') await initGroups();
+    try {
+        if (typeof initGroups === 'function') await initGroups();
+    } catch(e) { console.error('initGroups error:', e); }
 
-    if (typeof loadAllUsers === 'function') await loadAllUsers();
-    if (typeof ensureBotChat === 'function') await ensureBotChat();
-    if (typeof ensureSavedChat === 'function') await ensureSavedChat();
+    try {
+        if (typeof loadAllUsers === 'function') await loadAllUsers();
+        if (typeof ensureBotChat === 'function') await ensureBotChat();
+        if (typeof ensureSavedChat === 'function') await ensureSavedChat();
+    } catch(e) { console.error('init chats error:', e); }
 
     showScreen('chat');
+    
     const chatTitle = document.getElementById('chat-title');
     const chatAvatar = document.getElementById('chat-user-avatar');
     const chatStatus = document.querySelector('.chat-status');
@@ -358,8 +372,10 @@ async function handleSuccessfulLogin(user) {
     }
     window.currentChat = null;
 
-    setTimeout(hideLoader, 300);
-    if (typeof loadDialogs === 'function') await loadDialogs();
+    try {
+        if (typeof loadDialogs === 'function') await loadDialogs();
+    } catch(e) { console.error('loadDialogs error:', e); }
+    
     if (typeof updateLastSeen === 'function') updateLastSeen();
     if (typeof startOnlineHeartbeat === 'function') startOnlineHeartbeat();
     if (typeof subscribeToUserDeletion === 'function') window.deletionChannel = subscribeToUserDeletion();
@@ -368,6 +384,8 @@ async function handleSuccessfulLogin(user) {
     if (typeof initMobileOptimizations === 'function') initMobileOptimizations();
     if (typeof initMobileGroupContextMenu === 'function') initMobileGroupContextMenu();
     if (typeof subscribeToNewChats === 'function') subscribeToNewChats();
+    
+    hideLoader();
 }
 
 async function logout() {
@@ -417,7 +435,6 @@ function initAuth() {
         if (editMode) editMode.style.display = 'none';
     });
 
-    // РЕГИСТРАЦИЯ
     if (doReg) {
         doReg.addEventListener('click', async () => {
             const username = document.getElementById('reg-username')?.value.trim();
@@ -479,7 +496,6 @@ function initAuth() {
     if (verifyRegCode) verifyRegCode.addEventListener('click', verifyRegCode);
     if (resendRegCode) resendRegCode.addEventListener('click', () => resendCode('reg'));
 
-    // ВХОД
     if (sendCode) {
         sendCode.addEventListener('click', async () => {
             const email = document.getElementById('login-email')?.value.trim();
