@@ -1,4 +1,4 @@
-// auth.js — исправленная версия
+// auth.js — полная версия
 
 const screens = {
     reg: document.getElementById('step-register'),
@@ -23,39 +23,52 @@ function hideLoader() {
     }
 }
 
-function showScreen(key) {
-    console.log('showScreen called with:', key);
-    
-    // Сначала скрываем все
-    const allScreens = ['reg', 'login', 'chat', 'profile'];
-    allScreens.forEach(screenKey => {
-        const el = screens[screenKey];
-        if (el) {
-            el.style.display = 'none';
-            el.classList.remove('active', 'visible');
-        }
-    });
-    
-    const el = screens[key];
-    if (!el) {
-        console.error('Screen not found:', key);
-        return;
-    }
-    
-    if (key === 'chat' || key === 'profile') {
-        el.style.display = 'flex';
-        el.classList.add('visible');
+function showPage(pageId) {
+    if (typeof window.showPage === 'function') {
+        window.showPage(pageId);
     } else {
-        el.style.display = 'block';
-        el.classList.add('active');
+        document.querySelectorAll('.page-container').forEach(container => {
+            container.classList.remove('active');
+        });
+        const page = document.getElementById(pageId);
+        if (page) {
+            page.classList.add('active');
+            page.style.display = 'block';
+        }
     }
-    
-    console.log('Screen displayed:', key, el.style.display);
-    
-    if (key === 'login') resetLoginForm();
-    if (key === 'reg') resetRegForm();
-    
-    hideLoader();
+}
+
+function showScreenInAuth(screen) {
+    if (typeof window.showScreenInAuth === 'function') {
+        window.showScreenInAuth(screen);
+    } else {
+        const regScreen = document.getElementById('step-register');
+        const loginScreen = document.getElementById('step-login');
+        if (regScreen && loginScreen) {
+            if (screen === 'reg') {
+                regScreen.style.display = 'block';
+                loginScreen.style.display = 'none';
+            } else {
+                regScreen.style.display = 'none';
+                loginScreen.style.display = 'block';
+            }
+        }
+    }
+}
+
+function showScreen(key) {
+    if (key === 'chat') {
+        showPage('chat-page');
+    } else if (key === 'login') {
+        showPage('auth-page');
+        showScreenInAuth('login');
+    } else if (key === 'reg') {
+        showPage('auth-page');
+        showScreenInAuth('reg');
+    } else if (key === 'profile') {
+        const profileScreen = document.getElementById('profile-screen');
+        if (profileScreen) profileScreen.style.display = 'flex';
+    }
 }
 
 function resetLoginForm() {
@@ -570,8 +583,13 @@ function initAuth() {
     if (verifyCodeBtn) verifyCodeBtn.addEventListener('click', verifyCode);
 }
 
+// Экспорт функций в глобальную область
 window.initAuth = initAuth;
 window.showScreen = showScreen;
 window.logout = logout;
 window.handleSuccessfulLogin = handleSuccessfulLogin;
 window.hideLoader = hideLoader;
+window.showPage = showPage;
+window.showScreenInAuth = showScreenInAuth;
+window.resetLoginForm = resetLoginForm;
+window.resetRegForm = resetRegForm;
