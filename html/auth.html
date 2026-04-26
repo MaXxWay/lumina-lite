@@ -1,0 +1,58 @@
+<!-- СТРАНИЦА АВТОРИЗАЦИИ -->
+<div id="step-register" class="auth-container">
+    <div class="background-logo">
+        <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
+        <p class="logo-sub">Приватный мессенджер нового поколения</p>
+    </div>
+    <div class="glass-card">
+        <h2 class="auth-title">Создать профиль</h2>
+        
+        <div id="reg-step-form">
+            <input type="text" id="reg-username" class="glass-input" placeholder="@username">
+            <input type="text" id="reg-full-name" class="glass-input" placeholder="Ваше Имя">
+            <input type="email" id="reg-email" class="glass-input" placeholder="Email">
+            <button id="btn-do-reg" class="glass-button primary">Зарегистрироваться</button>
+        </div>
+        
+        <div id="reg-step-code" style="display: none;">
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
+                <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
+                <p style="color: var(--accent-cyan); font-weight: 600;" id="reg-code-email-display"></p>
+                <button id="btn-change-email-reg" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить данные</button>
+            </div>
+            <input type="text" id="reg-otp-code" class="glass-input" placeholder="Введите 6-значный код" inputmode="numeric" maxlength="6" autocomplete="off" style="text-align: center; font-size: 20px; letter-spacing: 4px;">
+            <button id="btn-verify-reg-code" class="glass-button primary" style="margin-top: 16px;">Подтвердить код</button>
+            <button id="btn-resend-reg-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
+        </div>
+        
+        <p class="auth-footer">Есть аккаунт? <span class="link-btn" id="to-login">Войти</span></p>
+    </div>
+</div>
+
+<div id="step-login" class="auth-container" style="display: none;">
+    <div class="background-logo">
+        <h1 class="logo-text">Lumina<span class="logo-badge">Lite</span></h1>
+        <p class="logo-sub">Приватный мессенджер нового поколения</p>
+    </div>
+    <div class="glass-card">
+        <h2 class="auth-title">Вход</h2>
+        
+        <div id="login-step-email">
+            <input type="email" id="login-email" class="glass-input" placeholder="Email">
+            <button id="btn-send-code" class="glass-button primary">Отправить код</button>
+        </div>
+        
+        <div id="login-step-code" style="display: none;">
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(0, 198, 255, 0.1); border-radius: 12px; text-align: center;">
+                <p style="color: var(--text-main); margin-bottom: 4px;">Код отправлен на</p>
+                <p style="color: var(--accent-cyan); font-weight: 600;" id="code-email-display"></p>
+                <button id="btn-change-email-login" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; margin-top: 8px;">Изменить email</button>
+            </div>
+            <input type="text" id="login-otp-code" class="glass-input" placeholder="Введите 6-значный код" inputmode="numeric" maxlength="6" autocomplete="off" style="text-align: center; font-size: 20px; letter-spacing: 4px;">
+            <button id="btn-verify-code" class="glass-button primary" style="margin-top: 16px;">Подтвердить код</button>
+            <button id="btn-resend-code" class="glass-button" style="margin-top: 12px;">Отправить код повторно</button>
+        </div>
+        
+        <p class="auth-footer">Нет аккаунта? <span class="link-btn" id="to-register">Создать</span></p>
+    </div>
+</div>
